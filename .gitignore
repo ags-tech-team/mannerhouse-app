@@ -1,0 +1,29 @@
+# Dependências
+node_modules/
+backend/node_modules/
+
+# Build
+dist/
+build/
+
+# Arquivos de ambiente
+.env
+.env.local
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de banco de dados (se usar SQLite)
+*.db
+*.sqlite
+
+# Arquivos de log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,37 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Admin Manner",
+      "email": "admin@mannerhaus.com",
+      "password": "$2b$08$iA38g84LxKMJnSSx3v03NettqAL3lGGiTnaydlPyMnreQ.AA6pQKG",
+      "role": "admin",
+      "barberId": null,
+      "createdAt": "2026-07-27T21:06:49.725Z"
+    },
+    {
+      "id": "1785186799129u",
+      "name": "Guilherme Schutz",
+      "email": "guisantosschutz2@gmail.com",
+      "password": "$2b$08$CBDyQhzSy.nLNVakhsW68Of78VdCGmFGrVVBpEHRLmIJPVATQDcAG",
+      "role": "barber",
+      "barberId": "1785186799108",
+      "createdAt": "2026-07-27T21:13:19.129Z"
+    }
+  ],
+  "barbers": [
+    {
+      "id": "1785186799108",
+      "name": "Guilherme Schutz",
+      "email": "guisantosschutz2@gmail.com",
+      "phone": "48998395242",
+      "commissionRate": 0.2,
+      "isActive": true,
+      "createdAt": "2026-07-27T21:13:19.108Z"
+    }
+  ],
+  "products": [],
+  "services": [],
+  "appointments": [],
+  "cashRegister": []
+}
