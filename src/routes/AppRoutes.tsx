@@ -10,6 +10,8 @@ import Register from '../pages/auth/Register';
 
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminBarbers from '../pages/admin/Barbers';
+import AdminFaturamento from '../pages/admin/Faturamento';
+import AdminDespesas from '../pages/admin/Despesas';
 import BarberDashboard from '../pages/barber/Dashboard';
 
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
@@ -37,6 +39,8 @@ export const AppRoutes = () => {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="barbers" element={<AdminBarbers />} />
+          <Route path="revenue" element={<AdminFaturamento />} />
+          <Route path="expenses" element={<AdminDespesas />} /> {/* 👈 NOVA ROTA */}
         </Route>
 
         <Route
