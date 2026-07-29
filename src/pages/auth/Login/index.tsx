@@ -6,7 +6,7 @@ import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-const [email, setEmail] = useState('admin@mannerhaus.com');
+  const [email, setEmail] = useState('admin@mannerhaus.com');
   const [password, setPassword] = useState('123456');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
