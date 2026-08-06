@@ -23,11 +23,21 @@ import { ProtectedRoute } from '../components/common/ProtectedRoute';
 export const AppRoutes = () => {
   const { user, isLoading } = useAuth();
 
-  if (isLoading) return <div>Carregando...</div>;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#060606]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64] mx-auto"></div>
+          <p className="mt-4 text-[#7f7c7a]">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
       <Routes>
+        {/* Rotas públicas */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

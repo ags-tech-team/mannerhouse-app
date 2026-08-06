@@ -542,6 +542,13 @@ const AdminDespesas = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-blue-600 font-bold">
                             R$ {f.valorFinal.toFixed(2)}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              f.cashRegisterId ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {f.cashRegisterId ? '✅ Caixa' : '⚡ Direto'}
+                            </span>
+                          </td>
                         </tr>
                       ))
                     )}

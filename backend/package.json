@@ -1,23 +1,30 @@
 {
-  "name": "backend",
+  "name": "mannerhouse-api",
   "version": "1.0.0",
-  "description": "API para sistema de barbearia Manner Haus",
+  "description": "API para sistema de barbearia Manner House",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "seed": "node src/seeders/seed.js",
+    "cli": "node src/cli.js",
+    "create-admin": "node src/cli.js --create-admin",
+    "create-barbershop": "node src/cli.js --create-barbershop"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "dotenv": "^16.3.1",
+    "cloudinary": "^1.41.0",
+    "sequelize": "^6.35.1",
+    "sqlite3": "^5.1.6",
+    "date-fns": "^2.30.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.0.1"
   }
 }
