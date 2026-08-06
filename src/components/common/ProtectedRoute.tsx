@@ -10,14 +10,30 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) return <div>Carregando...</div>;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#060606]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64] mx-auto"></div>
+          <p className="mt-4 text-[#7f7c7a]">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/barber'} replace />;
+    console.log('🔒 Acesso negado. Role:', user.role, 'Permitidas:', allowedRoles);
+    
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (user.role === 'barber') {
+      return <Navigate to="/barber" replace />;
+    }
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

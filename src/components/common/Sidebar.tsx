@@ -8,7 +8,8 @@ import {
   LogOut, 
   Settings, 
   Scissors,
-  PiggyBank
+  PiggyBank,
+  ShoppingBag
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types/auth.types';
@@ -22,7 +23,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   const adminLinks = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/admin/revenue', icon: DollarSign, label: 'Faturamento' },
     { to: '/admin/expenses', icon: PiggyBank, label: 'Despesas' },
     { to: '/admin/barbers', icon: Users, label: 'Barbeiros' },
     { to: '/admin/products', icon: Package, label: 'Estoque' },
@@ -31,16 +31,17 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   const barberLinks = [
     { to: '/barber', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/barber/cash-register', icon: PiggyBank, label: 'Caixa' },
+    { to: '/barber/cash-register', icon: PiggyBank, label: 'Caixa' }, // ✅ JÁ EXISTE
     { to: '/barber/schedule', icon: Calendar, label: 'Agenda' },
     { to: '/barber/services', icon: Scissors, label: 'Serviços' },
+    { to: '/barber/shop', icon: ShoppingBag, label: 'Loja' },
   ];
 
   const links = role === 'admin' ? adminLinks : barberLinks;
 
   return (
     <aside className="w-64 bg-[#060606] text-[#ada8a3] h-screen flex flex-col">
-      {/* Cabeçalho com logo maior */}
+      {/* Cabeçalho */}
       <div className="p-4 border-b border-[#7f7c7a]/20">
         <div className="flex items-center gap-3">
           <img 

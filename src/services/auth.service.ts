@@ -1,19 +1,23 @@
 import { api } from '../api/client';
-import type { User } from '../types/auth.types';
 
 interface LoginResponse {
   token: string;
-  user: User;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: 'admin' | 'barber';
+  };
 }
 
 export const authService = {
   async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await api.post('/login', { email, password });
+    const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
-  async register(data: any): Promise<any> {
-    const response = await api.post('/register', data);
+  async getMe(): Promise<any> {
+    const response = await api.get('/auth/me');
     return response.data;
   },
 };

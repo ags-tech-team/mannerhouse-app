@@ -5,8 +5,13 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  avatar?: string;
-  barberId?: string;
+  isActive?: boolean;
+  barber?: {
+    id: string;
+    name: string;
+    commissionRate: number;
+    isActive: boolean;
+  };
 }
 
 export interface AuthState {
