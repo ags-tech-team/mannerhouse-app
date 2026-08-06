@@ -10,12 +10,13 @@ import Register from '../pages/auth/Register';
 
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminBarbers from '../pages/admin/Barbers';
+import AdminRevenue from '../pages/admin/Revenue';
 import AdminDespesas from '../pages/admin/Despesas';
-import AdminEstoque from '../pages/admin/Estoque';
+import AdminProducts from '../pages/admin/Products';
+
 import BarberDashboard from '../pages/barber/Dashboard';
-import BarberLoja from '../pages/barber/Loja';
-import BarberAgenda from '../pages/barber/Agenda';
-import BarberCaixa from '../pages/barber/Caixa';
+import BarberCashRegister from '../pages/barber/CashRegister';
+import BarberSchedule from '../pages/barber/Schedule'; 
 
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
@@ -53,8 +54,9 @@ export const AppRoutes = () => {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="barbers" element={<AdminBarbers />} />
+          <Route path="revenue" element={<AdminRevenue />} />
           <Route path="expenses" element={<AdminDespesas />} />
-          <Route path="products" element={<AdminEstoque />} />
+          <Route path="products" element={<AdminProducts />} />
         </Route>
 
         {/* Rotas do Barbeiro */}
@@ -67,9 +69,8 @@ export const AppRoutes = () => {
           }
         >
           <Route index element={<BarberDashboard />} />
-          <Route path="cash-register" element={<BarberCaixa />} /> 
-          <Route path="schedule" element={<BarberAgenda />} />
-          <Route path="shop" element={<BarberLoja />} />
+          <Route path="cash-register" element={<BarberCashRegister />} />
+          <Route path="schedule" element={<BarberSchedule />} /> {/* 👈 NOVA ROTA */}
         </Route>
 
         <Route path="*" element={<Navigate to={user ? (user.role === 'admin' ? '/admin' : '/barber') : '/login'} />} />

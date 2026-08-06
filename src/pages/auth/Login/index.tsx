@@ -6,9 +6,8 @@ import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  
-  const [email, setEmail] = useState('admin@mannerhouse.com');
-  const [password, setPassword] = useState('manner123');
+  const [email, setEmail] = useState('admin@mannerhaus.com');
+  const [password, setPassword] = useState('123456');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
