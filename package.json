@@ -1,0 +1,15 @@
+{
+  "name": "mannerhouse-app",
+  "version": "1.0.0",
+  "description": "Manner Haus Barber Club - Fullstack App",
+  "scripts": {
+    "start": "docker-compose up",
+    "build": "docker-compose build"
+  },
+  "keywords": ["barbershop", "react", "node", "docker"],
+  "author": "Arthur Ribeiro",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
