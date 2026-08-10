@@ -22,7 +22,7 @@ services:
       - ./backend/uploads:/app/uploads
     restart: unless-stopped
     networks:
-      - mannerhouse-network
+      - mannerhouse-network   
 
   frontend:
     build:
@@ -37,7 +37,7 @@ services:
       - VITE_API_URL=${VITE_API_URL}
     restart: unless-stopped
     networks:
-      - mannerhouse-network
+      - mannerhouse-network   
 
 networks:
   mannerhouse-network:
