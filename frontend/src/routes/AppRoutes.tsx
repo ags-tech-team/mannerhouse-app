@@ -10,21 +10,15 @@ import Register from '../pages/auth/Register';
 
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminBarbers from '../pages/admin/Barbers';
-import AdminRevenue from '../pages/admin/Revenue';
+import AdminFaturamento from '../pages/admin/Faturamento';
 import AdminDespesas from '../pages/admin/Despesas';
-import AdminProducts from '../pages/admin/Products';
+import AdminEstoque from '../pages/admin/Estoque';
 
 import BarberDashboard from '../pages/barber/Dashboard';
-<<<<<<< HEAD:src/routes/AppRoutes.tsx
-import BarberCashRegister from '../pages/barber/CashRegister';
-import BarberSchedule from '../pages/barber/Schedule'; 
-=======
 import BarberLoja from '../pages/barber/Loja';
 import BarberAgenda from '../pages/barber/Agenda';
 import BarberCaixa from '../pages/barber/Caixa';
 import Clientes from '../pages/shared/Clientes';
-import AdminFaturamento from '../pages/admin/Faturamento';
->>>>>>> 5cd090266ec496f8bb97a98f15606b5e2fb6e498:frontend/src/routes/AppRoutes.tsx
 
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
@@ -60,13 +54,12 @@ export const AppRoutes = () => {
             </ProtectedRoute>
           }
         >
-          <Route path="clients" element={<Clientes />} />
-          <Route path="revenue" element={<AdminFaturamento />} />
           <Route index element={<AdminDashboard />} />
           <Route path="barbers" element={<AdminBarbers />} />
-          <Route path="revenue" element={<AdminRevenue />} />
+          <Route path="revenue" element={<AdminFaturamento />} />
           <Route path="expenses" element={<AdminDespesas />} />
-          <Route path="products" element={<AdminProducts />} />
+          <Route path="products" element={<AdminEstoque />} />
+          <Route path="clients" element={<Clientes />} />
         </Route>
 
         {/* Rotas do Barbeiro */}
@@ -78,10 +71,11 @@ export const AppRoutes = () => {
             </ProtectedRoute>
           }
         >
-          <Route path="clients" element={<Clientes />} />
           <Route index element={<BarberDashboard />} />
-          <Route path="cash-register" element={<BarberCashRegister />} />
-          <Route path="schedule" element={<BarberSchedule />} /> {/* 👈 NOVA ROTA */}
+          <Route path="cash-register" element={<BarberCaixa />} />
+          <Route path="schedule" element={<BarberAgenda />} />
+          <Route path="shop" element={<BarberLoja />} />
+          <Route path="clients" element={<Clientes />} />
         </Route>
 
         <Route path="*" element={<Navigate to={user ? (user.role === 'admin' ? '/admin' : '/barber') : '/login'} />} />

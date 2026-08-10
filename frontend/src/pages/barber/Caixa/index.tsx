@@ -1,5 +1,3 @@
-<<<<<<< HEAD:src/pages/admin/Faturamento/index.tsx
-=======
 import { useState, useEffect } from 'react';
 import { 
   Search, 
@@ -820,4 +818,3 @@ const BarberCaixa = () => {
 };
 
 export default BarberCaixa;
->>>>>>> 5cd090266ec496f8bb97a98f15606b5e2fb6e498:frontend/src/pages/barber/Caixa/index.tsx
