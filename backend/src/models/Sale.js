@@ -14,7 +14,7 @@ const Sale = sequelize.define('Sale', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Barbers',
+      model: 'barbers',
       key: 'id',
     },
     field: 'barber_id',
@@ -23,7 +23,7 @@ const Sale = sequelize.define('Sale', {
     type: DataTypes.UUID,
     allowNull: true,
     references: {
-      model: 'Clients',
+      model: 'clients',
       key: 'id',
     },
     field: 'client_id',
@@ -32,7 +32,7 @@ const Sale = sequelize.define('Sale', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Products',
+      model: 'products',
       key: 'id',
     },
     field: 'product_id',

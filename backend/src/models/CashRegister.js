@@ -12,7 +12,7 @@ const CashRegister = sequelize.define('CashRegister', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id',
     },
     field: 'user_id',

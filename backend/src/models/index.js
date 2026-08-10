@@ -23,31 +23,33 @@ const models = {
 
 const syncDatabase = async () => {
   try {
-    await User.sync({ alter: true });
+    const force = process.env.FORCE_SYNC === 'true';
+    
+    await User.sync({ alter: true, force });
     console.log('✅ User table sync');
-
-    await Barber.sync({ alter: true });
+    
+    await Barber.sync({ alter: true, force });
     console.log('✅ Barber table sync');
-
-    await Client.sync({ alter: true });
+    
+    await Client.sync({ alter: true, force });
     console.log('✅ Client table sync');
-
-    await Product.sync({ alter: true });
+    
+    await Product.sync({ alter: true, force });
     console.log('✅ Product table sync');
-
-    await Expense.sync({ alter: true });
+    
+    await Expense.sync({ alter: true, force });
     console.log('✅ Expense table sync');
-
-    await CashRegister.sync({ alter: true });
+    
+    await CashRegister.sync({ alter: true, force });
     console.log('✅ CashRegister table sync');
-
-    await Appointment.sync({ alter: true });
+    
+    await Appointment.sync({ alter: true, force });
     console.log('✅ Appointment table sync');
-
-    await Revenue.sync({ alter: true });
+    
+    await Revenue.sync({ alter: true, force });
     console.log('✅ Revenue table sync');
-
-    await Sale.sync({ alter: true });
+    
+    await Sale.sync({ alter: true, force });
     console.log('✅ Sale table sync');
 
     console.log('📦 Banco de dados sincronizado com sucesso!');
@@ -56,6 +58,7 @@ const syncDatabase = async () => {
     throw error;
   }
 };
+
 
 module.exports = {
   ...models,

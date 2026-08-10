@@ -12,7 +12,7 @@ const Barber = sequelize.define('Barber', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id',
     },
     field: 'user_id',

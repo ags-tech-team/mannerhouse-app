@@ -13,7 +13,7 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Barbers',
+      model: 'barbers',
       key: 'id',
     },
     field: 'barber_id',
@@ -22,7 +22,7 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Clients',
+      model: 'clients',
       key: 'id',
     },
     field: 'client_id',
