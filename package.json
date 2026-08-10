@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Manner Haus Barber Club - Fullstack App",
   "scripts": {
-    "start": "docker-compose up",
-    "build": "docker-compose build"
+    "start": "echo 'Use Railway services to start the app'",
+    "build": "echo 'Build is handled by Railway services'"
   },
   "keywords": ["barbershop", "react", "node", "docker"],
   "author": "Arthur Ribeiro",
