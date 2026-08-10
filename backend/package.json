@@ -21,7 +21,9 @@
     "dotenv": "^16.3.1",
     "cloudinary": "^1.41.0",
     "sequelize": "^6.35.1",
-    "date-fns": "^2.30.0"
+    "date-fns": "^2.30.0",
+    "pg": "^8.11.0",
+    "pg-hstore": "^2.3.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
