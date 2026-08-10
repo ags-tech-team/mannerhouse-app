@@ -120,6 +120,42 @@ const addService = async (req, res) => {
     const { client, barberId, service, price, paymentMethod } = req.body;
     const today = new Date().toISOString().split('T')[0];
     
+    console.log('📦 Adicionando serviço:');
+    console.log('  client:', client);
+    console.log('  barberId:', barberId);
+    console.log('  service:', service);
+    console.log('  price:', price);
+    
+    // 🔥 BUSCAR O BARBEIRO PELO ID ENVIADO DO FRONTEND
+    let barber = null;
+    let barberName = 'Barbeiro';
+    
+    if (barberId) {
+      barber = await Barber.findByPk(barberId);
+      if (barber) {
+        barberName = barber.name;
+        console.log('✅ Barbeiro encontrado pelo ID:', barberName);
+      }
+    }
+    
+    // 🔥 FALLBACK: Se não encontrou pelo ID, buscar pelo userId
+    if (!barber) {
+      console.log('⚠️ Barbeiro não encontrado pelo ID, buscando por userId...');
+      barber = await Barber.findOne({
+        where: { userId: req.userId }
+      });
+      if (barber) {
+        barberName = barber.name;
+        console.log('✅ Barbeiro encontrado por userId:', barberName);
+      }
+    }
+    
+    // 🔥 SE AINDA NÃO ENCONTROU, criar um fallback
+    if (!barber) {
+      console.log('⚠️ Nenhum barbeiro encontrado, usando fallback');
+      barberName = 'Barbeiro';
+    }
+    
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -132,12 +168,18 @@ const addService = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    const commission = price * 0.20;
+    // 🔥 CALCULAR COMISSÃO COM A TAXA DO BARBEIRO
+    const commissionRate = barber ? barber.serviceCommissionRate : 0.20;
+    const commission = price * commissionRate;
     
+    console.log('💰 Comissão calculada:', commission, '(taxa:', commissionRate * 100, '%)');
+    
+    // 🔥 CRIAR O SERVIÇO COM O NOME DO BARBEIRO
     const newService = {
       id: Date.now().toString(),
       client,
-      barberId,
+      barberId: barber ? barber.id : barberId,
+      barberName: barberName, // 🔥 SALVAR O NOME DO BARBEIRO
       service,
       price,
       commission,
@@ -145,15 +187,20 @@ const addService = async (req, res) => {
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
     
+    console.log('📦 Novo serviço:', newService);
+    
     const services = [...(cashRegister.services || []), newService];
     
     await cashRegister.update({
       services,
+      totalRevenue: (cashRegister.totalRevenue || 0) + price,
+      totalCommissions: (cashRegister.totalCommissions || 0) + commission,
+      servicesCount: services.length,
     });
     
     res.status(201).json(newService);
   } catch (error) {
-    console.error('Erro ao adicionar serviço:', error);
+    console.error('❌ Erro ao adicionar serviço:', error);
     res.status(500).json({ error: 'Erro ao adicionar serviço' });
   }
 };

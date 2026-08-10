@@ -1,41 +1,181 @@
-const { Revenue, CashRegister } = require('../models');
+const { Revenue, CashRegister, Expense, Appointment, Sale, Barber } = require('../models');
 const { Op } = require('sequelize');
+
+const getFinancialDashboard = async (req, res) => {
+  try {
+    const { month } = req.query;
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = month ? parseInt(month) : hoje.getMonth() + 1;
+    
+    const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
+    
+    const revenues = await Revenue.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      include: [{ model: CashRegister }]
+    });
+    
+    const totalRevenueFromCash = revenues.reduce((sum, r) => sum + r.total, 0);
+    const totalCommissionsFromCash = revenues.reduce((sum, r) => sum + r.commissions, 0);
+    
+    const sales = await Sale.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      }
+    });
+    
+    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalProductCommissions = sales.reduce((sum, s) => sum + (s.commission * s.quantity), 0);
+    
+    const expenses = await Expense.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      }
+    });
+    
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
+    
+    const expensesByCategory = expenses.reduce((acc, e) => {
+      const category = e.category || 'outros';
+      acc[category] = (acc[category] || 0) + e.value;
+      return acc;
+    }, {});
+    
+    const serviceCommissionsByBarber = await Appointment.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        },
+        status: 'completed'
+      },
+      attributes: ['barberId', 'commission'],
+      include: [{ model: Barber, attributes: ['id', 'name'] }]
+    });
+    
+    const commissionsByBarber = serviceCommissionsByBarber.reduce((acc, app) => {
+      const barberId = app.barberId;
+      const barberName = app.Barber?.name || 'Desconhecido';
+      if (!acc[barberId]) {
+        acc[barberId] = { name: barberName, serviceCommission: 0, productCommission: 0 };
+      }
+      acc[barberId].serviceCommission += app.commission;
+      return acc;
+    }, {});
+    
+    const productCommissionsByBarber = await Sale.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      attributes: ['barberId', 'commission'],
+      include: [{ model: Barber, attributes: ['id', 'name'] }]
+    });
+    
+    productCommissionsByBarber.forEach(sale => {
+      const barberId = sale.barberId;
+      if (commissionsByBarber[barberId]) {
+        commissionsByBarber[barberId].productCommission += sale.commission;
+      } else {
+        const barberName = sale.Barber?.name || 'Desconhecido';
+        commissionsByBarber[barberId] = {
+          name: barberName,
+          serviceCommission: 0,
+          productCommission: sale.commission
+        };
+      }
+    });
+    
+    const totalCommissions = totalCommissionsFromCash + totalProductCommissions;
+    const totalRevenue = totalRevenueFromCash + totalProductRevenue;
+    const netProfit = totalRevenue - totalExpenses - totalCommissions;
+    
+    const result = {
+      period: {
+        month: mes,
+        year: ano,
+        startDate,
+        endDate,
+      },
+      summary: {
+        totalRevenue,
+        totalExpenses,
+        totalCommissions,
+        netProfit,
+        revenueFromServices: totalRevenueFromCash,
+        revenueFromProducts: totalProductRevenue,
+      },
+      commissions: {
+        total: totalCommissions,
+        service: totalCommissionsFromCash,
+        product: totalProductCommissions,
+        byBarber: Object.values(commissionsByBarber).map(b => ({
+          name: b.name,
+          serviceCommission: b.serviceCommission,
+          productCommission: b.productCommission,
+          total: b.serviceCommission + b.productCommission
+        }))
+      },
+      expenses: {
+        total: totalExpenses,
+        byCategory: expensesByCategory,
+        list: expenses
+      },
+      revenues: {
+        services: revenues,
+        products: sales
+      }
+    };
+    
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Erro ao gerar dashboard financeiro:', error);
+    res.status(500).json({ error: 'Erro ao gerar dashboard financeiro' });
+  }
+};
 
 const getSummary = async (req, res) => {
   try {
-    const { period } = req.query; // 'today', 'week', 'month'
-    let startDate, endDate = new Date().toISOString().split('T')[0];
-    
-    const today = new Date();
+    const { period } = req.query;
+    let startDate, endDate;
+    const hoje = new Date();
     
     if (period === 'today') {
-      startDate = today.toISOString().split('T')[0];
+      startDate = hoje.toISOString().split('T')[0];
+      endDate = hoje.toISOString().split('T')[0];
     } else if (period === 'week') {
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
+      const weekStart = new Date(hoje);
+      weekStart.setDate(hoje.getDate() - hoje.getDay());
       startDate = weekStart.toISOString().split('T')[0];
+      endDate = hoje.toISOString().split('T')[0];
     } else if (period === 'month') {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const monthStart = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       startDate = monthStart.toISOString().split('T')[0];
+      endDate = hoje.toISOString().split('T')[0];
     }
     
     const revenues = await Revenue.findAll({
       where: {
         date: {
-          [Op.between]: [startDate, endDate],
-        },
-      },
-      include: [{ model: CashRegister }],
+          [Op.between]: [startDate, endDate]
+        }
+      }
     });
     
     const summary = {
       totalRevenue: revenues.reduce((sum, r) => sum + r.total, 0),
       totalCommissions: revenues.reduce((sum, r) => sum + r.commissions, 0),
       totalServices: revenues.reduce((sum, r) => sum + r.servicesCount, 0),
-      totalInitialCash: revenues.reduce((sum, r) => sum + r.initialCash, 0),
-      totalFinalCash: revenues.reduce((sum, r) => sum + r.finalCash, 0),
       count: revenues.length,
-      revenues,
     };
     
     res.json(summary);
@@ -90,6 +230,7 @@ const getByDate = async (req, res) => {
 };
 
 module.exports = {
+  getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,

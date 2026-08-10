@@ -198,10 +198,6 @@ const updateStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     
-    console.log('📝 ===== ATUALIZANDO STATUS =====');
-    console.log('📌 userId do usuário logado:', req.userId);
-    console.log('📌 status:', status);
-    
     const appointment = await Appointment.findByPk(id, {
       include: [
         { model: Barber },
@@ -222,11 +218,6 @@ const updateStatus = async (req, res) => {
     if (status === 'completed' && oldStatus !== 'completed') {
       const hoje = new Date().toISOString().split('T')[0];
       
-      console.log('🔍 Buscando caixa:');
-      console.log('  date:', hoje);
-      console.log('  isOpen: true');
-      console.log('  userId:', req.userId);
-      
       cashRegister = await CashRegister.findOne({
         where: {
           date: hoje,
@@ -235,38 +226,15 @@ const updateStatus = async (req, res) => {
         }
       });
       
-      console.log('📊 Resultado da busca:', cashRegister ? '✅ ENCONTRADO' : '❌ NÃO ENCONTRADO');
-      
-      if (!cashRegister) {
-        // 🔥 VERIFICAR SE EXISTE ALGUM CAIXA ABERTO COM OUTRO userId
-        const anyOpen = await CashRegister.findOne({
-          where: {
-            date: hoje,
-            isOpen: true,
-          }
-        });
-        console.log('🔍 Existe algum caixa aberto?', anyOpen ? '✅ SIM' : '❌ NÃO');
-        if (anyOpen) {
-          console.log('  userId do caixa encontrado:', anyOpen.userId);
-          console.log('  userId esperado:', req.userId);
-          console.log('  São iguais?', anyOpen.userId === req.userId);
-        }
-        
-        // 🔥 VERIFICAR TODOS OS CAIXAS DO DIA
-        const allCash = await CashRegister.findAll({
-          where: { date: hoje }
-        });
-        console.log('📊 Todos os caixas do dia:', allCash.map(c => ({
-          id: c.id,
-          userId: c.userId,
-          isOpen: c.isOpen
-        })));
-      }
-      
       cashRegisterStatus = cashRegister ? 'open' : 'closed';
       
+      // 🔥 BUSCAR O BARBEIRO PARA PEGAR O NOME
+      const barber = await Barber.findByPk(appointment.barberId);
+      const barberName = barber ? barber.name : 'Barbeiro';
+      
+      const commission = appointment.price * (barber ? barber.serviceCommissionRate : 0.20);
+      
       if (cashRegister) {
-        console.log('✅ Caixa encontrado! Adicionando serviço...');
         const services = cashRegister.services || [];
         const totalRevenue = cashRegister.totalRevenue || 0;
         const totalCommissions = cashRegister.totalCommissions || 0;
@@ -275,9 +243,11 @@ const updateStatus = async (req, res) => {
           id: appointment.id,
           type: 'service',
           client: appointment.Client?.name || 'Cliente',
+          barberId: appointment.barberId,
+          barberName: barberName, // 🔥 SALVAR O NOME DO BARBEIRO
           service: appointment.service,
           price: appointment.price,
-          commission: appointment.price * appointment.Barber.serviceCommissionRate,
+          commission: commission,
           paymentMethod: 'dinheiro',
           time: appointment.time,
         });
@@ -285,22 +255,23 @@ const updateStatus = async (req, res) => {
         await cashRegister.update({
           services,
           totalRevenue: totalRevenue + appointment.price,
-          totalCommissions: totalCommissions + (appointment.price * appointment.Barber.serviceCommissionRate),
+          totalCommissions: totalCommissions + commission,
           servicesCount: services.length,
         });
         
-        console.log(`✅ Serviço ${id} adicionado ao caixa!`);
+        console.log(`✅ Serviço ${id} concluído e adicionado ao caixa.`);
       } else {
-        console.log(`⚠️ Caixa NÃO encontrado. Registrando diretamente no faturamento.`);
         await Revenue.create({
           cashRegisterId: null,
           date: hoje,
           total: appointment.price,
-          commissions: appointment.price * appointment.Barber.serviceCommissionRate,
+          commissions: commission,
           servicesCount: 1,
           initialCash: 0,
           finalCash: appointment.price,
         });
+        
+        console.log(`⚠️ Caixa fechado. Serviço ${id} registrado diretamente no faturamento.`);
       }
     }
     
