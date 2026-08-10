@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mannerhouse-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - APP_URL=${APP_URL}
+    volumes:
+      - ./backend/database.sqlite:/app/database.sqlite
+      - ./backend/uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - mannerhouse-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mannerhouse-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+    restart: unless-stopped
+    networks:
+      - mannerhouse-network
+
+networks:
+  mannerhouse-network:
+    driver: bridge

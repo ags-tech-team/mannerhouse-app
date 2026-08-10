@@ -1,0 +1,349 @@
+import { useState, useEffect } from 'react';
+import { clientService } from '../../../services/client.service';
+import type { Client } from '../../../services/client.service';
+import { 
+  Plus, 
+  Search, 
+  Edit, 
+  Trash2, 
+  X, 
+  Check,
+  User,
+  Mail,
+  Phone,
+  Users
+} from 'lucide-react';
+
+const Clientes = () => {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+  });
+
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  const loadClients = async () => {
+    setLoading(true);
+    try {
+      const data = await clientService.getAll();
+      setClients(data);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+      alert('Erro ao carregar clientes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenModal = (client?: Client) => {
+    if (client) {
+      setEditingClient(client);
+      setFormData({
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+      });
+    } else {
+      setEditingClient(null);
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      if (editingClient) {
+        await clientService.update(editingClient.id, formData);
+      } else {
+        await clientService.create(formData);
+      }
+      await loadClients();
+      setShowModal(false);
+      resetForm();
+    } catch (error: any) {
+      console.error('Erro ao salvar cliente:', error);
+      alert(error.response?.data?.error || 'Erro ao salvar cliente');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este cliente?')) return;
+    try {
+      await clientService.delete(id);
+      await loadClients();
+    } catch (error) {
+      alert('Erro ao excluir cliente');
+    }
+  };
+
+  const resetForm = () => {
+    setEditingClient(null);
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+    });
+  };
+
+  const filteredClients = clients.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.phone.includes(searchTerm)
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-[#060606]">👤 Clientes</h1>
+          <p className="text-[#7f7c7a]">Gerencie os clientes da barbearia</p>
+        </div>
+        <button
+          onClick={() => handleOpenModal()}
+          className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition"
+        >
+          <Plus size={18} />
+          Novo Cliente
+        </button>
+      </div>
+
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#7f7c7a]">Total de Clientes</p>
+              <p className="text-2xl font-bold text-[#060606]">{clients.length}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Users size={20} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#7f7c7a]">Clientes Ativos</p>
+              <p className="text-2xl font-bold text-[#060606]">
+                {clients.filter(c => c.isActive).length}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-full">
+              <User size={20} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#7f7c7a]">Clientes Inativos</p>
+              <p className="text-2xl font-bold text-[#060606]">
+                {clients.filter(c => !c.isActive).length}
+              </p>
+            </div>
+            <div className="p-3 bg-red-100 rounded-full">
+              <User size={20} className="text-red-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Busca */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <div className="flex items-center gap-2">
+          <Search size={18} className="text-[#7f7c7a]" />
+          <input
+            type="text"
+            placeholder="Buscar clientes por nome, email ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+          />
+          <span className="text-sm text-[#7f7c7a]">
+            {filteredClients.length} clientes
+          </span>
+        </div>
+      </div>
+
+      {/* Tabela de Clientes */}
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-[#f5f0e8]">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Nome</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]">
+                      Nenhum cliente encontrado
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client) => (
+                    <tr key={client.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-sm">
+                            {client.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-[#060606]">{client.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
+                        {client.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
+                        {client.phone}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          client.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {client.isActive ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                        <button
+                          onClick={() => handleOpenModal(client)}
+                          className="text-[#9c7f64] hover:text-[#544941] transition"
+                          title="Editar"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(client.id)}
+                          className="text-red-500 hover:text-red-700 transition"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-[#060606]">
+                {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="text-[#7f7c7a] hover:text-[#060606]"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Nome</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="Digite o nome do cliente"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="Digite o email do cliente"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="(00) 00000-0000"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  Salvar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Clientes;

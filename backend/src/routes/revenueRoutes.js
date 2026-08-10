@@ -1,5 +1,6 @@
 const express = require('express');
 const {
+  getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,
@@ -10,6 +11,7 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
+router.get('/dashboard', getFinancialDashboard);
 router.get('/summary', getSummary);
 router.get('/', getAll);
 router.get('/:date', getByDate);

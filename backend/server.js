@@ -6,6 +6,7 @@ const { sequelize, syncDatabase } = require('./src/models');
 
 const authRoutes = require('./src/routes/authRoutes');
 const barberRoutes = require('./src/routes/barberRoutes');
+const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes'); // 🔥 NOVO
 const clientRoutes = require('./src/routes/clientRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const appointmentRoutes = require('./src/routes/appointmentRoutes');
@@ -14,6 +15,7 @@ const revenueRoutes = require('./src/routes/revenueRoutes');
 const expenseRoutes = require('./src/routes/expenseRoutes');
 const saleRoutes = require('./src/routes/saleRoutes');
 const commissionRoutes = require('./src/routes/commissionRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,8 +25,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// 🔥 ROTAS
 app.use('/api/auth', authRoutes);
 app.use('/api/barbers', barberRoutes);
+app.use('/api/barber/dashboard', barberDashboardRoutes); 
 app.use('/api/clients', clientRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/appointments', appointmentRoutes);
@@ -33,6 +37,7 @@ app.use('/api/revenues', revenueRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/commissions', commissionRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -41,6 +46,7 @@ app.get('/api/health', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       barbers: '/api/barbers',
+      barberDashboard: '/api/barber/dashboard', 
       clients: '/api/clients',
       products: '/api/products',
       appointments: '/api/appointments',

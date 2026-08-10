@@ -1,0 +1,42 @@
+# Dependências
+node_modules/
+npm-debug.log*
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
+
+# Arquivos de build
+dist/
+build/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Backend específico
+backend/database.sqlite-journal
+backend/uploads/
+backend/*.log
+
+# Frontend específico
+frontend/.vite/
+frontend/dist/
+frontend/*.log
