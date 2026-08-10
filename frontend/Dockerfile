@@ -1,33 +1,30 @@
 # frontend/Dockerfile
 
-# 🔥 USAR NODE.JS 22
+# 🔥 PRIMEIRO: Definir a imagem base
 FROM node:22-alpine AS build
 
+# 🔥 SEGUNDO: Definir o diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de dependência
+# 🔥 TERCEIRO: Copiar os arquivos de dependência (package.json e package-lock.json)
 COPY package*.json ./
 
-# Instalar dependências
-RUN npm ci
+# 🔥 QUARTO: Instalar as dependências (AQUI O npm ESTÁ DISPONÍVEL)
+RUN npm install
 
-# Copiar código fonte
+# 🔥 QUINTO: Copiar o resto do código
 COPY . .
 
-# 🔥 FORÇAR NODE_VERSION E IGNORAR ERROS
-ENV NODE_VERSION=22
-ENV CI=false
-
-# Build da aplicação
+# 🔥 SEXTO: Build da aplicação
 RUN npm run build
 
-# Segunda etapa - Servir com nginx
+# 🔥 SÉTIMO: Servir com Nginx (imagem separada)
 FROM nginx:alpine
 
-# Copiar os arquivos buildados para o nginx
+# 🔥 OITAVO: Copiar os arquivos buildados
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# 🔥 CONFIGURAÇÃO DO NGINX
+# 🔥 NONO: Configurar Nginx
 RUN echo 'server { \
     listen 80; \
     location / { \
@@ -36,7 +33,7 @@ RUN echo 'server { \
         try_files $uri $uri/ /index.html; \
     } \
     location /api { \
-        proxy_pass ${VITE_API_URL}; \
+        proxy_pass https://elegant-possibility-production-be71.up.railway.app; \
         proxy_http_version 1.1; \
         proxy_set_header Upgrade $http_upgrade; \
         proxy_set_header Connection "upgrade"; \
@@ -47,6 +44,8 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
+# 🔥 DÉCIMO: Expor a porta
 EXPOSE 80
 
+# 🔥 DÉCIMO PRIMEIRO: Iniciar o Nginx
 CMD ["nginx", "-g", "daemon off;"]
