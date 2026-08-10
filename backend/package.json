@@ -21,7 +21,6 @@
     "dotenv": "^16.3.1",
     "cloudinary": "^1.41.0",
     "sequelize": "^6.35.1",
-    "sqlite3": "^5.1.6",
     "date-fns": "^2.30.0"
   },
   "devDependencies": {

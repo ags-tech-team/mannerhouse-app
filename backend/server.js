@@ -6,7 +6,7 @@ const { sequelize, syncDatabase } = require('./src/models');
 
 const authRoutes = require('./src/routes/authRoutes');
 const barberRoutes = require('./src/routes/barberRoutes');
-const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes'); // 🔥 NOVO
+const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes');
 const clientRoutes = require('./src/routes/clientRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const appointmentRoutes = require('./src/routes/appointmentRoutes');
@@ -20,6 +20,7 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 🔥 MIDDLEWARES
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -28,7 +29,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // 🔥 ROTAS
 app.use('/api/auth', authRoutes);
 app.use('/api/barbers', barberRoutes);
-app.use('/api/barber/dashboard', barberDashboardRoutes); 
+app.use('/api/barber/dashboard', barberDashboardRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/appointments', appointmentRoutes);
@@ -39,33 +40,44 @@ app.use('/api/sales', saleRoutes);
 app.use('/api/commissions', commissionRoutes);
 app.use('/api/admin', adminRoutes);
 
+// 🔥 HEALTH CHECK
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'API Manner House funcionando!',
+    environment: process.env.NODE_ENV || 'development',
+    database: process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite',
     endpoints: {
       auth: '/api/auth',
       barbers: '/api/barbers',
-      barberDashboard: '/api/barber/dashboard', 
+      barberDashboard: '/api/barber/dashboard',
       clients: '/api/clients',
       products: '/api/products',
       appointments: '/api/appointments',
       cashRegister: '/api/cash-register',
       revenues: '/api/revenues',
       expenses: '/api/expenses',
+      sales: '/api/sales',
+      commissions: '/api/commissions',
+      admin: '/api/admin',
     }
   });
 });
 
+// 🔥 INICIAR SERVIDOR
 const startServer = async () => {
   try {
+    console.log('🔄 Sincronizando banco de dados...');
     await syncDatabase();
+    console.log('✅ Banco de dados sincronizado com sucesso!');
+
     app.listen(PORT, () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Banco de dados SQLite inicializado`);
+      console.log(`📊 Banco: ${process.env.DATABASE_URL ? 'PostgreSQL (Railway)' : 'SQLite (Local)'}`);
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
   }
 };
 
