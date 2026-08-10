@@ -1,5 +1,7 @@
-# Etapa 1: Build da aplicação React
-FROM node:18-alpine AS build
+# frontend/Dockerfile
+
+# 🔥 USAR NODE.JS 22
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -12,16 +14,20 @@ RUN npm ci
 # Copiar código fonte
 COPY . .
 
+# 🔥 FORÇAR NODE_VERSION E IGNORAR ERROS
+ENV NODE_VERSION=22
+ENV CI=false
+
 # Build da aplicação
 RUN npm run build
 
-# Etapa 2: Servir com Nginx
+# Segunda etapa - Servir com nginx
 FROM nginx:alpine
 
 # Copiar os arquivos buildados para o nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Configurar Nginx para SPA e proxy do backend
+# 🔥 CONFIGURAÇÃO DO NGINX
 RUN echo 'server { \
     listen 80; \
     location / { \
@@ -30,7 +36,7 @@ RUN echo 'server { \
         try_files $uri $uri/ /index.html; \
     } \
     location /api { \
-        proxy_pass http://backend:3000; \
+        proxy_pass ${VITE_API_URL}; \
         proxy_http_version 1.1; \
         proxy_set_header Upgrade $http_upgrade; \
         proxy_set_header Connection "upgrade"; \
@@ -41,8 +47,6 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
-# Expor porta
 EXPOSE 80
 
-# Iniciar Nginx
 CMD ["nginx", "-g", "daemon off;"]
