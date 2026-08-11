@@ -6,36 +6,22 @@ import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@mannerhaus.com');
-  const [password, setPassword] = useState('123456');
+  
+  // 🔥 REMOVER VALORES PADRÃO
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // 🔥 VERSÃO CORRIGIDA - Garantindo que o preventDefault funciona
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    // 🔥 IMPEDE O COMPORTAMENTO PADRÃO DO FORM (RECARREGAR)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // 🔥 TAMBÉM IMPEDE PROPAGAÇÃO
-    
-    // Limpar erro anterior
     setError('');
     setLoading(true);
-
-    console.log('🔐 Tentando login com:', { email });
 
     try {
       const user = await login(email, password);
       
-      if (!user) {
-        setError('Erro ao fazer login. Tente novamente.');
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Login bem-sucedido!');
-      
-      // Redirecionar baseado na role
       if (user.role === 'admin') {
         navigate('/admin');
       } else if (user.role === 'barber') {
@@ -44,21 +30,10 @@ const Login = () => {
         navigate('/admin');
       }
     } catch (err: any) {
-      console.error('❌ Erro no login:', err);
       setError(err.message || 'E-mail ou senha inválidos');
+    } finally {
       setLoading(false);
     }
-  };
-
-  const fillCredentials = (type: 'admin' | 'barber') => {
-    if (type === 'admin') {
-      setEmail('admin@mannerhouse.com');
-      setPassword('manner123');
-    } else {
-      setEmail('barbearia@mannerhouse.com');
-      setPassword('manner123');
-    }
-    setError('');
   };
 
   return (
@@ -94,13 +69,12 @@ const Login = () => {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border-2 border-red-500/50 text-red-200 rounded-lg text-sm flex items-start gap-2">
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 text-red-200 rounded-lg text-sm flex items-start gap-2">
             <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-            <span className="font-medium">{error}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {/* 🔥 FORMULÁRIO COM onSubmit CORRETO */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-[#ada8a3] mb-1">
@@ -115,7 +89,6 @@ const Login = () => {
                 className="w-full pl-10 pr-3 py-2.5 bg-[#060606]/60 border border-[#7f7c7a]/40 rounded-lg text-[#ada8a3] placeholder-[#7f7c7a]/60 focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent transition outline-none"
                 placeholder="seu@email.com"
                 required
-                disabled={loading}
               />
             </div>
           </div>
@@ -133,13 +106,11 @@ const Login = () => {
                 className="w-full pl-10 pr-10 py-2.5 bg-[#060606]/60 border border-[#7f7c7a]/40 rounded-lg text-[#ada8a3] placeholder-[#7f7c7a]/60 focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent transition outline-none"
                 placeholder="••••••••"
                 required
-                disabled={loading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7f7c7a] hover:text-[#ada8a3] transition"
-                disabled={loading}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -165,42 +136,13 @@ const Login = () => {
           </button>
         </form>
 
+        {/* 🔥 REMOVER BOTÕES DE AUTOCOMPLETE */}
+
         <div className="mt-6 pt-4 border-t border-[#7f7c7a]/20">
-          <p className="text-xs text-[#7f7c7a]/60 text-center mb-2">
-            Clique para preencher automaticamente
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => fillCredentials('admin')}
-              className="text-[10px] bg-[#060606]/40 hover:bg-[#060606]/60 px-3 py-1 rounded border border-[#9c7f64]/30 text-[#9c7f64] transition"
-            >
-              👑 Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => fillCredentials('barber')}
-              className="text-[10px] bg-[#060606]/40 hover:bg-[#060606]/60 px-3 py-1 rounded border border-[#7f7c7a]/30 text-[#7f7c7a] transition"
-            >
-              ✂️ Barbearia
-            </button>
-          </div>
-          <p className="text-[10px] text-[#7f7c7a]/40 text-center mt-2">
-            Senha padrão: <span className="font-mono">manner123</span>
+          <p className="text-xs text-[#7f7c7a]/40 text-center">
+            © 2026 Manner Haus Barber Club
           </p>
         </div>
-
-        {error && (
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setError('')}
-              className="text-xs text-[#7f7c7a]/40 hover:text-[#7f7c7a] transition underline"
-            >
-              ✕ Limpar mensagem de erro
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="absolute bottom-4 left-0 right-0 text-center text-[11px] text-[#7f7c7a]/30 z-10">
