@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const { exec } = require('child_process')
 const cors = require('cors');
 const path = require('path');
 const { sequelize, syncDatabase } = require('./src/models');
@@ -16,6 +17,7 @@ const expenseRoutes = require('./src/routes/expenseRoutes');
 const saleRoutes = require('./src/routes/saleRoutes');
 const commissionRoutes = require('./src/routes/commissionRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const monthlyRoutes = require('./src/routes/monthlyRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
 
 const app = express();
@@ -33,6 +35,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // 🔥 ROTAS
 app.use('/api/auth', authRoutes);
 app.use('/api/barbers', barberRoutes);
+app.use('/api/monthly', monthlyRoutes);
 app.use('/api/barber/dashboard', barberDashboardRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/products', productRoutes);
@@ -69,18 +72,43 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+const runMigrations = async () => {
+  return new Promise((resolve, reject) => {
+    console.log('🔄 Rodando migrations...');
+    exec('npx sequelize-cli db:migrate', (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Erro nas migrations:', error);
+        reject(error);
+        return;
+      }
+      console.log(stdout);
+      resolve();
+    });
+  });
+};
+
 const startServer = async () => {
   try {
-    await syncDatabase();
+    // 🔥 RODAR MIGRATIONS EM PRODUÇÃO
+    if (process.env.NODE_ENV === 'production') {
+      await runMigrations();
+    }
+    
+    // Autenticar banco
+    await sequelize.authenticate();
+    console.log('📊 Conexão com banco estabelecida');
+    
+    // Iniciar servidor
+    const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Banco: ${isRailway ? 'PostgreSQL (Railway)' : 'SQLite (Local)'}`);
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor:', error);
     process.exit(1);
   }
 };
+
 
 startServer();
 

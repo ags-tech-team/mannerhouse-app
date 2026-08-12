@@ -10,7 +10,8 @@ import {
   Settings, 
   Scissors,
   PiggyBank,
-  ShoppingBag
+  ShoppingBag,
+  CreditCard // 🔥 ADICIONAR ESTE ÍCONE
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types/auth.types';
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     { to: '/admin/expenses', icon: PiggyBank, label: 'Despesas' },
     { to: '/admin/barbers', icon: Users, label: 'Barbeiros' },
     { to: '/admin/clients', icon: User, label: 'Clientes' },
+    { to: '/admin/mensalistas', icon: CreditCard, label: 'Mensalistas' }, // 🔥 ADICIONADO
     { to: '/admin/products', icon: Package, label: 'Estoque' },
   ];
 
@@ -36,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     { to: '/barber/cash-register', icon: PiggyBank, label: 'Caixa' },
     { to: '/barber/schedule', icon: Calendar, label: 'Agenda' },
     { to: '/barber/clients', icon: User, label: 'Clientes' },
+    { to: '/barber/mensalistas', icon: CreditCard, label: 'Mensalistas' }, // 🔥 ADICIONADO
     { to: '/barber/shop', icon: ShoppingBag, label: 'Loja' },
   ];
 

@@ -74,6 +74,7 @@ const BarberCaixa = () => {
   const [editingServico, setEditingServico] = useState<ServicoFaturamento | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [barbersList, setBarbersList] = useState<Barber[]>([]);
   const [isGuest, setIsGuest] = useState(false);
   
   // 🔥 MÚLTIPLOS SERVIÇOS
@@ -105,41 +106,27 @@ const BarberCaixa = () => {
     return selectedServices.map(s => s.id).join(',');
   };
 
-  const loadCurrentBarber = async () => {
+  const loadBarbersList = async () => {
     try {
-      const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
-      const savedBarberName = localStorage.getItem('@mannerhouse:selectedBarberName');
-      
-      if (savedBarberId) {
-        const response = await api.get(`/barbers/${savedBarberId}`);
-        const barber = response.data;
-        setCurrentBarber(barber);
+      const response = await api.get('/barbers');
+      const activeBarbers = response.data.filter((b: any) => b.isActive);
+      setBarbersList(activeBarbers);
+      if (activeBarbers.length > 0 && !currentBarber) {
+        setCurrentBarber(activeBarbers[0]);
         setFormData(prev => ({
           ...prev,
-          barbeiroId: barber.id,
-          barbeiroNome: barber.name,
+          barbeiroId: activeBarbers[0].id,
+          barbeiroNome: activeBarbers[0].name,
         }));
-      } else {
-        const response = await api.get('/barbers');
-        const barbers = response.data;
-        const userBarber = barbers.find((b: any) => b.userId === user?.id);
-        if (userBarber) {
-          setCurrentBarber(userBarber);
-          setFormData(prev => ({
-            ...prev,
-            barbeiroId: userBarber.id,
-            barbeiroNome: userBarber.name,
-          }));
-        }
       }
     } catch (error) {
-      console.error('Erro ao carregar barbeiro da agenda:', error);
+      console.error('Erro ao carregar barbeiros:', error);
     }
   };
 
   useEffect(() => {
     loadData();
-    loadCurrentBarber();
+    loadBarbersList();
   }, []);
 
   const loadData = async () => {
@@ -244,15 +231,14 @@ const BarberCaixa = () => {
       setSelectedTime(servico.hora || '');
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
-      // 🔥 RECONSTRUIR SERVIÇOS SELECIONADOS A PARTIR DO SERVIÇO
       setSelectedServices([]);
     } else {
       setEditingServico(null);
       setFormData({
         cliente: '',
         clienteTelefone: '',
-        barbeiroId: currentBarber?.id || '',
-        barbeiroNome: currentBarber?.name || '',
+        barbeiroId: '',
+        barbeiroNome: '',
         formaPagamento: 'dinheiro',
         observacao: '',
       });
@@ -261,6 +247,16 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
+      
+      // 🔥 SELECIONAR O PRIMEIRO BARBEIRO DA LISTA POR PADRÃO
+      if (barbersList.length > 0) {
+        setCurrentBarber(barbersList[0]);
+        setFormData(prev => ({
+          ...prev,
+          barbeiroId: barbersList[0].id,
+          barbeiroNome: barbersList[0].name,
+        }));
+      }
     }
     setShowModal(true);
   };
@@ -275,7 +271,7 @@ const BarberCaixa = () => {
 
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId) {
-      alert('Nenhum barbeiro selecionado! Volte para a agenda e selecione um barbeiro.');
+      alert('Selecione um barbeiro');
       return;
     }
 
@@ -303,9 +299,9 @@ const BarberCaixa = () => {
       const clientName = isGuest ? 'Cliente sem cadastro' : formData.cliente.trim();
       const clientPhone = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
       const total = getTotalServices();
-      const serviceNames = selectedServices.map(s => s.service.name).join(' + ');
-      const serviceIds = selectedServices.map(s => s.id).join(',');
-      const comissao = total * 0.5; // 50% de comissão
+      const serviceNames = getServiceNames();
+      const serviceIds = getServiceIds();
+      const comissao = total * 0.5;
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
@@ -348,8 +344,8 @@ const BarberCaixa = () => {
       setFormData({
         cliente: '',
         clienteTelefone: '',
-        barbeiroId: currentBarber?.id || '',
-        barbeiroNome: currentBarber?.name || '',
+        barbeiroId: '',
+        barbeiroNome: '',
         formaPagamento: 'dinheiro',
         observacao: '',
       });
@@ -359,9 +355,9 @@ const BarberCaixa = () => {
       setIsGuest(false);
       setSelectedServices([]);
       alert('✅ Serviço registrado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar serviço');
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar:', error);
+      alert(error.response?.data?.error || 'Erro ao salvar serviço');
     }
   };
 
@@ -658,11 +654,35 @@ const BarberCaixa = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Barbeiro */}
-              <div className="bg-[#f5f0e8] p-3 rounded-lg">
-                <p className="text-sm text-[#7f7c7a]">👤 Barbeiro</p>
-                <p className="font-semibold text-[#060606]">{currentBarber?.name || 'Nenhum barbeiro selecionado'}</p>
-                <p className="text-xs text-[#7f7c7a] mt-1">Barbeiro selecionado na agenda</p>
+              {/* 🔥 SELECT DE BARBEIROS */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  <User size={16} className="inline mr-1" /> Barbeiro
+                </label>
+                <select
+                  value={formData.barbeiroId || currentBarber?.id || ''}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const barber = barbersList.find(b => b.id === id);
+                    if (barber) {
+                      setCurrentBarber(barber);
+                      setFormData(prev => ({
+                        ...prev,
+                        barbeiroId: barber.id,
+                        barbeiroNome: barber.name,
+                      }));
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                  required
+                >
+                  <option value="">Selecione um barbeiro</option>
+                  {barbersList.map((barber) => (
+                    <option key={barber.id} value={barber.id}>
+                      {barber.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Data e Horário */}
@@ -741,7 +761,7 @@ const BarberCaixa = () => {
                 </label>
               </div>
 
-              {/* 🔥 MULTI SERVIÇOS */}
+              {/* Multi Serviços */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   <Scissors size={16} className="inline mr-1" /> Serviços

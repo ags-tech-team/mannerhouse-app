@@ -13,12 +13,14 @@ import AdminBarbers from '../pages/admin/Barbers';
 import AdminFaturamento from '../pages/admin/Faturamento';
 import AdminDespesas from '../pages/admin/Despesas';
 import AdminEstoque from '../pages/admin/Estoque';
+import AdminMensalistas from '../pages/admin/Mensalistas'; // 🔥 IMPORTAR
 
 import BarberDashboard from '../pages/barber/Dashboard';
 import BarberLoja from '../pages/barber/Loja';
 import BarberAgenda from '../pages/barber/Agenda';
 import BarberCaixa from '../pages/barber/Caixa';
 import Clientes from '../pages/shared/Clientes';
+import BarberMensalistas from '../pages/barber/Mensalistas'; // 🔥 IMPORTAR (se existir)
 
 // 🔥 PÁGINA PÚBLICA
 import PublicSchedule from '../pages/public/Schedule';
@@ -67,6 +69,7 @@ export const AppRoutes = () => {
           <Route path="expenses" element={<AdminDespesas />} />
           <Route path="products" element={<AdminEstoque />} />
           <Route path="clients" element={<Clientes />} />
+          <Route path="mensalistas" element={<AdminMensalistas />} /> {/* 🔥 ADICIONADO */}
         </Route>
 
         {/* 🔥 ROTAS DO BARBEIRO (PROTEGIDAS) */}
@@ -83,6 +86,7 @@ export const AppRoutes = () => {
           <Route path="schedule" element={<BarberAgenda />} />
           <Route path="shop" element={<BarberLoja />} />
           <Route path="clients" element={<Clientes />} />
+          <Route path="mensalistas" element={<AdminMensalistas />} /> {/* 🔥 ADICIONADO (reutilizando o mesmo componente) */}
         </Route>
 
         {/* 🔥 QUALQUER OUTRA ROTA → PÁGINA INICIAL */}

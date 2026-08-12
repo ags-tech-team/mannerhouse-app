@@ -1,37 +1,75 @@
-const sequelize = require('../config/database');
+const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
 
-const User = require('./User');
-const Barber = require('./Barber');
-const Client = require('./Client');
-const Product = require('./Product');
-const Appointment = require('./Appointment');
-const CashRegister = require('./CashRegister');
-const Revenue = require('./Revenue');
-const Expense = require('./Expense');
-const Sale = require('./Sale');
+// 🔥 CARREGAR MODELOS (todos no formato de função)
+const User = require('./User')(sequelize, DataTypes);
+const Barber = require('./Barber')(sequelize, DataTypes);
+const Client = require('./Client')(sequelize, DataTypes);
+const Product = require('./Product')(sequelize, DataTypes);
+const Appointment = require('./Appointment')(sequelize, DataTypes);
+const CashRegister = require('./CashRegister')(sequelize, DataTypes);
+const Revenue = require('./Revenue')(sequelize, DataTypes);
+const Expense = require('./Expense')(sequelize, DataTypes);
+const Sale = require('./Sale')(sequelize, DataTypes);
+const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
 
-const syncDatabase = async () => {
-  try {
-    // 🔥 NÃO USAR alter: true ou force: true
-    // Apenas verifica se as tabelas existem, sem alterar
-    await sequelize.sync({ alter: false });
-    console.log('📦 Banco de dados verificado com sucesso!');
-  } catch (error) {
-    console.error('❌ Erro ao verificar banco de dados:', error);
-    throw error;
-  }
-};
+// 🔥 DEFINIÇÃO DE ASSOCIAÇÕES (TUDO AQUI!)
+// Barber
+Barber.belongsTo(User, { foreignKey: 'userId' });
+User.hasOne(Barber, { foreignKey: 'userId' });
 
-module.exports = {
+// Appointment
+Appointment.belongsTo(Barber, { foreignKey: 'barberId' });
+Appointment.belongsTo(Client, { foreignKey: 'clientId' });
+Barber.hasMany(Appointment, { foreignKey: 'barberId' });
+Client.hasMany(Appointment, { foreignKey: 'clientId' });
+
+// CashRegister
+CashRegister.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(CashRegister, { foreignKey: 'userId' });
+
+// Revenue
+Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId' });
+CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId' });
+
+// Sale
+Sale.belongsTo(Barber, { foreignKey: 'barberId' });
+Sale.belongsTo(Client, { foreignKey: 'clientId' });
+Sale.belongsTo(Product, { foreignKey: 'productId' });
+Barber.hasMany(Sale, { foreignKey: 'barberId' });
+Client.hasMany(Sale, { foreignKey: 'clientId' });
+Product.hasMany(Sale, { foreignKey: 'productId' });
+
+// MonthlyPayment
+MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId' });
+Client.hasMany(MonthlyPayment, { foreignKey: 'clientId' });
+
+const models = {
   User,
   Barber,
   Client,
   Product,
   Appointment,
+  Sale,
   CashRegister,
   Revenue,
   Expense,
-  Sale,
+  MonthlyPayment,
+};
+
+const syncDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('📊 Conexão com banco estabelecida');
+    console.log('📦 Banco de dados pronto (migrations gerenciam a estrutura)');
+  } catch (error) {
+    console.error('❌ Erro ao conectar banco:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  ...models,
   sequelize,
   syncDatabase,
 };
