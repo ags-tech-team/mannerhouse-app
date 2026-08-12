@@ -28,6 +28,7 @@ import type { CashRegister } from '../../../services/cashRegister.service';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { api } from '../../../api/client';
 import { SERVICES, getServiceById } from '../../../utils/services';
+import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
 
 interface ServicoFaturamento {
   id: string;
@@ -50,6 +51,16 @@ interface Barber {
   name: string;
 }
 
+interface SelectedService {
+  id: string;
+  service: {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+  };
+}
+
 const BarberCaixa = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -61,10 +72,12 @@ const BarberCaixa = () => {
   const [showModalAbrirCaixa, setShowModalAbrirCaixa] = useState(false);
   const [showModalFecharCaixa, setShowModalFecharCaixa] = useState(false);
   const [editingServico, setEditingServico] = useState<ServicoFaturamento | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [isGuest, setIsGuest] = useState(false);
+  
+  // 🔥 MÚLTIPLOS SERVIÇOS
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
@@ -79,6 +92,18 @@ const BarberCaixa = () => {
 
   const valor = useNumberInput();
   const valorInicial = useNumberInput();
+
+  const getTotalServices = () => {
+    return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
+  };
+
+  const getServiceNames = () => {
+    return selectedServices.map(s => s.service.name).join(' + ');
+  };
+
+  const getServiceIds = () => {
+    return selectedServices.map(s => s.id).join(',');
+  };
 
   const loadCurrentBarber = async () => {
     try {
@@ -215,11 +240,12 @@ const BarberCaixa = () => {
         formaPagamento: servico.formaPagamento,
         observacao: servico.observacao || '',
       });
-      setSelectedServiceId(servico.servicoId || '');
       setSelectedDate(servico.data || new Date().toISOString().split('T')[0]);
       setSelectedTime(servico.hora || '');
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
+      // 🔥 RECONSTRUIR SERVIÇOS SELECIONADOS A PARTIR DO SERVIÇO
+      setSelectedServices([]);
     } else {
       setEditingServico(null);
       setFormData({
@@ -230,11 +256,11 @@ const BarberCaixa = () => {
         formaPagamento: 'dinheiro',
         observacao: '',
       });
-      setSelectedServiceId('');
       setSelectedDate(new Date().toISOString().split('T')[0]);
       setSelectedTime('');
       valor.reset();
       setIsGuest(false);
+      setSelectedServices([]);
     }
     setShowModal(true);
   };
@@ -253,9 +279,8 @@ const BarberCaixa = () => {
       return;
     }
 
-    const selectedService = getServiceById(selectedServiceId);
-    if (!selectedService) {
-      alert('Selecione um serviço');
+    if (selectedServices.length === 0) {
+      alert('Selecione pelo menos um serviço');
       return;
     }
 
@@ -277,6 +302,10 @@ const BarberCaixa = () => {
     try {
       const clientName = isGuest ? 'Cliente sem cadastro' : formData.cliente.trim();
       const clientPhone = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
+      const total = getTotalServices();
+      const serviceNames = selectedServices.map(s => s.service.name).join(' + ');
+      const serviceIds = selectedServices.map(s => s.id).join(',');
+      const comissao = total * 0.5; // 50% de comissão
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
@@ -284,10 +313,10 @@ const BarberCaixa = () => {
             ? { 
                 ...s, 
                 cliente: clientName,
-                servico: selectedService.name,
-                servicoId: selectedService.id,
-                valor: valor.getNumberValue() || selectedService.price,
-                comissao: (valor.getNumberValue() || selectedService.price) * 0.2,
+                servico: serviceNames,
+                servicoId: serviceIds,
+                valor: total,
+                comissao: comissao,
                 formaPagamento: formData.formaPagamento,
                 observacao: formData.observacao,
                 barbeiro: formData.barbeiroNome || currentBarber?.name || 'Barbeiro',
@@ -303,9 +332,9 @@ const BarberCaixa = () => {
         await cashRegisterService.addService({
           client: clientName,
           barberId: barberId,
-          service: selectedService.name,
-          serviceId: selectedService.id,
-          price: valor.getNumberValue() || selectedService.price,
+          service: serviceNames,
+          serviceId: serviceIds,
+          price: total,
           paymentMethod: formData.formaPagamento,
           date: selectedDate,
           time: selectedTime,
@@ -324,11 +353,11 @@ const BarberCaixa = () => {
         formaPagamento: 'dinheiro',
         observacao: '',
       });
-      setSelectedServiceId('');
       setSelectedDate('');
       setSelectedTime('');
       valor.reset();
       setIsGuest(false);
+      setSelectedServices([]);
       alert('✅ Serviço registrado com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -712,43 +741,16 @@ const BarberCaixa = () => {
                 </label>
               </div>
 
-              {/* Serviço */}
+              {/* 🔥 MULTI SERVIÇOS */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Serviço</label>
-                <select
-                  value={selectedServiceId}
-                  onChange={(e) => {
-                    const serviceId = e.target.value;
-                    setSelectedServiceId(serviceId);
-                    const service = getServiceById(serviceId);
-                    if (service) {
-                      valor.setValue(String(service.price));
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                >
-                  <option value="">Selecione um serviço</option>
-                  {SERVICES.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} - R$ {service.price.toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Valor */}
-              <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Valor (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={valor.value}
-                  onChange={valor.onChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  placeholder="0,00"
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  <Scissors size={16} className="inline mr-1" /> Serviços
+                </label>
+                <MultiServiceSelector
+                  selectedServices={selectedServices}
+                  onChange={setSelectedServices}
+                  maxServices={5}
                 />
-                <p className="text-xs text-[#7f7c7a] mt-1">Preenchido automaticamente ao selecionar o serviço</p>
               </div>
 
               {/* Forma de Pagamento */}

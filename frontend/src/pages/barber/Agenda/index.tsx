@@ -5,6 +5,7 @@ import { appointmentService } from '../../../services/appointment.service';
 import type { Appointment, Client } from '../../../services/appointment.service';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { SERVICES, getServiceById } from '../../../utils/services';
+import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
 import { 
   Calendar as CalendarIcon,
   ChevronLeft, 
@@ -32,6 +33,16 @@ interface Barber {
   isActive: boolean;
 }
 
+interface SelectedService {
+  id: string;
+  service: {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+  };
+}
+
 const BarberAgenda = () => {
   const { user } = useAuth();
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -46,7 +57,9 @@ const BarberAgenda = () => {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  
+  // 🔥 MÚLTIPLOS SERVIÇOS
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
   const [formData, setFormData] = useState({
     clientName: '',
@@ -198,6 +211,17 @@ const BarberAgenda = () => {
     }
   };
 
+ const getTotalServices = () => {
+    return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
+  };
+  const getServiceNames = () => {
+    return selectedServices.map(s => s.service.name).join(' + ');
+  };
+
+  const getServiceIds = () => {
+    return selectedServices.map(s => s.id).join(',');
+  };
+
   // Debounce para busca
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -241,7 +265,7 @@ const BarberAgenda = () => {
       clientPhone: '',
       notes: '',
     });
-    setSelectedServiceId('');
+    setSelectedServices([]);
     price.reset();
     setSearchQuery('');
     setSearchResults([]);
@@ -271,22 +295,25 @@ const BarberAgenda = () => {
       return;
     }
 
-    const selectedService = getServiceById(selectedServiceId);
-    if (!selectedService) {
-      alert('Selecione um serviço');
+    if (selectedServices.length === 0) {
+      alert('Selecione pelo menos um serviço');
       return;
     }
 
     try {
+      const total = getTotalServices();
+      const serviceNames = selectedServices.map(s => s.service.name).join(' + ');
+      const serviceIds = selectedServices.map(s => s.id).join(',');
+
       await appointmentService.create({
         barberId: selectedBarberId,
         clientName: formData.clientName,
         clientPhone: formData.clientPhone,
         date: selectedDate,
         time: selectedTime,
-        service: selectedServiceId,
-        serviceDescription: selectedService.name,
-        price: price.getNumberValue() || selectedService.price,
+        service: serviceIds,
+        serviceDescription: serviceNames,
+        price: total,
         notes: formData.notes,
       });
 
@@ -434,7 +461,7 @@ const BarberAgenda = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div><p className="text-sm text-[#7f7c7a]">📅 Data</p><p className="font-medium">{formatDate(selectedAppointment.date)}</p></div>
                 <div><p className="text-sm text-[#7f7c7a]">⏰ Horário</p><p className="font-medium">{selectedAppointment.time}</p></div>
-                <div><p className="text-sm text-[#7f7c7a]">✂️ Serviço</p><p className="font-medium">{getServiceById(selectedAppointment.service)?.name || selectedAppointment.service}</p></div>
+                <div><p className="text-sm text-[#7f7c7a]">✂️ Serviço</p><p className="font-medium">{selectedAppointment.serviceDescription || 'Serviço'}</p></div>
                 <div><p className="text-sm text-[#7f7c7a]">💰 Valor</p><p className="font-medium text-[#9c7f64]">R$ {selectedAppointment.price?.toFixed(2) || '0,00'}</p></div>
               </div>
               {selectedAppointment.serviceDescription && <div><p className="text-sm text-[#7f7c7a]">📝 Descrição</p><p className="text-sm text-[#060606]">{selectedAppointment.serviceDescription}</p></div>}
@@ -530,35 +557,16 @@ const BarberAgenda = () => {
                 </div>
               </div>
 
-              {/* 🔥 SELECT DE SERVIÇOS */}
+              {/* 🔥 MULTI SERVIÇOS */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Serviço</label>
-                <select
-                  value={selectedServiceId}
-                  onChange={(e) => {
-                    const serviceId = e.target.value;
-                    setSelectedServiceId(serviceId);
-                    const service = getServiceById(serviceId);
-                    if (service) {
-                      price.setValue(String(service.price));
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
-                  required
-                >
-                  <option value="">Selecione um serviço</option>
-                  {SERVICES.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} - R$ {service.price.toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-[#7f7c7a] mt-1">O valor é preenchido automaticamente ao selecionar um serviço</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Valor (R$)</label>
-                <input type="number" step="0.01" value={price.value} onChange={price.onChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]" placeholder="0,00" />
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  <Scissors size={16} className="inline mr-1" /> Serviços
+                </label>
+                <MultiServiceSelector
+                  selectedServices={selectedServices}
+                  onChange={setSelectedServices}
+                  maxServices={5}
+                />
               </div>
 
               <div>
