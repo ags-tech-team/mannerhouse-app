@@ -1,4 +1,4 @@
-const { Barber, Appointment, Sale, Product } = require('../models');
+const { Barber, Appointment, Sale, Product, Client } = require('../models'); // 🔥 ADICIONAR Client
 const { Op } = require('sequelize');
 
 // Calcular comissão de um barbeiro específico
@@ -23,7 +23,7 @@ const getBarberCommission = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // Buscar serviços concluídos no período
+    // 🔥 BUSCAR SERVIÇOS CONCLUÍDOS NO PERÍODO
     const appointments = await Appointment.findAll({
       where: {
         barberId: barber.id,
@@ -31,10 +31,16 @@ const getBarberCommission = async (req, res) => {
         date: {
           [Op.between]: [start, end]
         }
-      }
+      },
+      include: [
+        { 
+          model: Client, 
+          attributes: ['id', 'name', 'phone']
+        }
+      ]
     });
     
-    // Buscar vendas de produtos no período
+    // 🔥 BUSCAR VENDAS DE PRODUTOS NO PERÍODO
     const sales = await Sale.findAll({
       where: {
         barberId: barber.id,
@@ -64,7 +70,7 @@ const getBarberCommission = async (req, res) => {
     const serviceDetails = appointments.map(app => ({
       id: app.id,
       date: app.date,
-      client: app.clientName || 'Cliente não identificado',
+      client: app.Client?.name || 'Cliente não identificado',
       service: app.service,
       price: app.price,
       commission: app.price * barber.serviceCommissionRate,

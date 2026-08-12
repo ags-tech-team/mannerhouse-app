@@ -24,7 +24,7 @@ const getAll = async (req, res) => {
         },
         { 
           model: Client, 
-          attributes: ['id', 'name', 'email', 'phone'] 
+          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
         }
       ],
       order: [['date', 'ASC'], ['time', 'ASC']],
@@ -51,7 +51,7 @@ const getByBarber = async (req, res) => {
       include: [
         { 
           model: Client, 
-          attributes: ['id', 'name', 'email', 'phone'] 
+          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
         }
       ],
       order: [['time', 'ASC']],
@@ -70,13 +70,12 @@ const getAvailableTimes = async (req, res) => {
     const { barberId } = req.params;
     const { date } = req.query;
     
-    // Horários padrão (09:00 às 18:00, de hora em hora)
     const allTimes = [
-      '09:00', '10:00', '11:00', '12:00', 
-      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
     ];
     
-    // Buscar horários já ocupados
     const appointments = await Appointment.findAll({
       where: {
         barberId,
@@ -96,14 +95,14 @@ const getAvailableTimes = async (req, res) => {
   }
 };
 
-// Criar agendamento
+// 🔥 CORRIGIR: Criar agendamento (sem email)
 const create = async (req, res) => {
   try {
     const { 
       barberId, 
       clientId, 
       clientName,
-      clientPhone, // 🔥 REMOVER clientEmail
+      clientPhone,  // 🔥 APENAS TELEFONE
       date, 
       time, 
       service, 
@@ -111,6 +110,8 @@ const create = async (req, res) => {
       price,
       notes 
     } = req.body;
+    
+    console.log('📝 Criando agendamento:', { barberId, clientName, clientPhone, date, time });
     
     // Verificar se barbeiro existe
     const barber = await Barber.findByPk(barberId);
@@ -132,21 +133,22 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // Buscar ou criar cliente
+    // 🔥 BUSCAR OU CRIAR CLIENTE (apenas com telefone)
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
-    } else if (clientEmail) {
-      client = await Client.findOne({ where: { email: clientEmail } });
+    } else if (clientPhone) {
+      client = await Client.findOne({ where: { phone: clientPhone } });
     }
     
     if (!client && clientName) {
-      // Criar novo cliente
+      // Criar novo cliente (sem email)
       client = await Client.create({
         name: clientName,
         phone: clientPhone || '(00) 00000-0000',
         isActive: true,
       });
+      console.log('✅ Cliente criado:', client.id);
     }
     
     if (!client) {
@@ -154,7 +156,7 @@ const create = async (req, res) => {
     }
     
     // Calcular comissão
-    const commission = price * barber.serviceCommissionRate;
+    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
     
     // Criar agendamento
     const appointment = await Appointment.create({
@@ -162,13 +164,15 @@ const create = async (req, res) => {
       clientId: client.id,
       date,
       time,
-      service,
+      service: service || 'outro',
       serviceDescription: serviceDescription || '',
       price: price || 0,
       commission,
       status: 'pending',
       notes,
     });
+    
+    console.log('✅ Agendamento criado:', appointment.id);
     
     // Buscar agendamento criado com relacionamentos
     const created = await Appointment.findByPk(appointment.id, {
@@ -179,18 +183,19 @@ const create = async (req, res) => {
         },
         { 
           model: Client, 
-          attributes: ['id', 'name', 'email', 'phone'] 
+          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
         }
       ],
     });
     
     res.status(201).json(created);
   } catch (error) {
-    console.error('Erro ao criar agendamento:', error);
+    console.error('❌ Erro ao criar agendamento:', error);
     res.status(500).json({ error: 'Erro ao criar agendamento' });
   }
 };
 
+// 🔥 CORRIGIR: Atualizar status (sem email)
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -226,11 +231,7 @@ const updateStatus = async (req, res) => {
       
       cashRegisterStatus = cashRegister ? 'open' : 'closed';
       
-      // 🔥 BUSCAR O BARBEIRO PARA PEGAR O NOME
-      const barber = await Barber.findByPk(appointment.barberId);
-      const barberName = barber ? barber.name : 'Barbeiro';
-      
-      const commission = appointment.price * (barber ? barber.serviceCommissionRate : 0.20);
+      const commission = (appointment.price || 0) * (appointment.Barber?.serviceCommissionRate || 0.50);
       
       if (cashRegister) {
         const services = cashRegister.services || [];
@@ -242,17 +243,17 @@ const updateStatus = async (req, res) => {
           type: 'service',
           client: appointment.Client?.name || 'Cliente',
           barberId: appointment.barberId,
-          barberName: barberName, // 🔥 SALVAR O NOME DO BARBEIRO
+          barberName: appointment.Barber?.name || 'Barbeiro',
           service: appointment.service,
-          price: appointment.price,
-          commission: commission,
+          price: appointment.price || 0,
+          commission,
           paymentMethod: 'dinheiro',
           time: appointment.time,
         });
         
         await cashRegister.update({
           services,
-          totalRevenue: totalRevenue + appointment.price,
+          totalRevenue: totalRevenue + (appointment.price || 0),
           totalCommissions: totalCommissions + commission,
           servicesCount: services.length,
         });
@@ -262,11 +263,11 @@ const updateStatus = async (req, res) => {
         await Revenue.create({
           cashRegisterId: null,
           date: hoje,
-          total: appointment.price,
+          total: appointment.price || 0,
           commissions: commission,
           servicesCount: 1,
           initialCash: 0,
-          finalCash: appointment.price,
+          finalCash: appointment.price || 0,
         });
         
         console.log(`⚠️ Caixa fechado. Serviço ${id} registrado diretamente no faturamento.`);
@@ -276,7 +277,7 @@ const updateStatus = async (req, res) => {
     const updated = await Appointment.findByPk(id, {
       include: [
         { model: Barber, attributes: ['id', 'name', 'email', 'phone'] },
-        { model: Client, attributes: ['id', 'name', 'email', 'phone'] }
+        { model: Client, attributes: ['id', 'name', 'phone'] }  // 🔥 REMOVER EMAIL
       ],
     });
     
@@ -313,7 +314,6 @@ const remove = async (req, res) => {
   }
 };
 
-// Buscar clientes para auto-complete
 const searchClients = async (req, res) => {
   try {
     const { q } = req.query;
@@ -326,7 +326,6 @@ const searchClients = async (req, res) => {
       where: {
         [Op.or]: [
           { name: { [Op.like]: `%${q}%` } },
-          { email: { [Op.like]: `%${q}%` } },
           { phone: { [Op.like]: `%${q}%` } },
         ],
         isActive: true,
