@@ -1,9 +1,11 @@
 require('dotenv').config();
 const express = require('express');
-const { exec } = require('child_process')
 const cors = require('cors');
 const path = require('path');
-const { sequelize, syncDatabase } = require('./src/models');
+const { execSync } = require('child_process'); // 🔥 MUDAR PARA execSync
+
+// 🔥 IMPORTAR O SEQUELIZE SOMENTE DEPOIS DE CONFIGURAR
+const { sequelize } = require('./src/models');
 
 const authRoutes = require('./src/routes/authRoutes');
 const barberRoutes = require('./src/routes/barberRoutes');
@@ -22,9 +24,6 @@ const publicRoutes = require('./src/routes/publicRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const isProduction = process.env.NODE_ENV === 'production';
-const isRailway = !!process.env.DATABASE_URL;
 
 // 🔥 MIDDLEWARES
 app.use(cors());
@@ -72,23 +71,28 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const runMigrations = async () => {
-  return new Promise((resolve, reject) => {
+// 🔥 FUNÇÃO PARA RODAR MIGRATIONS (VERSÃO SÍNCRONA)
+const runMigrations = () => {
+  try {
     console.log('🔄 Rodando migrations...');
-    exec('npx sequelize-cli db:migrate', (error, stdout, stderr) => {
-      if (error) {
-        console.error('❌ Erro nas migrations:', error);
-        reject(error);
-        return;
-      }
-      console.log(stdout);
-      resolve();
+    execSync('npx sequelize-cli db:migrate', { 
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: 'production' } // 🔥 FORÇAR NODE_ENV
     });
-  });
+    console.log('✅ Migrations concluídas!');
+  } catch (error) {
+    console.error('❌ Erro nas migrations:', error);
+    throw error;
+  }
 };
 
+// 🚀 INICIAR SERVIDOR
 const startServer = async () => {
   try {
+    console.log('🚀 Iniciando servidor...');
+    console.log('📊 NODE_ENV:', process.env.NODE_ENV);
+    console.log('📊 DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configurada' : '❌ Não configurada');
+    
     // 🔥 RODAR MIGRATIONS EM PRODUÇÃO
     if (process.env.NODE_ENV === 'production') {
       await runMigrations();
@@ -99,7 +103,6 @@ const startServer = async () => {
     console.log('📊 Conexão com banco estabelecida');
     
     // Iniciar servidor
-    const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
     });
@@ -108,7 +111,6 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-
 
 startServer();
 
