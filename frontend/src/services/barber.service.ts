@@ -42,7 +42,13 @@ export const barberService = {
     return response.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await api.delete(`/barbers/${id}`);
-  },
+  async delete(id: string): Promise<any> {
+  try {
+    const response = await api.delete(`/barbers/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao deletar barbeiro:', error);
+    throw error;
+  }
+}
 };

@@ -103,8 +103,7 @@ const create = async (req, res) => {
       barberId, 
       clientId, 
       clientName,
-      clientEmail,
-      clientPhone,
+      clientPhone, // 🔥 REMOVER clientEmail
       date, 
       time, 
       service, 
@@ -145,7 +144,6 @@ const create = async (req, res) => {
       // Criar novo cliente
       client = await Client.create({
         name: clientName,
-        email: clientEmail || `${clientName.toLowerCase().replace(/\s/g, '')}@email.com`,
         phone: clientPhone || '(00) 00000-0000',
         isActive: true,
       });

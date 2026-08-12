@@ -3,8 +3,7 @@ import { api } from '../api/client';
 export interface Client {
   id: string;
   name: string;
-  email: string;
-  phone: string;
+  phone: string; // 🔥 REMOVER EMAIL
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -12,8 +11,7 @@ export interface Client {
 
 export interface CreateClientData {
   name: string;
-  email: string;
-  phone: string;
+  phone: string; // 🔥 REMOVER EMAIL
 }
 
 export const clientService = {

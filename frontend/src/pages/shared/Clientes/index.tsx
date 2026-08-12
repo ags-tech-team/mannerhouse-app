@@ -9,7 +9,6 @@ import {
   X, 
   Check,
   User,
-  Mail,
   Phone,
   Users
 } from 'lucide-react';
@@ -22,7 +21,6 @@ const Clientes = () => {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     phone: '',
   });
 
@@ -48,14 +46,12 @@ const Clientes = () => {
       setEditingClient(client);
       setFormData({
         name: client.name,
-        email: client.email,
         phone: client.phone,
       });
     } else {
       setEditingClient(null);
       setFormData({
         name: '',
-        email: '',
         phone: '',
       });
     }
@@ -94,14 +90,12 @@ const Clientes = () => {
     setEditingClient(null);
     setFormData({
       name: '',
-      email: '',
       phone: '',
     });
   };
 
   const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.includes(searchTerm)
   );
 
@@ -169,7 +163,7 @@ const Clientes = () => {
           <Search size={18} className="text-[#7f7c7a]" />
           <input
             type="text"
-            placeholder="Buscar clientes por nome, email ou telefone..."
+            placeholder="Buscar clientes por nome ou telefone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
@@ -192,7 +186,6 @@ const Clientes = () => {
               <thead className="bg-[#f5f0e8]">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Nome</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
@@ -201,7 +194,7 @@ const Clientes = () => {
               <tbody className="divide-y divide-gray-200">
                 {filteredClients.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]">
+                    <td colSpan={4} className="px-6 py-4 text-center text-[#7f7c7a]">
                       Nenhum cliente encontrado
                     </td>
                   </tr>
@@ -215,9 +208,6 @@ const Clientes = () => {
                           </div>
                           <span className="font-medium text-[#060606]">{client.name}</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {client.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
                         {client.phone}
@@ -284,21 +274,6 @@ const Clientes = () => {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
                     placeholder="Digite o nome do cliente"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
-                    placeholder="Digite o email do cliente"
                     required
                   />
                 </div>

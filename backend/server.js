@@ -16,9 +16,13 @@ const expenseRoutes = require('./src/routes/expenseRoutes');
 const saleRoutes = require('./src/routes/saleRoutes');
 const commissionRoutes = require('./src/routes/commissionRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const publicRoutes = require('./src/routes/publicRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const isProduction = process.env.NODE_ENV === 'production';
+const isRailway = !!process.env.DATABASE_URL;
 
 // 🔥 MIDDLEWARES
 app.use(cors());
@@ -39,6 +43,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/commissions', commissionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/public', publicRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/api/health', (req, res) => {
@@ -64,16 +69,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 🔥 INICIAR SERVIDOR
 const startServer = async () => {
   try {
-    console.log('🔄 Sincronizando banco de dados...');
     await syncDatabase();
-    console.log('✅ Banco de dados sincronizado com sucesso!');
-
     app.listen(PORT, () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Banco: ${process.env.DATABASE_URL ? 'PostgreSQL (Railway)' : 'SQLite (Local)'}`);
+      console.log(`📊 Banco: ${isRailway ? 'PostgreSQL (Railway)' : 'SQLite (Local)'}`);
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor:', error);

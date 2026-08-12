@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../api/client';
+import { useNumberInput } from '../../../hooks/useNumberInput';
 import { 
   Plus, 
   Search, 
@@ -49,10 +50,12 @@ const AdminDespesas = () => {
     return new Date().getFullYear();
   });
 
+  // 🔥 HOOK PARA O INPUT NUMBER
+  const valorDespesa = useNumberInput();
+
   const [formData, setFormData] = useState({
     description: '',
     category: 'outros',
-    value: 0,
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'dinheiro',
     notes: '',
@@ -104,21 +107,21 @@ const AdminDespesas = () => {
       setFormData({
         description: despesa.description,
         category: despesa.category,
-        value: despesa.value,
         date: despesa.date,
         paymentMethod: despesa.paymentMethod,
         notes: despesa.notes || '',
       });
+      valorDespesa.setValue(String(despesa.value));
     } else {
       setEditingDespesa(null);
       setFormData({
         description: '',
         category: 'outros',
-        value: 0,
         date: new Date().toISOString().split('T')[0],
         paymentMethod: 'dinheiro',
         notes: '',
       });
+      valorDespesa.reset();
     }
     setShowModal(true);
   };
@@ -127,10 +130,19 @@ const AdminDespesas = () => {
     e.preventDefault();
     
     try {
+      const payload = {
+        description: formData.description,
+        category: formData.category,
+        value: valorDespesa.getNumberValue(),
+        date: formData.date,
+        paymentMethod: formData.paymentMethod,
+        notes: formData.notes,
+      };
+
       if (editingDespesa) {
-        await api.put(`/expenses/${editingDespesa.id}`, formData);
+        await api.put(`/expenses/${editingDespesa.id}`, payload);
       } else {
-        await api.post('/expenses', formData);
+        await api.post('/expenses', payload);
       }
       await loadDespesas();
       setShowModal(false);
@@ -156,11 +168,11 @@ const AdminDespesas = () => {
     setFormData({
       description: '',
       category: 'outros',
-      value: 0,
       date: new Date().toISOString().split('T')[0],
       paymentMethod: 'dinheiro',
       notes: '',
     });
+    valorDespesa.reset();
   };
 
   const changeMonth = (delta: number) => {
@@ -471,9 +483,10 @@ const AdminDespesas = () => {
                 <input
                   type="number"
                   step="0.01"
-                  value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: Number(e.target.value) })}
+                  value={valorDespesa.value}
+                  onChange={valorDespesa.onChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                  placeholder="0,00"
                   required
                   min="0"
                 />

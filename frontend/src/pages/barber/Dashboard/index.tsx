@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../api/client';
 import { 
@@ -17,18 +17,14 @@ import {
   ChevronRight,
   Coffee,
   Sun,
-  Moon
+  Moon,
+  BarChart
 } from 'lucide-react';
 
 interface DashboardData {
-  barber: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    commissionRate: number;
-  };
   summary: {
+    totalBarbers: number;
+    totalClients: number;
     today: {
       appointments: number;
       revenue: number;
@@ -54,6 +50,7 @@ interface DashboardData {
     time: string;
     client: string;
     phone: string;
+    barber: string;
     service: string;
     price: number;
     status: string;
@@ -64,6 +61,7 @@ interface DashboardData {
     date: string;
     time: string;
     client: string;
+    barber: string;
     service: string;
     status: string;
   }>;
@@ -84,18 +82,7 @@ const BarberDashboard = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  useEffect(() => {
-    loadDashboard();
-    
-    // Atualizar relógio a cada minuto
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    
-    return () => clearInterval(timer);
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.get('/barber/dashboard');
@@ -104,8 +91,18 @@ const BarberDashboard = () => {
       console.error('Erro ao carregar dashboard:', error);
     } finally {
       setLoading(false);
-  }
-};
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+    
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    
+    return () => clearInterval(timer);
+  }, [loadDashboard]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -148,16 +145,6 @@ const BarberDashboard = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'completed': return <CheckCircle size={16} className="text-green-600" />;
-      case 'confirmed': return <CheckCircle size={16} className="text-blue-600" />;
-      case 'pending': return <Clock size={16} className="text-yellow-600" />;
-      case 'cancelled': return <XCircle size={16} className="text-red-600" />;
-      default: return <AlertCircle size={16} className="text-gray-600" />;
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -191,7 +178,7 @@ const BarberDashboard = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-[#060606]">
-                {greeting.text}, {data.barber.name}
+                {greeting.text}! 👋
               </h1>
               <p className="text-[#7f7c7a]">
                 {currentTime.toLocaleTimeString('pt-BR', { 
@@ -218,8 +205,9 @@ const BarberDashboard = () => {
                 : 'Caixa fechado'}
             </span>
           </div>
-          <div className="text-sm text-[#7f7c7a]">
-            Comissão: {data.barber.commissionRate}%
+          <div className="text-sm text-[#7f7c7a] flex items-center gap-1">
+            <Users size={16} className="text-[#9c7f64]" />
+            {data.summary.totalBarbers} barbeiros
           </div>
         </div>
       </div>
@@ -336,6 +324,9 @@ const BarberDashboard = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-[#060606]">{app.client}</p>
+                        <span className="text-xs text-[#7f7c7a] flex items-center gap-1">
+                          <User size={12} /> {app.barber}
+                        </span>
                         {app.isCompleted && (
                           <CheckCircle size={14} className="text-green-600" />
                         )}
@@ -383,7 +374,9 @@ const BarberDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-[#060606]">{app.client}</p>
-                      <p className="text-sm text-[#7f7c7a]">{app.service}</p>
+                      <p className="text-sm text-[#7f7c7a] flex items-center gap-1">
+                        <User size={12} /> {app.barber} • {app.service}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-[#9c7f64]">
@@ -406,51 +399,90 @@ const BarberDashboard = () => {
         </div>
       </div>
 
-      {/* Resumo Mensal - Serviços vs Produtos */}
+      {/* Resumo da Barbearia */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-[#060606] mb-4 flex items-center gap-2">
-          <TrendingUp size={20} className="text-[#9c7f64]" />
-          Resumo do Mês
+          <BarChart size={20} className="text-[#9c7f64]" />
+          Resumo da Barbearia
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-[#f5f0e8] p-4 rounded-lg">
-            <p className="text-sm text-[#7f7c7a]">Serviços</p>
-            <p className="text-xl font-bold text-[#060606]">
-              {data.summary.month.serviceRevenue ? data.summary.month.appointments : 0}
-            </p>
-            <p className="text-sm text-[#9c7f64]">
-              {formatCurrency(data.summary.month.serviceRevenue || 0)}
-            </p>
-            <p className="text-xs text-[#7f7c7a]">
-              Comissão: {formatCurrency(data.summary.month.serviceCommission || 0)}
+            <div className="flex items-center gap-2">
+              <Users size={18} className="text-[#9c7f64]" />
+              <p className="text-sm text-[#7f7c7a]">Barbeiros</p>
+            </div>
+            <p className="text-2xl font-bold text-[#060606] mt-1">
+              {data.summary.totalBarbers}
             </p>
           </div>
+
           <div className="bg-[#f5f0e8] p-4 rounded-lg">
-            <p className="text-sm text-[#7f7c7a]">Produtos</p>
-            <p className="text-xl font-bold text-[#060606]">
-              {data.summary.month.productRevenue ? 'Vendas' : '0'}
-            </p>
-            <p className="text-sm text-[#9c7f64]">
-              {formatCurrency(data.summary.month.productRevenue || 0)}
-            </p>
-            <p className="text-xs text-[#7f7c7a]">
-              Comissão: {formatCurrency(data.summary.month.productCommission || 0)}
+            <div className="flex items-center gap-2">
+              <User size={18} className="text-[#9c7f64]" />
+              <p className="text-sm text-[#7f7c7a]">Clientes</p>
+            </div>
+            <p className="text-2xl font-bold text-[#060606] mt-1">
+              {data.summary.totalClients}
             </p>
           </div>
+
           <div className="bg-[#f5f0e8] p-4 rounded-lg border-2 border-[#9c7f64]">
-            <p className="text-sm text-[#7f7c7a]">Total Faturamento</p>
-            <p className="text-xl font-bold text-[#9c7f64]">
+            <div className="flex items-center gap-2">
+              <DollarSign size={18} className="text-[#9c7f64]" />
+              <p className="text-sm text-[#7f7c7a]">Faturamento Mês</p>
+            </div>
+            <p className="text-xl font-bold text-[#9c7f64] mt-1">
               {formatCurrency(data.summary.month.revenue || 0)}
             </p>
           </div>
+
           <div className="bg-[#f5f0e8] p-4 rounded-lg">
-            <p className="text-sm text-[#7f7c7a]">Comissão Total</p>
-            <p className="text-xl font-bold text-green-600">
-              {formatCurrency(data.summary.month.commission || 0)}
+            <div className="flex items-center gap-2">
+              <Scissors size={18} className="text-[#9c7f64]" />
+              <p className="text-sm text-[#7f7c7a]">Serviços Mês</p>
+            </div>
+            <p className="text-2xl font-bold text-[#060606] mt-1">
+              {data.summary.month.appointments || 0}
             </p>
-            <p className="text-xs text-[#7f7c7a]">
-              Taxa: {data.barber.commissionRate}%
+          </div>
+        </div>
+
+        {/* Detalhes do Mês - Serviços vs Produtos */}
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-[#f5f0e8] p-4 rounded-lg">
+            <p className="text-sm text-[#7f7c7a] flex items-center gap-1">
+              <Scissors size={14} /> Serviços
             </p>
+            <div className="flex justify-between mt-1">
+              <span className="text-[#060606]">Faturamento:</span>
+              <span className="font-medium text-[#9c7f64]">
+                {formatCurrency(data.summary.month.serviceRevenue || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[#7f7c7a]">Comissão:</span>
+              <span className="font-medium text-[#060606]">
+                {formatCurrency(data.summary.month.serviceCommission || 0)}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[#f5f0e8] p-4 rounded-lg">
+            <p className="text-sm text-[#7f7c7a] flex items-center gap-1">
+              <ShoppingBag size={14} /> Produtos
+            </p>
+            <div className="flex justify-between mt-1">
+              <span className="text-[#060606]">Faturamento:</span>
+              <span className="font-medium text-[#9c7f64]">
+                {formatCurrency(data.summary.month.productRevenue || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[#7f7c7a]">Comissão:</span>
+              <span className="font-medium text-[#060606]">
+                {formatCurrency(data.summary.month.productCommission || 0)}
+              </span>
+            </div>
           </div>
         </div>
       </div>

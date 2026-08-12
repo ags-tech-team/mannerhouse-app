@@ -3,13 +3,23 @@ const bcrypt = require('bcryptjs');
 
 const getAll = async (req, res) => {
   try {
+    const { includeInactive } = req.query;
+    const where = { isActive: true};
+    
+    // 🔥 POR PADRÃO, NÃO MOSTRAR INATIVOS
+    if (includeInactive !== 'true') {
+      where.isActive = true;
+    }
+    
     const barbers = await Barber.findAll({
+      where,
       include: [
         {
           model: User,
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
+      order: [['name', 'ASC']],
     });
     res.json(barbers);
   } catch (error) {
@@ -122,14 +132,20 @@ const remove = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // Deletar usuário também
-    await User.destroy({ where: { id: barber.userId } });
-    await barber.destroy();
+    await barber.update({ isActive: false });
+    
+    const user = await User.findByPk(barber.userId);
+    if (user) {
+      await user.update({ isActive: false });
+    }
 
-    res.status(204).send();
+    res.json({ 
+      message: 'Barbeiro desativado com sucesso',
+      barber: { ...barber.toJSON(), isActive: false }
+    });
   } catch (error) {
-    console.error('Erro ao deletar barbeiro:', error);
-    res.status(500).json({ error: 'Erro ao deletar barbeiro' });
+    console.error('Erro ao desativar barbeiro:', error);
+    res.status(500).json({ error: 'Erro ao desativar barbeiro' });
   }
 };
 

@@ -19,7 +19,9 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import { cashRegisterService } from '../../../services/cashRegister.service';
 import type { CashRegister } from '../../../services/cashRegister.service';
+import { useNumberInput } from '../../../hooks/useNumberInput';
 import { api } from '../../../api/client';
+import { SERVICES, getServiceById } from '../../../utils/services';
 
 interface ServicoFaturamento {
   id: string;
@@ -27,6 +29,7 @@ interface ServicoFaturamento {
   barbeiro: string;
   barbeiroId: string;
   servico: string;
+  servicoId: string;
   valor: number;
   comissao: number;
   data: string;
@@ -52,7 +55,7 @@ const BarberCaixa = () => {
   const [showModalAbrirCaixa, setShowModalAbrirCaixa] = useState(false);
   const [showModalFecharCaixa, setShowModalFecharCaixa] = useState(false);
   const [editingServico, setEditingServico] = useState<ServicoFaturamento | null>(null);
-  const [valorInicial, setValorInicial] = useState(0);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   
   // 🔥 BARBEIRO ATUAL (vindo da agenda)
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
@@ -61,11 +64,12 @@ const BarberCaixa = () => {
     cliente: '',
     barbeiroId: '',
     barbeiroNome: '',
-    servico: '',
-    valor: 0,
     formaPagamento: 'dinheiro',
     observacao: '',
   });
+
+  const valor = useNumberInput();
+  const valorInicial = useNumberInput();
 
   // 🔥 CARREGAR BARBEIRO SALVO DA AGENDA
   const loadCurrentBarber = async () => {
@@ -73,27 +77,19 @@ const BarberCaixa = () => {
       const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
       const savedBarberName = localStorage.getItem('@mannerhouse:selectedBarberName');
       
-      console.log('🔍 Carregando barbeiro da agenda:', { savedBarberId, savedBarberName });
-      
       if (savedBarberId) {
-        // Buscar o barbeiro completo da API
         const response = await api.get(`/barbers/${savedBarberId}`);
         const barber = response.data;
-        
         setCurrentBarber(barber);
         setFormData(prev => ({
           ...prev,
           barbeiroId: barber.id,
           barbeiroNome: barber.name,
         }));
-        
-        console.log('✅ Barbeiro carregado da agenda:', barber.name);
       } else {
-        // Fallback: buscar o barbeiro do usuário logado
         const response = await api.get('/barbers');
         const barbers = response.data;
         const userBarber = barbers.find((b: any) => b.userId === user?.id);
-        
         if (userBarber) {
           setCurrentBarber(userBarber);
           setFormData(prev => ({
@@ -123,9 +119,10 @@ const BarberCaixa = () => {
         const servicosFormatados = data.services.map((s: any) => ({
           id: s.id || Date.now().toString(),
           cliente: s.client || 'Cliente',
-          barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro', // 🔥 PRIORIZAR barberName
+          barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro',
           barbeiroId: s.barberId || user?.id || '',
           servico: s.service || s.servico || 'Serviço',
+          servicoId: s.serviceId || '',
           valor: s.price || s.valor || 0,
           comissao: s.commission || s.comissao || 0,
           data: new Date().toISOString().split('T')[0],
@@ -170,16 +167,16 @@ const BarberCaixa = () => {
   };
 
   const handleAbrirCaixa = async () => {
-    if (!valorInicial || valorInicial < 0) {
+    const initialValor = valorInicial.getNumberValue();
+    if (!initialValor || initialValor < 0) {
       alert('Digite um valor inicial válido');
       return;
     }
-
     try {
-      await cashRegisterService.open(valorInicial);
+      await cashRegisterService.open(initialValor);
       await loadData();
       setShowModalAbrirCaixa(false);
-      setValorInicial(0);
+      valorInicial.reset();
       alert('✅ Caixa aberto com sucesso!');
     } catch (error: any) {
       console.error('Erro ao abrir caixa:', error);
@@ -206,22 +203,22 @@ const BarberCaixa = () => {
         cliente: servico.cliente,
         barbeiroId: servico.barbeiroId,
         barbeiroNome: servico.barbeiro,
-        servico: servico.servico,
-        valor: servico.valor,
         formaPagamento: servico.formaPagamento,
         observacao: servico.observacao || '',
       });
+      setSelectedServiceId(servico.servicoId || '');
+      valor.setValue(String(servico.valor));
     } else {
       setEditingServico(null);
       setFormData({
         cliente: '',
         barbeiroId: currentBarber?.id || '',
         barbeiroNome: currentBarber?.name || '',
-        servico: '',
-        valor: 0,
         formaPagamento: 'dinheiro',
         observacao: '',
       });
+      setSelectedServiceId('');
+      valor.reset();
     }
     setShowModal(true);
   };
@@ -234,24 +231,29 @@ const BarberCaixa = () => {
       return;
     }
 
-    // 🔥 VERIFICAR SE TEM BARBEIRO
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId) {
       alert('Nenhum barbeiro selecionado! Volte para a agenda e selecione um barbeiro.');
       return;
     }
 
+    const selectedService = getServiceById(selectedServiceId);
+    if (!selectedService) {
+      alert('Selecione um serviço');
+      return;
+    }
+
     try {
       if (editingServico) {
-        // Edição
         const updatedServicos = servicos.map(s => 
           s.id === editingServico.id 
             ? { 
                 ...s, 
                 cliente: formData.cliente,
-                servico: formData.servico,
-                valor: formData.valor,
-                comissao: formData.valor * 0.2,
+                servico: selectedService.name,
+                servicoId: selectedService.id,
+                valor: valor.getNumberValue() || selectedService.price,
+                comissao: (valor.getNumberValue() || selectedService.price) * 0.2,
                 formaPagamento: formData.formaPagamento,
                 observacao: formData.observacao,
                 barbeiro: formData.barbeiroNome || currentBarber?.name || 'Barbeiro',
@@ -262,12 +264,12 @@ const BarberCaixa = () => {
         await cashRegisterService.updateServices(updatedServicos);
         await loadData();
       } else {
-        // 🔥 CRIAÇÃO: Usar o barbeiro da agenda
         await cashRegisterService.addService({
           client: formData.cliente,
           barberId: barberId,
-          service: formData.servico,
-          price: formData.valor,
+          service: selectedService.name,
+          serviceId: selectedService.id,
+          price: valor.getNumberValue() || selectedService.price,
           paymentMethod: formData.formaPagamento,
         });
         await loadData();
@@ -279,11 +281,11 @@ const BarberCaixa = () => {
         cliente: '',
         barbeiroId: currentBarber?.id || '',
         barbeiroNome: currentBarber?.name || '',
-        servico: '',
-        valor: 0,
         formaPagamento: 'dinheiro',
         observacao: '',
       });
+      setSelectedServiceId('');
+      valor.reset();
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar serviço');
@@ -295,9 +297,7 @@ const BarberCaixa = () => {
       alert('O caixa precisa estar aberto para excluir serviços!');
       return;
     }
-    
     if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
-    
     try {
       await cashRegisterService.removeService(id);
       await loadData();
@@ -311,20 +311,12 @@ const BarberCaixa = () => {
       servico.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
       servico.barbeiro.toLowerCase().includes(searchTerm.toLowerCase()) ||
       servico.servico.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchStatus = filtroStatus === 'todos' || servico.status === filtroStatus;
-    
     return matchSearch && matchStatus;
   });
 
-  const totalVendas = servicos
-    .filter(s => s.status === 'concluido')
-    .reduce((acc, s) => acc + s.valor, 0);
-  
-  const totalComissoes = servicos
-    .filter(s => s.status === 'concluido')
-    .reduce((acc, s) => acc + s.comissao, 0);
-  
+  const totalVendas = servicos.filter(s => s.status === 'concluido').reduce((acc, s) => acc + s.valor, 0);
+  const totalComissoes = servicos.filter(s => s.status === 'concluido').reduce((acc, s) => acc + s.comissao, 0);
   const totalServicos = servicos.filter(s => s.status === 'concluido').length;
   const ticketMedio = totalServicos > 0 ? totalVendas / totalServicos : 0;
 
@@ -365,46 +357,30 @@ const BarberCaixa = () => {
           <p className="text-[#7f7c7a]">
             {caixa?.isOpen ? (
               <span className="flex items-center gap-2 text-green-600">
-                <Unlock size={16} />
-                Caixa aberto desde {caixa.openingTime}
+                <Unlock size={16} /> Caixa aberto desde {caixa.openingTime}
               </span>
             ) : (
               <span className="flex items-center gap-2 text-red-600">
-                <Lock size={16} />
-                Caixa fechado
+                <Lock size={16} /> Caixa fechado
               </span>
             )}
             {currentBarber && (
-              <span className="ml-4 text-sm text-[#9c7f64]">
-                👤 Barbeiro: {currentBarber.name}
-              </span>
+              <span className="ml-4 text-sm text-[#9c7f64]">👤 Barbeiro: {currentBarber.name}</span>
             )}
           </p>
         </div>
         <div className="flex gap-2">
           {!caixa?.isOpen ? (
-            <button
-              onClick={() => setShowModalAbrirCaixa(true)}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
-            >
-              <Unlock size={18} />
-              Abrir Caixa
+            <button onClick={() => setShowModalAbrirCaixa(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+              <Unlock size={18} /> Abrir Caixa
             </button>
           ) : (
             <>
-              <button
-                onClick={() => handleOpenModal()}
-                className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition"
-              >
-                <Plus size={18} />
-                Nova Venda
+              <button onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition">
+                <Plus size={18} /> Nova Venda
               </button>
-              <button
-                onClick={() => setShowModalFecharCaixa(true)}
-                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                <Lock size={18} />
-                Fechar Caixa
+              <button onClick={() => setShowModalFecharCaixa(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
+                <Lock size={18} /> Fechar Caixa
               </button>
             </>
           )}
@@ -415,24 +391,13 @@ const BarberCaixa = () => {
       {!caixa?.isOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="text-yellow-600" size={20} />
-          <div>
-            <p className="text-yellow-800 font-medium">Caixa fechado</p>
-            <p className="text-yellow-700 text-sm">
-              Abra o caixa para começar a registrar os serviços do dia
-            </p>
-          </div>
+          <div><p className="text-yellow-800 font-medium">Caixa fechado</p><p className="text-yellow-700 text-sm">Abra o caixa para começar a registrar os serviços do dia</p></div>
         </div>
       )}
-
       {caixa?.isOpen && servicos.length === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="text-blue-600" size={20} />
-          <div>
-            <p className="text-blue-800 font-medium">Nenhum serviço registrado</p>
-            <p className="text-blue-700 text-sm">
-              Clique em "Nova Venda" para adicionar o primeiro serviço do dia
-            </p>
-          </div>
+          <div><p className="text-blue-800 font-medium">Nenhum serviço registrado</p><p className="text-blue-700 text-sm">Clique em "Nova Venda" para adicionar o primeiro serviço do dia</p></div>
         </div>
       )}
 
@@ -441,62 +406,27 @@ const BarberCaixa = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Vendas do Dia</p>
-                <p className="text-2xl font-bold text-[#060606]">
-                  R$ {totalVendas.toFixed(2)}
-                </p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <DollarSign size={20} className="text-green-600" />
-              </div>
+              <div><p className="text-sm font-medium text-[#7f7c7a]">Vendas do Dia</p><p className="text-2xl font-bold text-[#060606]">R$ {totalVendas.toFixed(2)}</p></div>
+              <div className="p-3 bg-green-100 rounded-full"><DollarSign size={20} className="text-green-600" /></div>
             </div>
-            {caixa?.initialCash !== undefined && (
-              <p className="text-sm text-[#7f7c7a] mt-1">
-                Caixa inicial: R$ {caixa.initialCash.toFixed(2)}
-              </p>
-            )}
+            {caixa?.initialCash !== undefined && <p className="text-sm text-[#7f7c7a] mt-1">Caixa inicial: R$ {caixa.initialCash.toFixed(2)}</p>}
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Comissões</p>
-                <p className="text-2xl font-bold text-[#060606]">
-                  R$ {totalComissoes.toFixed(2)}
-                </p>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-full">
-                <TrendingUp size={20} className="text-orange-600" />
-              </div>
+              <div><p className="text-sm font-medium text-[#7f7c7a]">Comissões</p><p className="text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p></div>
+              <div className="p-3 bg-orange-100 rounded-full"><TrendingUp size={20} className="text-orange-600" /></div>
             </div>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Ticket Médio</p>
-                <p className="text-2xl font-bold text-[#060606]">
-                  R$ {ticketMedio.toFixed(2)}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Users size={20} className="text-blue-600" />
-              </div>
+              <div><p className="text-sm font-medium text-[#7f7c7a]">Ticket Médio</p><p className="text-2xl font-bold text-[#060606]">R$ {ticketMedio.toFixed(2)}</p></div>
+              <div className="p-3 bg-blue-100 rounded-full"><Users size={20} className="text-blue-600" /></div>
             </div>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Serviços</p>
-                <p className="text-2xl font-bold text-[#060606]">
-                  {totalServicos}
-                </p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-full">
-                <Clock size={20} className="text-purple-600" />
-              </div>
+              <div><p className="text-sm font-medium text-[#7f7c7a]">Serviços</p><p className="text-2xl font-bold text-[#060606]">{totalServicos}</p></div>
+              <div className="p-3 bg-purple-100 rounded-full"><Clock size={20} className="text-purple-600" /></div>
             </div>
           </div>
         </div>
@@ -508,24 +438,11 @@ const BarberCaixa = () => {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 flex items-center gap-2">
               <Search size={18} className="text-[#7f7c7a]" />
-              <input
-                type="text"
-                placeholder="Buscar por cliente, barbeiro ou serviço..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                disabled={!caixa?.isOpen}
-              />
+              <input type="text" placeholder="Buscar por cliente, barbeiro ou serviço..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" disabled={!caixa?.isOpen} />
             </div>
-
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-[#7f7c7a]" />
-              <select
-                value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                disabled={!caixa?.isOpen}
-              >
+              <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" disabled={!caixa?.isOpen}>
                 <option value="todos">Todos</option>
                 <option value="concluido">Concluídos</option>
                 <option value="pendente">Pendentes</option>
@@ -554,153 +471,64 @@ const BarberCaixa = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">
-                      Carregando...
+                {loading ? <tr><td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">Carregando...</td></tr>
+                : filteredServicos.length === 0 ? <tr><td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">{caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}</td></tr>
+                : filteredServicos.map((servico) => (
+                  <tr key={servico.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">{servico.cliente}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{servico.barbeiro}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{servico.servico}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">R$ {servico.valor.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">R$ {servico.comissao.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{getPaymentText(servico.formaPagamento)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(servico.status)}`}>{getStatusText(servico.status)}</span></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <button onClick={() => handleOpenModal(servico)} className="text-[#9c7f64] hover:text-[#544941] transition mr-2" disabled={!caixa?.isOpen}><Eye size={18} /></button>
+                      <button onClick={() => window.print()} className="text-[#9c7f64] hover:text-[#544941] transition mr-2"><Printer size={18} /></button>
+                      <button onClick={() => handleDelete(servico.id)} className="text-red-500 hover:text-red-700 transition" disabled={!caixa?.isOpen}><X size={18} /></button>
                     </td>
                   </tr>
-                ) : filteredServicos.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">
-                      {caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredServicos.map((servico) => (
-                    <tr key={servico.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
-                        {servico.cliente}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {servico.barbeiro}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {servico.servico}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
-                        R$ {servico.valor.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        R$ {servico.comissao.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {getPaymentText(servico.formaPagamento)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(servico.status)}`}>
-                          {getStatusText(servico.status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={() => handleOpenModal(servico)}
-                          className="text-[#9c7f64] hover:text-[#544941] transition mr-2"
-                          disabled={!caixa?.isOpen}
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button
-                          onClick={() => window.print()}
-                          className="text-[#9c7f64] hover:text-[#544941] transition mr-2"
-                        >
-                          <Printer size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(servico.id)}
-                          className="text-red-500 hover:text-red-700 transition"
-                          disabled={!caixa?.isOpen}
-                        >
-                          <X size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Modal Abrir Caixa */}
+      {/* Modais */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#060606]">Abrir Caixa</h2>
-              <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]">
-                <X size={24} />
-              </button>
+              <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
-
             <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  Ao abrir o caixa, você poderá registrar serviços e vendas do dia.
-                </p>
-              </div>
-
+              <div className="bg-blue-50 p-4 rounded-lg"><p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p></div>
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor Inicial (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={valorInicial}
-                  onChange={(e) => setValorInicial(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  placeholder="0,00"
-                  min="0"
-                  required
-                />
+                <input type="number" step="0.01" value={valorInicial.value} onChange={valorInicial.onChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" placeholder="0,00" min="0" required />
               </div>
-
-              <button
-                onClick={handleAbrirCaixa}
-                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
-              >
-                <Unlock size={18} />
-                Abrir Caixa
-              </button>
+              <button onClick={handleAbrirCaixa} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Unlock size={18} /> Abrir Caixa</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Fechar Caixa */}
       {showModalFecharCaixa && caixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#060606]">Fechar Caixa</h2>
-              <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]">
-                <X size={24} />
-              </button>
+              <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
-
             <div className="space-y-4">
               <div className="bg-yellow-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-yellow-800">Valor Inicial</span>
-                  <span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2">
-                  <span className="text-sm text-yellow-800">Vendas do Dia</span>
-                  <span className="font-medium">R$ {totalVendas.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2">
-                  <span className="text-sm font-bold text-yellow-800">Total em Caixa</span>
-                  <span className="font-bold text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span>
-                </div>
+                <div className="flex justify-between"><span className="text-sm text-yellow-800">Valor Inicial</span><span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm text-yellow-800">Vendas do Dia</span><span className="font-medium">R$ {totalVendas.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm font-bold text-yellow-800">Total em Caixa</span><span className="font-bold text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span></div>
               </div>
-
-              <button
-                onClick={handleFecharCaixa}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
-              >
-                <Lock size={18} />
-                Fechar Caixa
-              </button>
+              <button onClick={handleFecharCaixa} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Lock size={18} /> Fechar Caixa</button>
             </div>
           </div>
         </div>
@@ -711,69 +539,56 @@ const BarberCaixa = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">
-                {editingServico ? 'Editar Serviço' : 'Nova Venda'}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-[#7f7c7a] hover:text-[#060606]">
-                <X size={24} />
-              </button>
+              <h2 className="text-2xl font-bold text-[#060606]">{editingServico ? 'Editar Serviço' : 'Nova Venda'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 🔥 MOSTRAR O BARBEIRO ATUAL */}
               <div className="bg-[#f5f0e8] p-3 rounded-lg">
                 <p className="text-sm text-[#7f7c7a]">👤 Barbeiro</p>
-                <p className="font-semibold text-[#060606]">
-                  {currentBarber?.name || 'Nenhum barbeiro selecionado'}
-                </p>
-                <p className="text-xs text-[#7f7c7a] mt-1">
-                  Barbeiro selecionado na agenda
-                </p>
+                <p className="font-semibold text-[#060606]">{currentBarber?.name || 'Nenhum barbeiro selecionado'}</p>
+                <p className="text-xs text-[#7f7c7a] mt-1">Barbeiro selecionado na agenda</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Cliente</label>
-                <input
-                  type="text"
-                  value={formData.cliente}
-                  onChange={(e) => setFormData({ ...formData, cliente: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                />
+                <input type="text" value={formData.cliente} onChange={(e) => setFormData({ ...formData, cliente: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" required />
               </div>
 
+              {/* 🔥 SELECT DE SERVIÇOS */}
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Serviço</label>
-                <input
-                  type="text"
-                  value={formData.servico}
-                  onChange={(e) => setFormData({ ...formData, servico: e.target.value })}
+                <select
+                  value={selectedServiceId}
+                  onChange={(e) => {
+                    const serviceId = e.target.value;
+                    setSelectedServiceId(serviceId);
+                    const service = getServiceById(serviceId);
+                    if (service) {
+                      valor.setValue(String(service.price));
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
                   required
-                />
+                >
+                  <option value="">Selecione um serviço</option>
+                  {SERVICES.map((service) => (
+                    <option key={service.id} value={service.id}>
+                      {service.name} - R$ {service.price.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#7f7c7a] mt-1">O valor é preenchido automaticamente ao selecionar um serviço</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.valor}
-                  onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                  min="0"
-                />
+                <input type="number" step="0.01" value={valor.value} onChange={valor.onChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="0,00" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Forma de Pagamento</label>
-                <select
-                  value={formData.formaPagamento}
-                  onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                >
+                <select value={formData.formaPagamento} onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" required>
                   <option value="dinheiro">Dinheiro</option>
                   <option value="cartao">Cartão</option>
                   <option value="debito">Débito</option>
@@ -783,31 +598,12 @@ const BarberCaixa = () => {
 
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Observação</label>
-                <textarea
-                  value={formData.observacao}
-                  onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  rows={3}
-                />
+                <textarea value={formData.observacao} onChange={(e) => setFormData({ ...formData, observacao: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" rows={3} />
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <Check size={18} />
-                    Salvar
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition"
-                >
-                  Cancelar
-                </button>
+                <button type="submit" className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Check size={18} /> Salvar</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition">Cancelar</button>
               </div>
             </form>
           </div>

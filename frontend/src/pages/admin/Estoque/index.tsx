@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../../../services/product.service';
+import { useNumberInput } from '../../../hooks/useNumberInput';
 import type { Product } from '../../../services/product.service';
 import { Plus, Edit, Trash2, Search, Package, DollarSign, AlertCircle } from 'lucide-react';
 
@@ -9,12 +10,15 @@ const AdminEstoque = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // 🔥 HOOKS PARA OS INPUTS NUMBER
+  const price = useNumberInput();
+  const costPrice = useNumberInput();
+  const stock = useNumberInput();
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: 0,
-    costPrice: 0,
-    stock: 0,
     category: 'outros',
   });
 
@@ -42,18 +46,29 @@ const AdminEstoque = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        price: price.getNumberValue(),
+        costPrice: costPrice.getNumberValue(),
+        stock: stock.getNumberValue(),
+        category: formData.category,
+      };
+
       if (editingProduct) {
-        await productService.update(editingProduct.id, formData);
+        await productService.update(editingProduct.id, payload);
       } else {
-        await productService.create(formData);
+        await productService.create(payload);
       }
+      
       await loadProducts();
       setShowModal(false);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar produto:', error);
-      alert('Erro ao salvar produto');
+      alert(error.response?.data?.error || 'Erro ao salvar produto');
     }
   };
 
@@ -72,11 +87,11 @@ const AdminEstoque = () => {
     setFormData({
       name: '',
       description: '',
-      price: 0,
-      costPrice: 0,
-      stock: 0,
       category: 'outros',
     });
+    price.reset();
+    costPrice.reset();
+    stock.reset();
   };
 
   const categories = [
@@ -176,11 +191,11 @@ const AdminEstoque = () => {
                         setFormData({
                           name: product.name,
                           description: product.description || '',
-                          price: product.price,
-                          costPrice: product.costPrice,
-                          stock: product.stock,
                           category: product.category,
                         });
+                        price.setValue(String(product.price));
+                        costPrice.setValue(String(product.costPrice));
+                        stock.setValue(String(product.stock));
                         setShowModal(true);
                       }}
                       className="p-1 hover:bg-gray-100 rounded"
@@ -271,9 +286,10 @@ const AdminEstoque = () => {
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                    value={price.value}
+                    onChange={price.onChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="0,00"
                     required
                     min="0"
                   />
@@ -283,9 +299,10 @@ const AdminEstoque = () => {
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: Number(e.target.value) })}
+                    value={costPrice.value}
+                    onChange={costPrice.onChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="0,00"
                     required
                     min="0"
                   />
@@ -297,9 +314,11 @@ const AdminEstoque = () => {
                   <label className="block text-sm font-medium text-[#060606]">Estoque</label>
                   <input
                     type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
+                    step="1"
+                    value={stock.value}
+                    onChange={stock.onChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
+                    placeholder="0"
                     required
                     min="0"
                   />

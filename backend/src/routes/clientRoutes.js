@@ -5,6 +5,7 @@ const {
   create,
   update,
   remove,
+  search,
 } = require('../controllers/clientController');
 const { authMiddleware } = require('../middlewares/auth');
 
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', getAll);
+router.get('/search', search);
 router.get('/:id', getById);
 router.post('/', create);
 router.put('/:id', update);

@@ -17,17 +17,21 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ Erro no interceptor:', error);
+    return Promise.reject(error);
+  }
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      localStorage.removeItem('@mannerhouse:token');
-      localStorage.removeItem('@mannerhouse:user');
-      window.location.href = '/login';
-    }
+    console.error('❌ ===== ERRO NA RESPOSTA =====');
+    console.error('  Status:', error.response?.status);
+    console.error('  URL:', error.config?.url);
+    console.error('  Data:', error.response?.data);
     return Promise.reject(error);
   }
 );

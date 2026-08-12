@@ -20,6 +20,9 @@ import BarberAgenda from '../pages/barber/Agenda';
 import BarberCaixa from '../pages/barber/Caixa';
 import Clientes from '../pages/shared/Clientes';
 
+// 🔥 PÁGINA PÚBLICA
+import PublicSchedule from '../pages/public/Schedule';
+
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
 export const AppRoutes = () => {
@@ -39,13 +42,17 @@ export const AppRoutes = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rotas públicas */}
+        {/* 🔥 ROTA PÚBLICA (PÁGINA INICIAL) */}
+        <Route path="/" element={<PublicSchedule />} />
+        <Route path="/agendar" element={<PublicSchedule />} />
+
+        {/* Rotas de autenticação */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
         </Route>
 
-        {/* Rotas do Admin */}
+        {/* 🔥 ROTAS DO ADMIN (PROTEGIDAS) */}
         <Route
           path="/admin"
           element={
@@ -62,7 +69,7 @@ export const AppRoutes = () => {
           <Route path="clients" element={<Clientes />} />
         </Route>
 
-        {/* Rotas do Barbeiro */}
+        {/* 🔥 ROTAS DO BARBEIRO (PROTEGIDAS) */}
         <Route
           path="/barber"
           element={
@@ -78,7 +85,8 @@ export const AppRoutes = () => {
           <Route path="clients" element={<Clientes />} />
         </Route>
 
-        <Route path="*" element={<Navigate to={user ? (user.role === 'admin' ? '/admin' : '/barber') : '/login'} />} />
+        {/* 🔥 QUALQUER OUTRA ROTA → PÁGINA INICIAL */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

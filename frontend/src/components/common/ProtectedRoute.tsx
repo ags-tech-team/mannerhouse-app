@@ -22,18 +22,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    console.log('🔒 Acesso negado. Role:', user.role, 'Permitidas:', allowedRoles);
-    
-    if (user.role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    } else if (user.role === 'barber') {
-      return <Navigate to="/barber" replace />;
-    }
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
