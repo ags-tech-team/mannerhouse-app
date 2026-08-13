@@ -71,13 +71,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 🔥 FUNÇÃO PARA RODAR MIGRATIONS (VERSÃO SÍNCRONA)
 const runMigrations = () => {
   try {
     console.log('🔄 Rodando migrations...');
-    execSync('npx sequelize-cli db:migrate', { 
+    // 🔥 USAR O SCRIPT DO PACKAGE.JSON
+    execSync('npm run migrate', { 
       stdio: 'inherit',
-      env: { ...process.env, NODE_ENV: 'production' } // 🔥 FORÇAR NODE_ENV
+      shell: '/bin/bash'
     });
     console.log('✅ Migrations concluídas!');
   } catch (error) {
@@ -85,7 +85,6 @@ const runMigrations = () => {
     throw error;
   }
 };
-
 // 🚀 INICIAR SERVIDOR
 const startServer = async () => {
   try {
