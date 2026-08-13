@@ -38,9 +38,13 @@ const config = {
   },
 };
 
-// 🔥 INSTÂNCIA DO SEQUELIZE PARA O APP
 const getSequelizeInstance = () => {
   const env = process.env.NODE_ENV || 'development';
+  
+  console.log('🔍 DEBUG:');
+  console.log('  NODE_ENV:', env);
+  console.log('  DATABASE_URL:', process.env.DATABASE_URL ? '✅ EXISTE' : '❌ NÃO EXISTE');
+  console.log('  DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 30) + '...' : 'undefined');
   
   // Se estiver em produção e tiver DATABASE_URL, usa PostgreSQL
   if (env === 'production' && process.env.DATABASE_URL) {
