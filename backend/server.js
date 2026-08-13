@@ -4,7 +4,21 @@ const cors = require('cors');
 const path = require('path');
 const { sequelize } = require('./src/models');
 
-// ... importações das rotas ...
+// 🔥 IMPORTAÇÕES DAS ROTAS (VOCÊ REMOVEU ISSO)
+const authRoutes = require('./src/routes/authRoutes');
+const barberRoutes = require('./src/routes/barberRoutes');
+const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes');
+const clientRoutes = require('./src/routes/clientRoutes');
+const productRoutes = require('./src/routes/productRoutes');
+const appointmentRoutes = require('./src/routes/appointmentRoutes');
+const cashRegisterRoutes = require('./src/routes/cashRegisterRoutes');
+const revenueRoutes = require('./src/routes/revenueRoutes');
+const expenseRoutes = require('./src/routes/expenseRoutes');
+const saleRoutes = require('./src/routes/saleRoutes');
+const commissionRoutes = require('./src/routes/commissionRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
+const monthlyRoutes = require('./src/routes/monthlyRoutes');
+const publicRoutes = require('./src/routes/publicRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,14 +69,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 🚀 INICIAR SERVIDOR (SEM MIGRATIONS AUTOMÁTICAS)
+// 🚀 INICIAR SERVIDOR
 const startServer = async () => {
   try {
     console.log('🚀 Iniciando servidor...');
     console.log('📊 NODE_ENV:', process.env.NODE_ENV);
     console.log('📊 DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configurada' : '❌ Não configurada');
-    
-    // 🔥 REMOVIDO: NÃO RODA MIGRATIONS AUTOMATICAMENTE
     
     // Autenticar banco
     await sequelize.authenticate();
