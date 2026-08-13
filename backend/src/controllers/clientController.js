@@ -59,7 +59,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, isMonthly, monthlyFee, isActive } = req.body;
+    const { name, phone, isMonthly, monthlyFee, isActive } = req.body; // 🔥 REMOVER email
     
     const client = await Client.findByPk(id);
     if (!client) {
@@ -68,7 +68,6 @@ const update = async (req, res) => {
     
     await client.update({
       name,
-      email: email || null,
       phone,
       isMonthly: isMonthly !== undefined ? isMonthly : client.isMonthly,
       monthlyFee: monthlyFee !== undefined ? monthlyFee : client.monthlyFee,
