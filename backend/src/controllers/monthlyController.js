@@ -25,7 +25,7 @@ const getMonthlyClients = async (req, res) => {
 
 const createMonthlyClient = async (req, res) => {
   try {
-    const { name, phone, monthlyFee, paymentMethod, notes } = req.body; // 🔥 REMOVER email
+    const { name, phone, monthlyFee, paymentMethod, notes } = req.body;
     
     console.log('📝 Criando mensalista:', { name, phone, monthlyFee, paymentMethod });
     
@@ -35,10 +35,10 @@ const createMonthlyClient = async (req, res) => {
       return res.status(400).json({ error: 'Telefone já cadastrado' });
     }
     
-    // 🔥 CRIAR CLIENTE SEM EMAIL
+    // 🔥 CRIAR CLIENTE SEM PAGAMENTO AUTOMÁTICO
     const client = await Client.create({
       name,
-      phone,  // 🔥 SEM EMAIL
+      phone,
       isMonthly: true,
       monthlyFee: monthlyFee || 0,
       isActive: true,
@@ -46,34 +46,12 @@ const createMonthlyClient = async (req, res) => {
     
     console.log('✅ Cliente criado:', client.toJSON());
     
-    // Registrar pagamento inicial
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const payment = await MonthlyPayment.create({
-      clientId: client.id,
-      month: currentMonth,
-      amount: monthlyFee || 0,
-      paid: true,
-      paidAt: new Date(),
-      notes: notes || `Pagamento inicial - ${paymentMethod || 'pix'}`,
-    });
-    
-    console.log('✅ Pagamento registrado:', payment.toJSON());
-    
-    // Criar faturamento
-    await Revenue.create({
-      cashRegisterId: null,
-      date: new Date().toISOString().split('T')[0],
-      total: payment.amount,
-      commissions: 0,
-      servicesCount: 1,
-      initialCash: 0,
-      finalCash: payment.amount,
-    });
+    // 🔥 NÃO CRIA PAGAMENTO AUTOMATICAMENTE
+    // O cliente começa como "Pendente"
     
     res.status(201).json({
       client,
-      payment,
-      message: 'Mensalista criado com sucesso! Pagamento inicial registrado.'
+      message: 'Mensalista criado com sucesso! Aguardando primeiro pagamento.'
     });
   } catch (error) {
     console.error('❌ Erro ao criar mensalista:', error);

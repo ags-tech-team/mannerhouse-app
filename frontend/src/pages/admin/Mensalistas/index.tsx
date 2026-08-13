@@ -113,6 +113,7 @@ const AdminMensalistas = () => {
     try {
       console.log('📝 Criando mensalista:', newClient);
       
+      // 🔥 REMOVER O PAGAMENTO AUTOMÁTICO
       const response = await api.post('/monthly/clients', {
         name: newClient.name,
         phone: newClient.phone,
@@ -134,7 +135,8 @@ const AdminMensalistas = () => {
         notes: ''
       });
       
-      alert('✅ Cliente mensalista criado com sucesso! Pagamento registrado.');
+      // 🔥 MUDAR MENSAGEM
+      alert('✅ Cliente mensalista criado! Aguardando primeiro pagamento.');
     } catch (error: any) {
       console.error('❌ Erro ao criar mensalista:', error);
       console.error('Detalhes:', error.response?.data || error.message);
