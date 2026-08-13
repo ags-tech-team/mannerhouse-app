@@ -11,7 +11,7 @@ import {
   Calendar,
   DollarSign,
   Users,
-  User,        // 🔥 ADICIONADO
+  User,
   Clock,
   AlertCircle,
   CheckCircle,
@@ -19,14 +19,12 @@ import {
   UserPlus,
   CreditCard,
   Phone,
-  Mail,
   FileText
 } from 'lucide-react';
 
 interface Client {
   id: string;
   name: string;
-  email: string;
   phone: string;
   isMonthly: boolean;
   monthlyFee: number;
@@ -46,7 +44,6 @@ interface MonthlyPayment {
 
 interface NewClientData {
   name: string;
-  email: string;
   phone: string;
   monthlyFee: number;
   paymentMethod: 'dinheiro' | 'cartao' | 'pix' | 'debito';
@@ -67,7 +64,6 @@ const AdminMensalistas = () => {
 
   const [newClient, setNewClient] = useState<NewClientData>({
     name: '',
-    email: '',
     phone: '',
     monthlyFee: 0,
     paymentMethod: 'pix',
@@ -90,7 +86,6 @@ const AdminMensalistas = () => {
     } catch (error: any) {
       console.error('❌ Erro ao carregar mensalistas:', error);
       console.error('Detalhes:', error.response?.data || error.message);
-      // Tenta carregar dados mock se a API falhar
       setClients([]);
     } finally {
       setLoading(false);
@@ -118,10 +113,8 @@ const AdminMensalistas = () => {
     try {
       console.log('📝 Criando mensalista:', newClient);
       
-      // 🔥 USAR A ROTA CORRETA: /monthly/clients
       const response = await api.post('/monthly/clients', {
         name: newClient.name,
-        email: newClient.email || undefined,
         phone: newClient.phone,
         monthlyFee: newClient.monthlyFee,
         paymentMethod: newClient.paymentMethod,
@@ -130,14 +123,11 @@ const AdminMensalistas = () => {
 
       console.log('✅ Mensalista criado:', response.data);
       
-      // Recarregar a lista
       await loadClients();
       
-      // Fechar modal
       setShowNewClientModal(false);
       setNewClient({
         name: '',
-        email: '',
         phone: '',
         monthlyFee: 0,
         paymentMethod: 'pix',
@@ -151,9 +141,6 @@ const AdminMensalistas = () => {
       alert(error.response?.data?.error || 'Erro ao criar cliente mensalista');
     }
   };
-
-  // ... resto do código (handleToggleMonthly, handleSetMonthlyFee, etc.) ...
-  // Mantenha as mesmas funções que você já tinha
 
   const handleToggleMonthly = async (client: Client) => {
     try {
@@ -477,7 +464,6 @@ const AdminMensalistas = () => {
                   setShowNewClientModal(false);
                   setNewClient({
                     name: '',
-                    email: '',
                     phone: '',
                     monthlyFee: 0,
                     paymentMethod: 'pix',
@@ -521,22 +507,6 @@ const AdminMensalistas = () => {
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
                     placeholder="(00) 00000-0000"
                     required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  E-mail
-                </label>
-                <div className="relative">
-                  <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
-                  <input
-                    type="email"
-                    value={newClient.email}
-                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                    placeholder="cliente@email.com"
                   />
                 </div>
               </div>
@@ -625,7 +595,6 @@ const AdminMensalistas = () => {
                     setShowNewClientModal(false);
                     setNewClient({
                       name: '',
-                      email: '',
                       phone: '',
                       monthlyFee: 0,
                       paymentMethod: 'pix',
