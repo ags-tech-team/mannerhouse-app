@@ -79,7 +79,6 @@ const updateMonthlyStatus = async (req, res) => {
   }
 };
 
-// 🔥 CONFIRMAR PAGAMENTO DA MENSALIDADE
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -90,7 +89,16 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    // Verificar se já existe pagamento para este mês
+    // 🔥 BUSCAR CAIXA ABERTO DO DIA
+    const today = new Date().toISOString().split('T')[0];
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: today,
+        isOpen: true,
+      }
+    });
+    
+    // Verificar se já existe pagamento
     const existing = await MonthlyPayment.findOne({
       where: {
         clientId,
@@ -113,23 +121,42 @@ const confirmMonthlyPayment = async (req, res) => {
       notes: notes || `Pagamento mensalidade - ${month}`,
     });
     
-    // 🔥 CRIAR FATURAMENTO
-    await Revenue.create({
-      cashRegisterId: null,
-      date: new Date().toISOString().split('T')[0],
+    console.log('✅ Pagamento criado:', payment.toJSON());
+    
+    // 🔥 CRIAR FATURAMENTO VINCULADO AO CAIXA
+    const revenue = await Revenue.create({
+      cashRegisterId: cashRegister ? cashRegister.id : null, // 🔥 VINCULAR AO CAIXA
+      date: today,
       total: payment.amount,
-      commissions: 0, // Mensalidade não tem comissão
+      commissions: 0,
       servicesCount: 1,
-      initialCash: 0,
+      initialCash: cashRegister ? cashRegister.initialCash : 0,
       finalCash: payment.amount,
     });
     
-    res.json(payment);
+    console.log('✅ Faturamento criado:', revenue.toJSON());
+    
+    // 🔥 ATUALIZAR CAIXA COM O VALOR
+    if (cashRegister) {
+      const newTotal = (cashRegister.totalRevenue || 0) + payment.amount;
+      await cashRegister.update({
+        totalRevenue: newTotal,
+        finalCash: newTotal,
+        servicesCount: (cashRegister.servicesCount || 0) + 1,
+      });
+    }
+    
+    res.json({
+      payment,
+      revenue,
+      message: 'Pagamento confirmado e adicionado ao caixa!'
+    });
   } catch (error) {
     console.error('❌ Erro ao confirmar pagamento:', error);
-    res.status(500).json({ error: 'Erro ao confirmar pagamento' });
+    res.status(500).json({ error: error.message || 'Erro ao confirmar pagamento' });
   }
 };
+
 
 // 🔥 BUSCAR HISTÓRICO DE PAGAMENTOS DE UM CLIENTE
 const getPaymentHistory = async (req, res) => {
