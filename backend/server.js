@@ -2,25 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { execSync } = require('child_process'); // 🔥 MUDAR PARA execSync
-
-// 🔥 IMPORTAR O SEQUELIZE SOMENTE DEPOIS DE CONFIGURAR
 const { sequelize } = require('./src/models');
 
-const authRoutes = require('./src/routes/authRoutes');
-const barberRoutes = require('./src/routes/barberRoutes');
-const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes');
-const clientRoutes = require('./src/routes/clientRoutes');
-const productRoutes = require('./src/routes/productRoutes');
-const appointmentRoutes = require('./src/routes/appointmentRoutes');
-const cashRegisterRoutes = require('./src/routes/cashRegisterRoutes');
-const revenueRoutes = require('./src/routes/revenueRoutes');
-const expenseRoutes = require('./src/routes/expenseRoutes');
-const saleRoutes = require('./src/routes/saleRoutes');
-const commissionRoutes = require('./src/routes/commissionRoutes');
-const adminRoutes = require('./src/routes/adminRoutes');
-const monthlyRoutes = require('./src/routes/monthlyRoutes');
-const publicRoutes = require('./src/routes/publicRoutes');
+// ... importações das rotas ...
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,31 +55,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const runMigrations = () => {
-  try {
-    console.log('🔄 Rodando migrations...');
-    // 🔥 USAR O SCRIPT DO PACKAGE.JSON
-    execSync('npm run migrate', { 
-      stdio: 'inherit',
-      shell: '/bin/bash'
-    });
-    console.log('✅ Migrations concluídas!');
-  } catch (error) {
-    console.error('❌ Erro nas migrations:', error);
-    throw error;
-  }
-};
-// 🚀 INICIAR SERVIDOR
+// 🚀 INICIAR SERVIDOR (SEM MIGRATIONS AUTOMÁTICAS)
 const startServer = async () => {
   try {
     console.log('🚀 Iniciando servidor...');
     console.log('📊 NODE_ENV:', process.env.NODE_ENV);
     console.log('📊 DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configurada' : '❌ Não configurada');
     
-    // 🔥 RODAR MIGRATIONS EM PRODUÇÃO
-    if (process.env.NODE_ENV === 'production') {
-      await runMigrations();
-    }
+    // 🔥 REMOVIDO: NÃO RODA MIGRATIONS AUTOMATICAMENTE
     
     // Autenticar banco
     await sequelize.authenticate();
