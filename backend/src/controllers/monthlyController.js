@@ -25,21 +25,20 @@ const getMonthlyClients = async (req, res) => {
 
 const createMonthlyClient = async (req, res) => {
   try {
-    const { name, email, phone, monthlyFee, paymentMethod, notes } = req.body;
+    const { name, phone, monthlyFee, paymentMethod, notes } = req.body; // 🔥 REMOVER email
     
-    console.log('📝 Criando mensalista:', { name, email, phone, monthlyFee, paymentMethod });
+    console.log('📝 Criando mensalista:', { name, phone, monthlyFee, paymentMethod });
     
-    // 1. Verificar se telefone já existe
+    // Verificar se telefone já existe
     const existing = await Client.findOne({ where: { phone } });
     if (existing) {
       return res.status(400).json({ error: 'Telefone já cadastrado' });
     }
     
-    // 2. Criar cliente com isMonthly = true
+    // 🔥 CRIAR CLIENTE SEM EMAIL
     const client = await Client.create({
       name,
-      email: email || null,
-      phone,
+      phone,  // 🔥 SEM EMAIL
       isMonthly: true,
       monthlyFee: monthlyFee || 0,
       isActive: true,
@@ -47,7 +46,7 @@ const createMonthlyClient = async (req, res) => {
     
     console.log('✅ Cliente criado:', client.toJSON());
     
-    // 3. Registrar pagamento inicial
+    // Registrar pagamento inicial
     const currentMonth = new Date().toISOString().slice(0, 7);
     const payment = await MonthlyPayment.create({
       clientId: client.id,
@@ -60,7 +59,7 @@ const createMonthlyClient = async (req, res) => {
     
     console.log('✅ Pagamento registrado:', payment.toJSON());
     
-    // 4. Criar revenue (faturamento)
+    // Criar faturamento
     await Revenue.create({
       cashRegisterId: null,
       date: new Date().toISOString().split('T')[0],
@@ -70,8 +69,6 @@ const createMonthlyClient = async (req, res) => {
       initialCash: 0,
       finalCash: payment.amount,
     });
-    
-    console.log('✅ Faturamento registrado!');
     
     res.status(201).json({
       client,
@@ -83,6 +80,7 @@ const createMonthlyClient = async (req, res) => {
     res.status(500).json({ error: error.message || 'Erro ao criar mensalista' });
   }
 };
+
 
 // 🔥 ATUALIZAR CLIENTE PARA MENSALISTA
 const updateMonthlyStatus = async (req, res) => {

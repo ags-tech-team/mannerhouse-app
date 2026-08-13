@@ -31,27 +31,18 @@ const getById = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { 
-      name, 
-      email, 
-      phone, 
-      isMonthly, 
-      monthlyFee, 
-      isActive 
-    } = req.body;
+    const { name, phone, isMonthly, monthlyFee, isActive } = req.body; // 🔥 REMOVER email
     
-    console.log('📝 Criando cliente:', { name, email, phone, isMonthly, monthlyFee, isActive });
+    console.log('📝 Criando cliente:', { name, phone, isMonthly, monthlyFee, isActive });
     
     const existing = await Client.findOne({ where: { phone } });
     if (existing) {
       return res.status(400).json({ error: 'Telefone já cadastrado' });
     }
     
-    // 🔥 AGORA SALVA TODOS OS CAMPOS
     const client = await Client.create({
       name,
-      email: email || null,
-      phone,
+      phone,  // 🔥 SEM EMAIL
       isMonthly: isMonthly || false,
       monthlyFee: monthlyFee || 0,
       isActive: isActive !== undefined ? isActive : true,
