@@ -1,4 +1,4 @@
-const { Client, MonthlyPayment, Revenue } = require('../models');
+const { Client, MonthlyPayment, Revenue, CashRegister } = require('../models');
 const { Op } = require('sequelize');
 
 // 🔥 LISTAR TODOS OS CLIENTES MENSALISTAS
