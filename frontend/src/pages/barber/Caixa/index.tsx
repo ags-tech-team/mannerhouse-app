@@ -85,6 +85,10 @@ const BarberCaixa = () => {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   
+  // 🔥 HORÁRIOS OCUPADOS
+  const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
+  const [loadingTimes, setLoadingTimes] = useState(false);
+  
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -122,6 +126,48 @@ const BarberCaixa = () => {
     return selectedServices.map(s => s.id).join(',');
   };
 
+  // 🔥 CARREGAR HORÁRIOS OCUPADOS
+  const loadOccupiedTimes = async () => {
+    const barberId = formData.barbeiroId || currentBarber?.id;
+    if (!barberId || !selectedDate) {
+      setOccupiedTimes([]);
+      return;
+    }
+    
+    setLoadingTimes(true);
+    try {
+      // 1. Buscar horários ocupados em agendamentos (pending, confirmed)
+      const response = await api.get('/appointments/check-availability', {
+        params: {
+          barberId,
+          date: selectedDate,
+        }
+      });
+      
+      const bookedFromAppointments = response.data.times || [];
+      
+      // 2. Buscar horários já registrados no caixa (serviços concluídos)
+      const caixaAtual = await cashRegisterService.getToday();
+      const bookedFromCashRegister = caixaAtual?.services
+        ?.filter((s: any) => s.barberId === barberId && s.date === selectedDate)
+        ?.map((s: any) => s.time) || [];
+      
+      // 3. Combinar e remover duplicatas
+      const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
+      setOccupiedTimes(allBooked);
+    } catch (error) {
+      console.error('Erro ao carregar horários ocupados:', error);
+      setOccupiedTimes([]);
+    } finally {
+      setLoadingTimes(false);
+    }
+  };
+
+  // 🔥 VERIFICAR SE HORÁRIO ESTÁ OCUPADO
+  const isTimeOccupied = (time: string) => {
+    return occupiedTimes.includes(time);
+  };
+
   const loadBarbersList = async () => {
     try {
       const response = await api.get('/barbers');
@@ -144,6 +190,11 @@ const BarberCaixa = () => {
     loadData();
     loadBarbersList();
   }, []);
+
+  // 🔥 RECARREGAR HORÁRIOS OCUPADOS QUANDO BARBEIRO OU DATA MUDAR
+  useEffect(() => {
+    loadOccupiedTimes();
+  }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
 
   const loadData = async () => {
     setLoading(true);
@@ -311,6 +362,12 @@ const BarberCaixa = () => {
 
     if (!selectedTime) {
       alert('Selecione um horário');
+      return;
+    }
+
+    // 🔥 VERIFICAR SE O HORÁRIO ESTÁ OCUPADO (ANTES DE SALVAR)
+    if (isTimeOccupied(selectedTime)) {
+      alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
     }
 
@@ -724,17 +781,51 @@ const BarberCaixa = () => {
                     required
                   />
                 </div>
+
+                {/* 🔥 SELETOR DE HORÁRIO (COM BLOQUEIO) */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-1">
                     <ClockIcon size={14} className="inline mr-1" /> Horário
                   </label>
-                  <input
-                    type="time"
-                    value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                    required
-                  />
+                  {loadingTimes ? (
+                    <div className="flex justify-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#9c7f64]"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+                      ].map((time) => {
+                        const isBooked = isTimeOccupied(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => !isBooked && setSelectedTime(time)}
+                            disabled={isBooked}
+                            className={`py-1.5 rounded-lg border-2 text-xs transition ${
+                              isBooked
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                : selectedTime === time
+                                ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium'
+                                : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
+                            }`}
+                          >
+                            {time}
+                            {isBooked && ' 🔒'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedTime && !isTimeOccupied(selectedTime) && (
+                    <p className="text-xs text-green-600 mt-1">✅ Horário selecionado: {selectedTime}</p>
+                  )}
+                  {selectedTime && isTimeOccupied(selectedTime) && (
+                    <p className="text-xs text-red-600 mt-1">❌ Este horário já está ocupado!</p>
+                  )}
                 </div>
               </div>
 
