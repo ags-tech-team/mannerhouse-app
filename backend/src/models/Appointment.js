@@ -31,9 +31,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    // 🔥 CORRIGIDO: STRING em vez de ENUM
     service: {
-      type: DataTypes.ENUM('corte', 'barba', 'corte_barba', 'sobrancelha', 'outro'),
+      type: DataTypes.STRING,
       allowNull: false,
+      defaultValue: 'outro',
     },
     serviceDescription: {
       type: DataTypes.STRING,
@@ -65,8 +67,6 @@ module.exports = (sequelize, DataTypes) => {
     underscored: true,
     timestamps: true,
   });
-
-  // ❌ REMOVIDAS: todas as associações
 
   return Appointment;
 };
