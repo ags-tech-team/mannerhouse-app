@@ -1,5 +1,6 @@
 const { Client, MonthlyPayment, Revenue, CashRegister } = require('../models');
 const { Op } = require('sequelize');
+const { findOrCreateClient } = require('../services/clientService');
 
 // 🔥 LISTAR TODOS OS CLIENTES MENSALISTAS
 const getMonthlyClients = async (req, res) => {

@@ -20,7 +20,9 @@ import {
   UserPlus,
   CreditCard,
   Phone,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface Client {
@@ -58,12 +60,14 @@ const AdminMensalistas = () => {
   const [showModal, setShowModal] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(() => {
+  
+  // 🔥 MÊS SELECIONADO (COM NAVEGAÇÃO)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // 🔥 AUTO-COMPLETE
+  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
 
@@ -76,6 +80,19 @@ const AdminMensalistas = () => {
   });
 
   const monthlyFee = useNumberInput();
+
+  // 🔥 FUNÇÕES DE NAVEGAÇÃO DE MÊS
+  const changeMonth = (delta: number) => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const newDate = new Date(year, month - 1 + delta, 1);
+    setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return selectedMonth === current;
+  };
 
   useEffect(() => {
     loadClients();
@@ -95,6 +112,49 @@ const AdminMensalistas = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 🔥 PEGAR O ÚLTIMO PAGAMENTO DO CLIENTE
+  const getLastPayment = (client: Client) => {
+    if (!client.MonthlyPayments || client.MonthlyPayments.length === 0) {
+      return null;
+    }
+    
+    const paidPayments = client.MonthlyPayments.filter(p => p.paid);
+    if (paidPayments.length === 0) return null;
+    
+    const sorted = paidPayments.sort((a, b) => {
+      if (a.paidAt && b.paidAt) {
+        return new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime();
+      }
+      if (a.month > b.month) return -1;
+      if (a.month < b.month) return 1;
+      return 0;
+    });
+    
+    return sorted[0];
+  };
+
+  // 🔥 FORMATAR DATA DO PAGAMENTO (com dia completo)
+  const formatPaymentDate = (payment: MonthlyPayment | null) => {
+    if (!payment) return 'Nunca';
+    
+    if (payment.paidAt) {
+      const date = new Date(payment.paidAt);
+      return date.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    }
+    
+    const [year, month] = payment.month.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    return date.toLocaleDateString('pt-BR', { 
+      day: '2-digit',
+      month: 'long', 
+      year: 'numeric' 
+    });
   };
 
   // 🔥 HANDLE SELECT CLIENT
@@ -157,7 +217,6 @@ const AdminMensalistas = () => {
       console.error('❌ Erro ao criar mensalista:', error);
       console.error('Detalhes:', error.response?.data || error.message);
       
-      // 🔥 TRATATIVA DE ERRO DE DUPLICIDADE
       if (error.response?.data?.error?.includes('já existe')) {
         alert(error.response.data.error);
       } else {
@@ -201,13 +260,14 @@ const AdminMensalistas = () => {
     }
   };
 
+  // 🔥 CONFIRMAR PAGAMENTO (USANDO selectedMonth)
   const handleConfirmPayment = async (clientId: string) => {
-    if (!confirm(`Confirmar pagamento da mensalidade para ${currentMonth}?`)) return;
+    if (!confirm(`Confirmar pagamento da mensalidade para ${selectedMonth}?`)) return;
 
     try {
       await api.post(`/monthly/pay/${clientId}`, {
-        month: currentMonth,
-        notes: `Pagamento mensalidade - ${currentMonth}`,
+        month: selectedMonth,
+        notes: `Pagamento mensalidade - ${selectedMonth}`,
       });
       await loadClients();
       alert('✅ Pagamento confirmado! Valor enviado para o faturamento.');
@@ -217,9 +277,10 @@ const AdminMensalistas = () => {
     }
   };
 
+  // 🔥 VERIFICAR SE PAGOU NO MÊS SELECIONADO
   const hasPaidThisMonth = (client: Client) => {
     if (!client.MonthlyPayments) return false;
-    return client.MonthlyPayments.some(p => p.month === currentMonth && p.paid);
+    return client.MonthlyPayments.some(p => p.month === selectedMonth && p.paid);
   };
 
   const filteredClients = clients.filter(c =>
@@ -240,6 +301,7 @@ const AdminMensalistas = () => {
       .reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
   };
 
+  // 🔥 RESGATANDO OS VALORES DO MÊS SELECIONADO
   const getPaidThisMonth = () => {
     return clients
       .filter(c => c.isMonthly && hasPaidThisMonth(c))
@@ -280,11 +342,36 @@ const AdminMensalistas = () => {
             Nova Assinatura
           </button>
           
+          {/* 🔥 NAVEGAÇÃO DE MÊS */}
           <div className="flex items-center gap-2 bg-white rounded-lg shadow px-3 py-2">
-            <Calendar size={18} className="text-[#9c7f64]" />
-            <span className="text-sm font-medium">
-              {new Date(currentMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            <button
+              onClick={() => changeMonth(-1)}
+              className="p-1 hover:bg-gray-100 rounded transition"
+              title="Mês anterior"
+            >
+              <ChevronLeft size={16} className="text-[#7f7c7a]" />
+            </button>
+            <span className="text-sm font-medium min-w-[120px] text-center">
+              {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
             </span>
+            <button
+              onClick={() => changeMonth(1)}
+              className="p-1 hover:bg-gray-100 rounded transition"
+              title="Próximo mês"
+            >
+              <ChevronRight size={16} className="text-[#7f7c7a]" />
+            </button>
+            {!isCurrentMonth() && (
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                }}
+                className="ml-2 text-xs text-[#9c7f64] hover:underline"
+              >
+                Voltar
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -378,12 +465,15 @@ const AdminMensalistas = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mensalidade</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mês Atual</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Último Pagamento</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredClients.map((client) => {
                   const paid = hasPaidThisMonth(client);
+                  const lastPayment = getLastPayment(client);
+                  
                   return (
                     <tr key={client.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -427,6 +517,19 @@ const AdminMensalistas = () => {
                             <span className="flex items-center gap-1 text-yellow-600">
                               <Clock size={16} /> Pendente
                             </span>
+                          )
+                        ) : (
+                          <span className="text-[#7f7c7a]">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {client.isMonthly ? (
+                          lastPayment ? (
+                            <span className="text-sm text-[#060606]">
+                              {formatPaymentDate(lastPayment)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-[#7f7c7a]">Nunca</span>
                           )
                         ) : (
                           <span className="text-[#7f7c7a]">-</span>
@@ -614,7 +717,7 @@ const AdminMensalistas = () => {
                   <div className="flex justify-between">
                     <span className="text-[#7f7c7a]">Mês de início:</span>
                     <span className="font-medium">
-                      {new Date(currentMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                     </span>
                   </div>
                   <div className="flex justify-between">

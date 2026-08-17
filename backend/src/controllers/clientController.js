@@ -1,5 +1,6 @@
 const { Client } = require('../models');
 const { Op } = require('sequelize');
+const { findOrCreateClient } = require('../services/clientService');
 
 const getAll = async (req, res) => {
   try {
@@ -33,26 +34,38 @@ const create = async (req, res) => {
   try {
     const { name, phone, isMonthly, monthlyFee, isActive } = req.body;
     
-    console.log('📝 Criando/atualizando cliente:', { name, phone, isMonthly, monthlyFee });
+    console.log('📝 Criando cliente:', { name, phone, isMonthly, monthlyFee });
     
-    // 🔥 USAR O SERVIÇO CENTRALIZADO
-    const { client, created } = await findOrCreateClient({
-      name,
-      phone,
+    // 🔥 VERIFICAR SE TELEFONE JÁ EXISTE (retorna erro específico)
+    const existing = await Client.findOne({ 
+      where: { 
+        phone: phone.trim(),
+        isActive: true 
+      } 
+    });
+    
+    if (existing) {
+      return res.status(409).json({ 
+        error: 'TELEFONE_JA_EXISTE',
+        message: `O telefone ${phone} já está cadastrado para o cliente: ${existing.name}`,
+        client: existing
+      });
+    }
+    
+    // Criar novo cliente
+    const client = await Client.create({
+      name: name.trim(),
+      phone: phone.trim(),
       isMonthly: isMonthly || false,
       monthlyFee: monthlyFee || 0,
       isActive: isActive !== undefined ? isActive : true,
     });
     
-    const message = created 
-      ? 'Cliente criado com sucesso!' 
-      : `Cliente já existe: ${client.name}`;
-    
-    console.log(`✅ ${message}`);
-    res.status(created ? 201 : 200).json({
+    console.log('✅ Cliente criado:', client.toJSON());
+    res.status(201).json({
       client,
-      created,
-      message,
+      created: true,
+      message: 'Cliente criado com sucesso!'
     });
   } catch (error) {
     console.error('❌ Erro ao criar cliente:', error);

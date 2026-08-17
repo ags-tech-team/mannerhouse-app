@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { clientService } from '../../../services/client.service';
 import type { Client } from '../../../services/client.service';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
   Plus, 
   Search, 
@@ -10,7 +11,8 @@ import {
   Check,
   User,
   Phone,
-  Users
+  Users,
+  AlertCircle
 } from 'lucide-react';
 
 const Clientes = () => {
@@ -19,6 +21,11 @@ const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  
+  // 🔥 AUTO-COMPLETE
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -41,15 +48,33 @@ const Clientes = () => {
     }
   };
 
+  // 🔥 HANDLE SELECT CLIENT (do auto-complete)
+  const handleSelectClient = (client: Client) => {
+    setClientName(client.name);
+    setClientPhone(client.phone);
+    setFormData({
+      name: client.name,
+      phone: client.phone,
+    });
+    // Se for edição, seleciona o cliente
+    if (editingClient) {
+      setEditingClient(client);
+    }
+  };
+
   const handleOpenModal = (client?: Client) => {
     if (client) {
       setEditingClient(client);
+      setClientName(client.name);
+      setClientPhone(client.phone);
       setFormData({
         name: client.name,
         phone: client.phone,
       });
     } else {
       setEditingClient(null);
+      setClientName('');
+      setClientPhone('');
       setFormData({
         name: '',
         phone: '',
@@ -61,18 +86,97 @@ const Clientes = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // 🔥 VALIDAÇÃO
+    if (!clientName.trim()) {
+      alert('Nome é obrigatório');
+      return;
+    }
+    
+    if (!clientPhone.trim()) {
+      alert('Telefone é obrigatório');
+      return;
+    }
+
     try {
       if (editingClient) {
-        await clientService.update(editingClient.id, formData);
+        // 🔥 EDIÇÃO - Verifica se o telefone já existe para outro cliente
+        const existing = await clientService.getByPhone(clientPhone.trim());
+        if (existing && existing.id !== editingClient.id) {
+          const confirm = window.confirm(
+            `📌 Telefone já cadastrado!\n\n` +
+            `O telefone ${clientPhone} já está cadastrado para o cliente:\n` +
+            `👤 ${existing.name}\n\n` +
+            `Deseja usar este cliente existente?`
+          );
+          if (confirm) {
+            // Usar o cliente existente
+            setEditingClient(existing);
+            setClientName(existing.name);
+            setClientPhone(existing.phone);
+            setFormData({
+              name: existing.name,
+              phone: existing.phone,
+            });
+            alert(`✅ Cliente atualizado para: ${existing.name}`);
+            await loadClients();
+            setShowModal(false);
+            resetForm();
+            return;
+          }
+          return;
+        }
+        
+        await clientService.update(editingClient.id, {
+          name: clientName.trim(),
+          phone: clientPhone.trim(),
+        });
+        alert('✅ Cliente atualizado com sucesso!');
       } else {
-        await clientService.create(formData);
+        // 🔥 CRIAÇÃO - Verifica se o telefone já existe
+        try {
+          await clientService.create({
+            name: clientName.trim(),
+            phone: clientPhone.trim(),
+          });
+          alert('✅ Cliente criado com sucesso!');
+        } catch (error: any) {
+          // 🔥 TRATAR ERRO DE TELEFONE JÁ EXISTENTE
+          if (error.response?.data?.error === 'TELEFONE_JA_EXISTE' || error.response?.status === 409) {
+            const existingClient = error.response?.data?.client;
+            if (existingClient) {
+              const confirm = window.confirm(
+                `📌 Telefone já cadastrado!\n\n` +
+                `O telefone ${clientPhone} já está cadastrado para o cliente:\n` +
+                `👤 ${existingClient.name}\n\n` +
+                `Deseja usar este cliente existente?`
+              );
+              if (confirm) {
+                // 🔥 USAR O CLIENTE EXISTENTE
+                setClientName(existingClient.name);
+                setClientPhone(existingClient.phone);
+                setFormData({
+                  name: existingClient.name,
+                  phone: existingClient.phone,
+                });
+                alert(`✅ Usando cliente existente: ${existingClient.name}`);
+                await loadClients();
+                setShowModal(false);
+                resetForm();
+                return;
+              }
+            }
+            return;
+          }
+          throw error;
+        }
       }
+      
       await loadClients();
       setShowModal(false);
       resetForm();
     } catch (error: any) {
-      console.error('Erro ao salvar cliente:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar cliente');
+      console.error('❌ Erro ao salvar cliente:', error);
+      alert(error.response?.data?.message || 'Erro ao salvar cliente');
     }
   };
 
@@ -81,6 +185,7 @@ const Clientes = () => {
     try {
       await clientService.delete(id);
       await loadClients();
+      alert('✅ Cliente excluído com sucesso!');
     } catch (error) {
       alert('Erro ao excluir cliente');
     }
@@ -88,6 +193,8 @@ const Clientes = () => {
 
   const resetForm = () => {
     setEditingClient(null);
+    setClientName('');
+    setClientPhone('');
     setFormData({
       name: '',
       phone: '',
@@ -264,29 +371,27 @@ const Clientes = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* 🔥 NOME COM AUTO-COMPLETE */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
-                    placeholder="Digite o nome do cliente"
-                    required
-                  />
-                </div>
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone do cliente..."
+                  required
+                />
               </div>
 
+              {/* 🔥 TELEFONE */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
                   <input
                     type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
                     placeholder="(00) 00000-0000"
                     required
@@ -300,7 +405,7 @@ const Clientes = () => {
                   className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
                 >
                   <Check size={18} />
-                  Salvar
+                  {editingClient ? 'Atualizar' : 'Criar'}
                 </button>
                 <button
                   type="button"
