@@ -2,17 +2,17 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // 🔥 ADICIONAR NOVOS VALORES AO ENUM
+    // 🔥 REMOVER "IF NOT EXISTS"
     await queryInterface.sequelize.query(`
-      ALTER TYPE enum_appointments_service ADD VALUE 'progressiva' IF NOT EXISTS;
-      ALTER TYPE enum_appointments_service ADD VALUE 'hidratacao' IF NOT EXISTS;
-      ALTER TYPE enum_appointments_service ADD VALUE 'alisamento' IF NOT EXISTS;
-      ALTER TYPE enum_appointments_service ADD VALUE 'pigmentacao' IF NOT EXISTS;
+      ALTER TYPE enum_appointments_service ADD VALUE 'progressiva';
+      ALTER TYPE enum_appointments_service ADD VALUE 'hidratacao';
+      ALTER TYPE enum_appointments_service ADD VALUE 'alisamento';
+      ALTER TYPE enum_appointments_service ADD VALUE 'pigmentacao';
     `);
   },
 
   down: async (queryInterface, Sequelize) => {
     // PostgreSQL não permite remover valores de ENUM facilmente
-    // Então não fazemos nada no down
+    // Não fazemos nada no down
   }
 };
