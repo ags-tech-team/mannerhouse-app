@@ -3,6 +3,8 @@ import { api } from '../../../api/client';
 import { useNavigate } from 'react-router-dom';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { SERVICES, getServiceById } from '../../../utils/services';
+import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
   Calendar, 
   Clock, 
@@ -26,6 +28,16 @@ interface Barber {
   phone: string;
 }
 
+interface SelectedService {
+  id: string;
+  service: {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+  };
+}
+
 const PublicSchedule = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -39,16 +51,19 @@ const PublicSchedule = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [isGuest, setIsGuest] = useState(false);
+  
+  // ESTADO PARA MÚLTIPLOS SERVIÇOS
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  
+  // AUTO-COMPLETE
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   
   const [formData, setFormData] = useState({
     clientName: '',
     clientPhone: '',
   });
-
-  // 🔥 HOOK PARA O VALOR (SEM O 0 PADRÃO)
-  const price = useNumberInput();
 
   // Carregar barbeiros
   useEffect(() => {
@@ -130,12 +145,38 @@ const PublicSchedule = () => {
     setCurrentMonth(newDate);
   };
 
+  // CALCULAR TOTAL DOS SERVIÇOS
+  const getTotalPrice = () => {
+    return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
+  };
+
+  // PEGAR NOMES DOS SERVIÇOS
+  const getServiceNames = () => {
+    return selectedServices.map(s => s.service.name).join(', ');
+  };
+
+  // HANDLE SELECT CLIENT
+  const handleSelectClient = (client: any) => {
+    setClientName(client.name);
+    setClientPhone(client.phone);
+    setFormData(prev => ({
+      ...prev,
+      clientName: client.name,
+      clientPhone: client.phone,
+    }));
+  };
+
   // Enviar agendamento
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedBarber || !selectedDate || !selectedTime) {
       setError('Selecione um barbeiro, data e horário');
+      return;
+    }
+    
+    if (selectedServices.length === 0) {
+      setError('Selecione pelo menos um serviço');
       return;
     }
     
@@ -146,8 +187,6 @@ const PublicSchedule = () => {
       }
     }
 
-    const selectedService = getServiceById(selectedServiceId);
-    
     setSubmitting(true);
     setError('');
     
@@ -158,15 +197,24 @@ const PublicSchedule = () => {
         clientPhone: isGuest ? '00000000000' : formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
-        service: selectedService?.name || 'Corte',
-        serviceDescription: selectedService?.name || '',
-        price: price.getNumberValue() || selectedService?.price || 0,
+        services: selectedServices.map(s => ({
+          id: s.id,
+          name: s.service.name,
+          price: s.service.price,
+        })),
+        service: getServiceNames(),
+        serviceDescription: getServiceNames(),
+        price: getTotalPrice(),
       });
       
       setSuccess(true);
     } catch (error: any) {
       console.error('Erro ao agendar:', error);
-      setError(error.response?.data?.error || 'Erro ao realizar agendamento');
+      if (error.response?.data?.error?.includes('já existe')) {
+        setError(error.response.data.error);
+      } else {
+        setError(error.response?.data?.error || 'Erro ao realizar agendamento');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -179,13 +227,19 @@ const PublicSchedule = () => {
     setAvailableTimes([]);
     setSuccess(false);
     setError('');
-    setSelectedServiceId('');
+    setSelectedServices([]);
     setIsGuest(false);
-    price.reset();
+    setClientName('');
+    setClientPhone('');
     setFormData({
       clientName: '',
       clientPhone: '',
     });
+  };
+
+  // HANDLE PARA MULTI SERVICE SELECTOR
+  const handleServicesChange = (services: SelectedService[]) => {
+    setSelectedServices(services);
   };
 
   if (success) {
@@ -203,6 +257,8 @@ const PublicSchedule = () => {
             <p className="text-sm text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
             <p className="text-sm text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
             <p className="text-sm text-[#7f7c7a]">👤 Cliente: {isGuest ? 'Sem cadastro' : formData.clientName}</p>
+            <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
+            <p className="text-sm text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
             {!isGuest && <p className="text-sm text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>}
           </div>
           <button
@@ -259,7 +315,6 @@ const PublicSchedule = () => {
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-[#060606]">1. Escolha o barbeiro e a data</h2>
                 
-                {/* Barbeiros */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
                     <Users size={16} className="inline mr-1" /> Barbeiro
@@ -283,7 +338,6 @@ const PublicSchedule = () => {
                   </div>
                 </div>
 
-                {/* Calendário */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
                     <CalendarDays size={16} className="inline mr-1" /> Data
@@ -356,12 +410,11 @@ const PublicSchedule = () => {
               </div>
             )}
 
-            {/* Step 2: Escolher Horário e Serviço */}
+            {/* Step 2: Escolher Horário e Serviços */}
             {step === 2 && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold text-[#060606]">2. Escolha o horário e serviço</h2>
+                <h2 className="text-xl font-bold text-[#060606]">2. Escolha o horário e serviços</h2>
                 
-                {/* Horários */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
                     <Clock size={16} className="inline mr-1" /> Horário disponível
@@ -402,47 +455,27 @@ const PublicSchedule = () => {
                   )}
                 </div>
 
-                {/* 🔥 SELECT DE SERVIÇOS */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
-                    <Scissors size={16} className="inline mr-1" /> Serviço
+                    <Scissors size={16} className="inline mr-1" /> Serviços
                   </label>
-                  <select
-                    value={selectedServiceId}
-                    onChange={(e) => {
-                      const serviceId = e.target.value;
-                      setSelectedServiceId(serviceId);
-                      const service = getServiceById(serviceId);
-                      if (service) {
-                        price.setValue(String(service.price));
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  >
-                    <option value="">Selecione um serviço</option>
-                    {SERVICES.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.name} - R$ {service.price.toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
+                  <MultiServiceSelector
+                    selectedServices={selectedServices}
+                    onChange={handleServicesChange}
+                    maxServices={5}
+                  />
                 </div>
 
-                {/* 🔥 VALOR COM HOOK (SEM 0 PADRÃO) */}
-                <div>
-                  <label className="block text-sm font-medium text-[#060606] mb-2">
-                    Valor (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={price.value}
-                    onChange={price.onChange}
-                    placeholder="0,00"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  />
-                  <p className="text-xs text-[#7f7c7a] mt-1">Preenchido automaticamente ao selecionar o serviço</p>
-                </div>
+                {selectedServices.length > 0 && (
+                  <div className="bg-[#9c7f64]/10 rounded-lg p-3 text-center">
+                    <p className="text-sm font-medium text-[#060606]">
+                      Total: <span className="text-[#9c7f64] font-bold">R$ {getTotalPrice().toFixed(2)}</span>
+                    </p>
+                    <p className="text-xs text-[#7f7c7a]">
+                      {selectedServices.length} serviço(s) selecionado(s)
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex gap-3">
                   <button
@@ -459,8 +492,8 @@ const PublicSchedule = () => {
                         setError('Selecione um horário');
                         return;
                       }
-                      if (!selectedServiceId) {
-                        setError('Selecione um serviço');
+                      if (selectedServices.length === 0) {
+                        setError('Selecione pelo menos um serviço');
                         return;
                       }
                       setError('');
@@ -483,19 +516,22 @@ const PublicSchedule = () => {
                   <p className="text-sm text-[#7f7c7a]">📅 {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
                   <p className="text-sm text-[#7f7c7a]">⏰ {selectedTime}</p>
                   <p className="text-sm text-[#7f7c7a]">💈 {barbers.find(b => b.id === selectedBarber)?.name}</p>
-                  {selectedServiceId && (
-                    <p className="text-sm text-[#7f7c7a]">✂️ {getServiceById(selectedServiceId)?.name}</p>
-                  )}
-                  <p className="text-sm text-[#7f7c7a]">💰 R$ {price.getNumberValue().toFixed(2)}</p>
+                  <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
+                  <p className="text-sm text-[#7f7c7a] font-bold text-[#9c7f64]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
                 </div>
 
-                {/* 🔥 OPÇÃO SEM CADASTRO */}
                 <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
                   <input
                     type="checkbox"
                     id="isGuest"
                     checked={isGuest}
-                    onChange={(e) => setIsGuest(e.target.checked)}
+                    onChange={(e) => {
+                      setIsGuest(e.target.checked);
+                      if (e.target.checked) {
+                        setClientName('');
+                        setFormData({ ...formData, clientName: '', clientPhone: '' });
+                      }
+                    }}
                     className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
                   />
                   <label htmlFor="isGuest" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
@@ -510,12 +546,11 @@ const PublicSchedule = () => {
                       <label className="block text-sm font-medium text-[#060606] mb-2">
                         <User size={16} className="inline mr-1" /> Seu nome
                       </label>
-                      <input
-                        type="text"
-                        value={formData.clientName}
-                        onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                        placeholder="Digite seu nome completo"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                      <ClientAutocomplete
+                        value={clientName}
+                        onChange={setClientName}
+                        onSelectClient={handleSelectClient}
+                        placeholder="Digite seu nome ou telefone..."
                         required={!isGuest}
                       />
                     </div>
@@ -524,14 +559,17 @@ const PublicSchedule = () => {
                       <label className="block text-sm font-medium text-[#060606] mb-2">
                         <Phone size={16} className="inline mr-1" /> Telefone
                       </label>
-                      <input
-                        type="text"
-                        value={formData.clientPhone}
-                        onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                        placeholder="(00) 00000-0000"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                        required={!isGuest}
-                      />
+                      <div className="relative">
+                        <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                        <input
+                          type="text"
+                          value={formData.clientPhone}
+                          onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                          placeholder="(00) 00000-0000"
+                          required={!isGuest}
+                        />
+                      </div>
                       <p className="text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
                     </div>
                   </>
@@ -576,16 +614,6 @@ const PublicSchedule = () => {
               </div>
             )}
           </form>
-        </div>
-
-        {/* Botão para o Painel de Gerenciamento */}
-        <div className="text-center mt-8">
-          <button
-            onClick={() => navigate('/login')}
-            className="text-[#7f7c7a] hover:text-[#060606] transition text-sm flex items-center justify-center gap-2 mx-auto"
-          >
-            <span className="border-b border-dotted border-[#7f7c7a]">🔐 Painel de Gerenciamento</span>
-          </button>
         </div>
 
         <div className="text-center mt-8 text-xs text-[#7f7c7a]/40">

@@ -29,6 +29,7 @@ import { useNumberInput } from '../../../hooks/useNumberInput';
 import { api } from '../../../api/client';
 import { SERVICES, getServiceById } from '../../../utils/services';
 import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 
 interface ServicoFaturamento {
   id: string;
@@ -80,6 +81,10 @@ const BarberCaixa = () => {
   // 🔥 MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
+  // 🔥 AUTO-COMPLETE
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -93,6 +98,17 @@ const BarberCaixa = () => {
 
   const valor = useNumberInput();
   const valorInicial = useNumberInput();
+
+  // 🔥 HANDLE SELECT CLIENT
+  const handleSelectClient = (client: any) => {
+    setClientName(client.name);
+    setClientPhone(client.phone);
+    setFormData(prev => ({
+      ...prev,
+      cliente: client.name,
+      clienteTelefone: client.phone,
+    }));
+  };
 
   const getTotalServices = () => {
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
@@ -219,6 +235,8 @@ const BarberCaixa = () => {
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
       setEditingServico(servico);
+      setClientName(servico.cliente);
+      setClientPhone('');
       setFormData({
         cliente: servico.cliente,
         clienteTelefone: '',
@@ -234,6 +252,8 @@ const BarberCaixa = () => {
       setSelectedServices([]);
     } else {
       setEditingServico(null);
+      setClientName('');
+      setClientPhone('');
       setFormData({
         cliente: '',
         clienteTelefone: '',
@@ -248,7 +268,6 @@ const BarberCaixa = () => {
       setIsGuest(false);
       setSelectedServices([]);
       
-      // 🔥 SELECIONAR O PRIMEIRO BARBEIRO DA LISTA POR PADRÃO
       if (barbersList.length > 0) {
         setCurrentBarber(barbersList[0]);
         setFormData(prev => ({
@@ -296,8 +315,8 @@ const BarberCaixa = () => {
     }
 
     try {
-      const clientName = isGuest ? 'Cliente sem cadastro' : formData.cliente.trim();
-      const clientPhone = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
+      const clientNameFinal = isGuest ? 'Cliente sem cadastro' : formData.cliente.trim();
+      const clientPhoneFinal = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
       const total = getTotalServices();
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
@@ -308,7 +327,7 @@ const BarberCaixa = () => {
           s.id === editingServico.id 
             ? { 
                 ...s, 
-                cliente: clientName,
+                cliente: clientNameFinal,
                 servico: serviceNames,
                 servicoId: serviceIds,
                 valor: total,
@@ -326,7 +345,7 @@ const BarberCaixa = () => {
         await loadData();
       } else {
         await cashRegisterService.addService({
-          client: clientName,
+          client: clientNameFinal,
           barberId: barberId,
           service: serviceNames,
           serviceId: serviceIds,
@@ -334,12 +353,14 @@ const BarberCaixa = () => {
           paymentMethod: formData.formaPagamento,
           date: selectedDate,
           time: selectedTime,
-          phone: clientPhone,
+          phone: clientPhoneFinal,
         });
         await loadData();
       }
 
       setShowModal(false);
+      setClientName('');
+      setClientPhone('');
       setEditingServico(null);
       setFormData({
         cliente: '',
@@ -357,7 +378,11 @@ const BarberCaixa = () => {
       alert('✅ Serviço registrado com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro ao salvar:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar serviço');
+      if (error.response?.data?.error?.includes('já existe')) {
+        alert(error.response.data.error);
+      } else {
+        alert(error.response?.data?.error || 'Erro ao salvar serviço');
+      }
     }
   };
 
@@ -654,7 +679,7 @@ const BarberCaixa = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 🔥 SELECT DE BARBEIROS */}
+              {/* SELECT DE BARBEIROS */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   <User size={16} className="inline mr-1" /> Barbeiro
@@ -713,15 +738,14 @@ const BarberCaixa = () => {
                 </div>
               </div>
 
-              {/* Cliente */}
+              {/* Cliente com Auto-Complete */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
-                <input
-                  type="text"
-                  value={formData.cliente}
-                  onChange={(e) => setFormData({ ...formData, cliente: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  placeholder="Digite o nome do cliente"
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone do cliente..."
                   disabled={isGuest}
                   required={!isGuest}
                 />
@@ -730,14 +754,17 @@ const BarberCaixa = () => {
               {/* Telefone */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Telefone do Cliente</label>
-                <input
-                  type="text"
-                  value={formData.clienteTelefone}
-                  onChange={(e) => setFormData({ ...formData, clienteTelefone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  placeholder="(00) 00000-0000"
-                  disabled={isGuest}
-                />
+                <div className="relative">
+                  <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <input
+                    type="text"
+                    value={formData.clienteTelefone}
+                    onChange={(e) => setFormData({ ...formData, clienteTelefone: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    placeholder="(00) 00000-0000"
+                    disabled={isGuest}
+                  />
+                </div>
                 <p className="text-xs text-[#7f7c7a] mt-1">Opcional, mas recomendado para contato</p>
               </div>
 
@@ -751,6 +778,7 @@ const BarberCaixa = () => {
                     setIsGuest(e.target.checked);
                     if (e.target.checked) {
                       setFormData({ ...formData, cliente: '' });
+                      setClientName('');
                     }
                   }}
                   className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"

@@ -29,14 +29,8 @@ const createMonthlyClient = async (req, res) => {
     
     console.log('📝 Criando mensalista:', { name, phone, monthlyFee, paymentMethod });
     
-    // Verificar se telefone já existe
-    const existing = await Client.findOne({ where: { phone } });
-    if (existing) {
-      return res.status(400).json({ error: 'Telefone já cadastrado' });
-    }
-    
-    // 🔥 CRIAR CLIENTE SEM PAGAMENTO AUTOMÁTICO
-    const client = await Client.create({
+    // 🔥 USAR O SERVIÇO CENTRALIZADO
+    const { client, created } = await findOrCreateClient({
       name,
       phone,
       isMonthly: true,
@@ -44,14 +38,24 @@ const createMonthlyClient = async (req, res) => {
       isActive: true,
     });
     
-    console.log('✅ Cliente criado:', client.toJSON());
+    // 🔥 SE JÁ EXISTIA, ATUALIZAR PARA MENSALISTA
+    if (!created) {
+      await client.update({ 
+        isMonthly: true,
+        monthlyFee: monthlyFee || client.monthlyFee || 0,
+      });
+    }
     
-    // 🔥 NÃO CRIA PAGAMENTO AUTOMATICAMENTE
-    // O cliente começa como "Pendente"
+    const message = created 
+      ? 'Mensalista criado com sucesso!' 
+      : `Cliente já existente. Atualizado para mensalista: ${client.name}`;
     
-    res.status(201).json({
+    console.log(`✅ ${message}`);
+    
+    res.status(created ? 201 : 200).json({
       client,
-      message: 'Mensalista criado com sucesso! Aguardando primeiro pagamento.'
+      created,
+      message,
     });
   } catch (error) {
     console.error('❌ Erro ao criar mensalista:', error);

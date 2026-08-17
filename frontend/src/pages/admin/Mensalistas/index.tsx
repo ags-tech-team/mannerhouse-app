@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../api/client';
 import { useNumberInput } from '../../../hooks/useNumberInput';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
   Plus, 
   Search, 
@@ -62,6 +63,10 @@ const AdminMensalistas = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
+  // 🔥 AUTO-COMPLETE
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+
   const [newClient, setNewClient] = useState<NewClientData>({
     name: '',
     phone: '',
@@ -92,6 +97,17 @@ const AdminMensalistas = () => {
     }
   };
 
+  // 🔥 HANDLE SELECT CLIENT
+  const handleSelectClient = (client: Client) => {
+    setClientName(client.name);
+    setClientPhone(client.phone);
+    setNewClient(prev => ({
+      ...prev,
+      name: client.name,
+      phone: client.phone,
+    }));
+  };
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -113,10 +129,9 @@ const AdminMensalistas = () => {
     try {
       console.log('📝 Criando mensalista:', newClient);
       
-      // 🔥 REMOVER O PAGAMENTO AUTOMÁTICO
       const response = await api.post('/monthly/clients', {
-        name: newClient.name,
-        phone: newClient.phone,
+        name: newClient.name.trim(),
+        phone: newClient.phone.trim(),
         monthlyFee: newClient.monthlyFee,
         paymentMethod: newClient.paymentMethod,
         notes: newClient.notes || 'Nova assinatura',
@@ -127,6 +142,8 @@ const AdminMensalistas = () => {
       await loadClients();
       
       setShowNewClientModal(false);
+      setClientName('');
+      setClientPhone('');
       setNewClient({
         name: '',
         phone: '',
@@ -135,12 +152,17 @@ const AdminMensalistas = () => {
         notes: ''
       });
       
-      // 🔥 MUDAR MENSAGEM
       alert('✅ Cliente mensalista criado! Aguardando primeiro pagamento.');
     } catch (error: any) {
       console.error('❌ Erro ao criar mensalista:', error);
       console.error('Detalhes:', error.response?.data || error.message);
-      alert(error.response?.data?.error || 'Erro ao criar cliente mensalista');
+      
+      // 🔥 TRATATIVA DE ERRO DE DUPLICIDADE
+      if (error.response?.data?.error?.includes('já existe')) {
+        alert(error.response.data.error);
+      } else {
+        alert(error.response?.data?.error || 'Erro ao criar cliente mensalista');
+      }
     }
   };
 
@@ -240,7 +262,18 @@ const AdminMensalistas = () => {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setShowNewClientModal(true)}
+            onClick={() => {
+              setClientName('');
+              setClientPhone('');
+              setNewClient({
+                name: '',
+                phone: '',
+                monthlyFee: 0,
+                paymentMethod: 'pix',
+                notes: ''
+              });
+              setShowNewClientModal(true);
+            }}
             className="bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
           >
             <UserPlus size={20} />
@@ -464,6 +497,8 @@ const AdminMensalistas = () => {
               <button
                 onClick={() => {
                   setShowNewClientModal(false);
+                  setClientName('');
+                  setClientPhone('');
                   setNewClient({
                     name: '',
                     phone: '',
@@ -483,17 +518,13 @@ const AdminMensalistas = () => {
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   Nome do Cliente *
                 </label>
-                <div className="relative">
-                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
-                  <input
-                    type="text"
-                    value={newClient.name}
-                    onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                    placeholder="Digite o nome completo"
-                    required
-                  />
-                </div>
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone do cliente..."
+                  required
+                />
               </div>
 
               <div>
@@ -505,7 +536,10 @@ const AdminMensalistas = () => {
                   <input
                     type="tel"
                     value={newClient.phone}
-                    onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                    onChange={(e) => {
+                      setNewClient({ ...newClient, phone: e.target.value });
+                      setClientPhone(e.target.value);
+                    }}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
                     placeholder="(00) 00000-0000"
                     required
@@ -595,6 +629,8 @@ const AdminMensalistas = () => {
                   type="button"
                   onClick={() => {
                     setShowNewClientModal(false);
+                    setClientName('');
+                    setClientPhone('');
                     setNewClient({
                       name: '',
                       phone: '',

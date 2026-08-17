@@ -9,7 +9,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // 🔥 REMOVER O CAMPO email
     phone: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -36,6 +35,14 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'clients',
     underscored: true,
     timestamps: true,
+    // 🔥 VALIDAÇÃO ÚNICA COMPOSTA (nome + telefone)
+    indexes: [
+      {
+        unique: true,
+        fields: ['name', 'phone'],
+        name: 'unique_name_phone'
+      }
+    ]
   });
 
   return Client;

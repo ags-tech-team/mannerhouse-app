@@ -683,24 +683,6 @@ const AdminBarbers = () => {
                     />
                     <p className="text-xs text-[#7f7c7a] mt-1">Ex: 50% sobre o lucro do produto</p>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#060606]">
-                      Comissão Geral (usado para cálculo de comissões pagas)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      value={commissionRate.value}
-                      onChange={commissionRate.onChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                      min="0"
-                      max="100"
-                      placeholder="0"
-                      required
-                    />
-                    <p className="text-xs text-[#7f7c7a] mt-1">Taxa geral para relatórios</p>
-                  </div>
                 </div>
               </div>
 

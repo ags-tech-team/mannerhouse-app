@@ -6,6 +6,7 @@ import type { Appointment, Client } from '../../../services/appointment.service'
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { SERVICES, getServiceById } from '../../../utils/services';
 import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
   Calendar as CalendarIcon,
   ChevronLeft, 
@@ -61,6 +62,10 @@ const BarberAgenda = () => {
   // 🔥 MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
+  // 🔥 AUTO-COMPLETE
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  
   const [formData, setFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -68,12 +73,6 @@ const BarberAgenda = () => {
   });
   
   const price = useNumberInput();
-
-  // Auto-complete
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Client[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [searching, setSearching] = useState(false);
 
   // Status options
   const statusOptions = [
@@ -83,7 +82,17 @@ const BarberAgenda = () => {
     { value: 'cancelled', label: '❌ Cancelado', color: 'bg-red-100 text-red-800' },
   ];
 
-  // 🔥 HANDLE BARBER CHANGE - SALVAR NO LOCALSTORAGE
+  const handleSelectClient = (client: Client) => {
+    setClientName(client.name);
+    setClientPhone(client.phone);
+    setFormData(prev => ({
+      ...prev,
+      clientName: client.name,
+      clientPhone: client.phone,
+    }));
+  };
+
+  // 🔥 HANDLE BARBER CHANGE
   const handleBarberChange = (barberId: string) => {
     setSelectedBarberId(barberId);
     localStorage.setItem('@mannerhouse:selectedBarber', barberId);
@@ -144,93 +153,14 @@ const BarberAgenda = () => {
     }
   }, [selectedBarberId, selectedDate]);
 
-  // Buscar clientes (auto-complete)
-  const searchClients = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
-    setSearching(true);
-    try {
-      const results = await appointmentService.searchClients(query);
-      setSearchResults(results);
-      setShowSearchResults(true);
-    } catch (error) {
-      console.error('Erro ao buscar clientes:', error);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  // Selecionar cliente do auto-complete
-  const selectClient = (client: Client) => {
-    setFormData({
-      ...formData,
-      clientName: client.name,
-      clientPhone: client.phone,
-    });
-    setSearchQuery(client.name);
-    setShowSearchResults(false);
-  };
-
-  // ABRIR MODAL DE DETALHES DO AGENDAMENTO
-  const openDetailModal = (appointment: Appointment) => {
-    setSelectedAppointment(appointment);
-    setShowDetailModal(true);
-  };
-
-  // ATUALIZAR STATUS DO AGENDAMENTO
-  const handleUpdateStatus = async (status: string) => {
-    if (!selectedAppointment) return;
-    try {
-      const updated = await appointmentService.updateStatus(selectedAppointment.id, status);
-      setSelectedAppointment(updated);
-      await loadAppointments();
-      if (status === 'completed') {
-        alert('✅ Serviço concluído! O valor foi enviado para o caixa.');
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      alert('Erro ao atualizar status');
-    }
-  };
-
-  // DELETAR AGENDAMENTO
-  const handleDeleteAppointment = async () => {
-    if (!selectedAppointment) return;
-    if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
-    try {
-      await appointmentService.delete(selectedAppointment.id);
-      setShowDetailModal(false);
-      await loadAppointments();
-      alert('✅ Agendamento excluído!');
-    } catch (error) {
-      console.error('Erro ao excluir agendamento:', error);
-      alert('Erro ao excluir agendamento');
-    }
-  };
-
- const getTotalServices = () => {
+  // Calcular total
+  const getTotalServices = () => {
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
+  
   const getServiceNames = () => {
     return selectedServices.map(s => s.service.name).join(' + ');
   };
-
-  const getServiceIds = () => {
-    return selectedServices.map(s => s.id).join(',');
-  };
-
-  // Debounce para busca
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery) {
-        searchClients(searchQuery);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchClients]);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -260,6 +190,8 @@ const BarberAgenda = () => {
     setSelectedDate(date);
     setSelectedTime('');
     setAvailableTimes([]);
+    setClientName('');
+    setClientPhone('');
     setFormData({
       clientName: '',
       clientPhone: '',
@@ -267,12 +199,9 @@ const BarberAgenda = () => {
     });
     setSelectedServices([]);
     price.reset();
-    setSearchQuery('');
-    setSearchResults([]);
     setShowModal(true);
   };
 
-  // Criar agendamento
   const handleCreateAppointment = async () => {
     if (!selectedBarberId) {
       alert('Selecione um barbeiro');
@@ -286,7 +215,9 @@ const BarberAgenda = () => {
       alert('Selecione um horário');
       return;
     }
-    if (!formData.clientName.trim()) {
+    
+    // 🔥 CORRIGIDO: USAR clientName (do auto-complete)
+    if (!clientName.trim()) {
       alert('Digite o nome do cliente');
       return;
     }
@@ -307,8 +238,8 @@ const BarberAgenda = () => {
 
       await appointmentService.create({
         barberId: selectedBarberId,
-        clientName: formData.clientName,
-        clientPhone: formData.clientPhone,
+        clientName: clientName.trim(), // 🔥 USAR clientName
+        clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
         service: serviceIds,
@@ -318,11 +249,56 @@ const BarberAgenda = () => {
       });
 
       setShowModal(false);
+      setClientName('');
+      setClientPhone('');
+      setSelectedServices([]);
       await loadAppointments();
       alert('✅ Agendamento criado com sucesso!');
     } catch (error: any) {
       console.error('Erro ao criar agendamento:', error);
-      alert(error.response?.data?.error || 'Erro ao criar agendamento');
+      if (error.response?.data?.error?.includes('já existe')) {
+        alert(error.response.data.error);
+      } else {
+        alert(error.response?.data?.error || 'Erro ao criar agendamento');
+      }
+    }
+  };
+
+
+  // ABRIR MODAL DE DETALHES
+  const openDetailModal = (appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setShowDetailModal(true);
+  };
+
+  // ATUALIZAR STATUS
+  const handleUpdateStatus = async (status: string) => {
+    if (!selectedAppointment) return;
+    try {
+      const updated = await appointmentService.updateStatus(selectedAppointment.id, status);
+      setSelectedAppointment(updated);
+      await loadAppointments();
+      if (status === 'completed') {
+        alert('✅ Serviço concluído! O valor foi enviado para o caixa.');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      alert('Erro ao atualizar status');
+    }
+  };
+
+  // DELETAR AGENDAMENTO
+  const handleDeleteAppointment = async () => {
+    if (!selectedAppointment) return;
+    if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
+    try {
+      await appointmentService.delete(selectedAppointment.id);
+      setShowDetailModal(false);
+      await loadAppointments();
+      alert('✅ Agendamento excluído!');
+    } catch (error) {
+      console.error('Erro ao excluir agendamento:', error);
+      alert('Erro ao excluir agendamento');
     }
   };
 
@@ -526,38 +502,31 @@ const BarberAgenda = () => {
 
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Cliente</label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
-                  <input
-                    type="text"
-                    value={searchQuery || formData.clientName}
-                    onChange={(e) => { setSearchQuery(e.target.value); setFormData({ ...formData, clientName: e.target.value }); }}
-                    placeholder="Digite o nome do cliente..."
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
-                  />
-                  {showSearchResults && searchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {searchResults.map((client) => (
-                        <button key={client.id} onClick={() => selectClient(client)} className="w-full px-4 py-2 text-left hover:bg-[#f5f0e8] transition flex items-center gap-3">
-                          <UserIcon size={16} className="text-[#9c7f64]" />
-                          <div><p className="font-medium text-[#060606]">{client.name}</p><p className="text-xs text-[#7f7c7a]">{client.phone}</p></div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {searching && <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 text-center text-[#7f7c7a]">Buscando...</div>}
-                </div>
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone do cliente..."
+                  required
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={16} />
-                  <input type="text" value={formData.clientPhone} onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]" placeholder="(00) 00000-0000" required />
+                  <input
+                    type="text"
+                    value={formData.clientPhone}
+                    onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    placeholder="(00) 00000-0000"
+                    required
+                  />
                 </div>
               </div>
 
-              {/* 🔥 MULTI SERVIÇOS */}
+              {/* MULTI SERVIÇOS */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   <Scissors size={16} className="inline mr-1" /> Serviços

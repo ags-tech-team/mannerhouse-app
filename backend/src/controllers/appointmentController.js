@@ -1,5 +1,6 @@
 const { Appointment, Barber, Client, CashRegister, Revenue } = require('../models');
 const { Op } = require('sequelize');
+const { findOrCreateClient } = require('../services/clientService');
 
 // Buscar agendamentos com filtros
 const getAll = async (req, res) => {
@@ -95,14 +96,13 @@ const getAvailableTimes = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIR: Criar agendamento (sem email)
 const create = async (req, res) => {
   try {
     const { 
       barberId, 
       clientId, 
       clientName,
-      clientPhone,  // 🔥 APENAS TELEFONE
+      clientPhone,
       date, 
       time, 
       service, 
@@ -133,22 +133,19 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // 🔥 BUSCAR OU CRIAR CLIENTE (apenas com telefone)
+    // 🔥 BUSCAR OU CRIAR CLIENTE PELO TELEFONE
     let client = null;
+    
     if (clientId) {
       client = await Client.findByPk(clientId);
     } else if (clientPhone) {
-      client = await Client.findOne({ where: { phone: clientPhone } });
-    }
-    
-    if (!client && clientName) {
-      // Criar novo cliente (sem email)
-      client = await Client.create({
-        name: clientName,
-        phone: clientPhone || '(00) 00000-0000',
+      // 🔥 USAR SERVIÇO CENTRALIZADO
+      const result = await findOrCreateClient({
+        name: clientName || 'Cliente sem nome',
+        phone: clientPhone,
         isActive: true,
       });
-      console.log('✅ Cliente criado:', client.id);
+      client = result.client;
     }
     
     if (!client) {
@@ -174,28 +171,20 @@ const create = async (req, res) => {
     
     console.log('✅ Agendamento criado:', appointment.id);
     
-    // Buscar agendamento criado com relacionamentos
     const created = await Appointment.findByPk(appointment.id, {
       include: [
-        { 
-          model: Barber, 
-          attributes: ['id', 'name', 'email', 'phone'] 
-        },
-        { 
-          model: Client, 
-          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
-        }
+        { model: Barber, attributes: ['id', 'name'] },
+        { model: Client, attributes: ['id', 'name', 'phone'] }
       ],
     });
     
     res.status(201).json(created);
   } catch (error) {
     console.error('❌ Erro ao criar agendamento:', error);
-    res.status(500).json({ error: 'Erro ao criar agendamento' });
+    res.status(500).json({ error: error.message || 'Erro ao criar agendamento' });
   }
 };
 
-// 🔥 CORRIGIR: Atualizar status (sem email)
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
