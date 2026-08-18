@@ -1,3 +1,5 @@
+const { Barber } = require('./Barber');
+
 module.exports = (sequelize, DataTypes) => {
   const Revenue = sequelize.define('Revenue', {
     id: {
