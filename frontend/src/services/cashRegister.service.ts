@@ -34,13 +34,18 @@ export const cashRegisterService = {
     return response.data;
   },
 
-  // Adicionar serviço ao caixa
+  // 🔥 Adicionar serviço ao caixa com comissão
   async addService(data: {
     client: string;
     barberId: string;
     service: string;
+    serviceId?: string;
     price: number;
+    commission: number; // 🔥 OBRIGATÓRIO - comissão calculada
     paymentMethod: string;
+    date: string;
+    time: string;
+    phone?: string;
   }): Promise<any> {
     const response = await api.post('/cash-register/service', data);
     return response.data;

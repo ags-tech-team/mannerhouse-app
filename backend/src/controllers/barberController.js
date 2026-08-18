@@ -6,7 +6,6 @@ const getAll = async (req, res) => {
     const { includeInactive } = req.query;
     const where = { isActive: true};
     
-    // 🔥 POR PADRÃO, NÃO MOSTRAR INATIVOS
     if (includeInactive !== 'true') {
       where.isActive = true;
     }
@@ -51,9 +50,19 @@ const getById = async (req, res) => {
   }
 };
 
+// 🔥 CORRIGIDO - CREATE
 const create = async (req, res) => {
   try {
-    const { name, email, phone, username, password, commissionRate = 0.20 } = req.body;
+    const { 
+      name, 
+      email, 
+      phone, 
+      username, 
+      password, 
+      serviceCommissionRate,
+      productCommissionRate,
+      isActive 
+    } = req.body;
 
     // Verificar se email já existe
     const existingBarber = await Barber.findOne({ where: { email } });
@@ -73,9 +82,10 @@ const create = async (req, res) => {
       email,
       password,
       role: 'barber',
+      isActive: isActive !== undefined ? isActive : true,
     });
 
-    // Criar barbeiro
+    // 🔥 CRIAR BARBEIRO COM OS CAMPOS CORRETOS
     const barber = await Barber.create({
       userId: user.id,
       name,
@@ -83,20 +93,39 @@ const create = async (req, res) => {
       phone,
       username,
       password,
-      commissionRate,
+      serviceCommissionRate: serviceCommissionRate || 0.5,
+      productCommissionRate: productCommissionRate || 0.5,
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    console.log('✅ Barbeiro criado:', {
+      id: barber.id,
+      name: barber.name,
+      serviceCommissionRate: barber.serviceCommissionRate,
+      productCommissionRate: barber.productCommissionRate,
     });
 
     res.status(201).json(barber);
   } catch (error) {
-    console.error('Erro ao criar barbeiro:', error);
+    console.error('❌ Erro ao criar barbeiro:', error);
     res.status(500).json({ error: 'Erro ao criar barbeiro' });
   }
 };
 
+// 🔥 CORRIGIDO - UPDATE
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, username, password, commissionRate, isActive } = req.body;
+    const { 
+      name, 
+      email, 
+      phone, 
+      username, 
+      password, 
+      serviceCommissionRate,
+      productCommissionRate,
+      isActive 
+    } = req.body;
 
     const barber = await Barber.findByPk(id);
     if (!barber) {
@@ -106,20 +135,50 @@ const update = async (req, res) => {
     // Atualizar usuário
     const user = await User.findByPk(barber.userId);
     if (user) {
-      await user.update({ name, email, isActive });
+      await user.update({ 
+        name, 
+        email, 
+        isActive: isActive !== undefined ? isActive : true 
+      });
     }
 
-    // Atualizar barbeiro
-    const updateData = { name, email, phone, username, commissionRate, isActive };
+    // 🔥 ATUALIZAR BARBEIRO COM OS CAMPOS CORRETOS
+    const updateData = { 
+      name, 
+      email, 
+      phone, 
+      username,
+      serviceCommissionRate,
+      productCommissionRate,
+      isActive: isActive !== undefined ? isActive : true,
+    };
+
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
     await barber.update(updateData);
 
-    res.json(barber);
+    console.log('✅ Barbeiro atualizado:', {
+      id: barber.id,
+      name: barber.name,
+      serviceCommissionRate: barber.serviceCommissionRate,
+      productCommissionRate: barber.productCommissionRate,
+    });
+
+    // Buscar o barbeiro atualizado
+    const updatedBarber = await Barber.findByPk(id, {
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'name', 'email', 'isActive'],
+        },
+      ],
+    });
+
+    res.json(updatedBarber);
   } catch (error) {
-    console.error('Erro ao atualizar barbeiro:', error);
+    console.error('❌ Erro ao atualizar barbeiro:', error);
     res.status(500).json({ error: 'Erro ao atualizar barbeiro' });
   }
 };

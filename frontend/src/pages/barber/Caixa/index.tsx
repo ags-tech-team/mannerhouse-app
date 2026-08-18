@@ -50,6 +50,8 @@ interface ServicoFaturamento {
 interface Barber {
   id: string;
   name: string;
+  serviceCommissionRate: number;
+  productCommissionRate: number;
 }
 
 interface SelectedService {
@@ -78,14 +80,14 @@ const BarberCaixa = () => {
   const [barbersList, setBarbersList] = useState<Barber[]>([]);
   const [isGuest, setIsGuest] = useState(false);
   
-  // 🔥 MÚLTIPLOS SERVIÇOS
+  // MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
-  // 🔥 AUTO-COMPLETE
+  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   
-  // 🔥 HORÁRIOS OCUPADOS
+  // HORÁRIOS OCUPADOS
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   
@@ -103,7 +105,7 @@ const BarberCaixa = () => {
   const valor = useNumberInput();
   const valorInicial = useNumberInput();
 
-  // 🔥 HANDLE SELECT CLIENT
+  // HANDLE SELECT CLIENT
   const handleSelectClient = (client: any) => {
     setClientName(client.name);
     setClientPhone(client.phone);
@@ -126,7 +128,7 @@ const BarberCaixa = () => {
     return selectedServices.map(s => s.id).join(',');
   };
 
-  // 🔥 CARREGAR HORÁRIOS OCUPADOS
+  // CARREGAR HORÁRIOS OCUPADOS
   const loadOccupiedTimes = async () => {
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId || !selectedDate) {
@@ -136,7 +138,6 @@ const BarberCaixa = () => {
     
     setLoadingTimes(true);
     try {
-      // 1. Buscar horários ocupados em agendamentos (pending, confirmed)
       const response = await api.get('/appointments/check-availability', {
         params: {
           barberId,
@@ -146,13 +147,11 @@ const BarberCaixa = () => {
       
       const bookedFromAppointments = response.data.times || [];
       
-      // 2. Buscar horários já registrados no caixa (serviços concluídos)
       const caixaAtual = await cashRegisterService.getToday();
       const bookedFromCashRegister = caixaAtual?.services
         ?.filter((s: any) => s.barberId === barberId && s.date === selectedDate)
         ?.map((s: any) => s.time) || [];
       
-      // 3. Combinar e remover duplicatas
       const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
       setOccupiedTimes(allBooked);
     } catch (error) {
@@ -163,7 +162,7 @@ const BarberCaixa = () => {
     }
   };
 
-  // 🔥 VERIFICAR SE HORÁRIO ESTÁ OCUPADO
+  // VERIFICAR SE HORÁRIO ESTÁ OCUPADO
   const isTimeOccupied = (time: string) => {
     return occupiedTimes.includes(time);
   };
@@ -191,7 +190,6 @@ const BarberCaixa = () => {
     loadBarbersList();
   }, []);
 
-  // 🔥 RECARREGAR HORÁRIOS OCUPADOS QUANDO BARBEIRO OU DATA MUDAR
   useEffect(() => {
     loadOccupiedTimes();
   }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
@@ -331,6 +329,7 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
+  // 🔥 SUBMIT COM COMISSÃO REAL
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -365,7 +364,6 @@ const BarberCaixa = () => {
       return;
     }
 
-    // 🔥 VERIFICAR SE O HORÁRIO ESTÁ OCUPADO (ANTES DE SALVAR)
     if (isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
@@ -377,7 +375,11 @@ const BarberCaixa = () => {
       const total = getTotalServices();
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
-      const comissao = total * 0.5;
+
+      // 🔥 CALCULAR COMISSÃO COM A TAXA DO BARBEIRO
+      const barber = barbersList.find(b => b.id === barberId);
+      const taxaComissao = barber?.serviceCommissionRate || 0.50;
+      const comissao = total * taxaComissao;
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
@@ -407,6 +409,7 @@ const BarberCaixa = () => {
           service: serviceNames,
           serviceId: serviceIds,
           price: total,
+          commission: comissao,
           paymentMethod: formData.formaPagamento,
           date: selectedDate,
           time: selectedTime,
@@ -761,10 +764,11 @@ const BarberCaixa = () => {
                   <option value="">Selecione um barbeiro</option>
                   {barbersList.map((barber) => (
                     <option key={barber.id} value={barber.id}>
-                      {barber.name}
+                      {barber.name} ({Math.round(barber.serviceCommissionRate * 100)}%)
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-[#7f7c7a] mt-1">Comissão do barbeiro sobre serviços</p>
               </div>
 
               {/* Data e Horário */}
@@ -782,7 +786,7 @@ const BarberCaixa = () => {
                   />
                 </div>
 
-                {/* 🔥 SELETOR DE HORÁRIO (COM BLOQUEIO) */}
+                {/* SELETOR DE HORÁRIO (COM BLOQUEIO) */}
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-1">
                     <ClockIcon size={14} className="inline mr-1" /> Horário
@@ -891,6 +895,20 @@ const BarberCaixa = () => {
                   maxServices={5}
                 />
               </div>
+
+              {/* 🔥 MOSTRAR TOTAL E COMISSÃO */}
+              {selectedServices.length > 0 && (
+                <div className="bg-[#f5f0e8] rounded-lg p-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#7f7c7a]">Total:</span>
+                    <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#7f7c7a]">Comissão do barbeiro ({Math.round((currentBarber?.serviceCommissionRate || 0.50) * 100)}%):</span>
+                    <span className="font-medium text-[#9c7f64]">R$ {(getTotalServices() * (currentBarber?.serviceCommissionRate || 0.50)).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Forma de Pagamento */}
               <div>

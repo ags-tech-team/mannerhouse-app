@@ -32,6 +32,8 @@ interface Barber {
   email: string;
   phone: string;
   isActive: boolean;
+  serviceCommissionRate: number;
+  productCommissionRate: number;
 }
 
 interface SelectedService {
@@ -59,10 +61,10 @@ const BarberAgenda = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   
-  // 🔥 MÚLTIPLOS SERVIÇOS
+  // MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
-  // 🔥 AUTO-COMPLETE
+  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   
@@ -92,7 +94,7 @@ const BarberAgenda = () => {
     }));
   };
 
-  // 🔥 HANDLE BARBER CHANGE
+  // HANDLE BARBER CHANGE
   const handleBarberChange = (barberId: string) => {
     setSelectedBarberId(barberId);
     localStorage.setItem('@mannerhouse:selectedBarber', barberId);
@@ -202,6 +204,7 @@ const BarberAgenda = () => {
     setShowModal(true);
   };
 
+  // 🔥 CRIAÇÃO DE AGENDAMENTO COM COMISSÃO REAL
   const handleCreateAppointment = async () => {
     if (!selectedBarberId) {
       alert('Selecione um barbeiro');
@@ -216,7 +219,6 @@ const BarberAgenda = () => {
       return;
     }
     
-    // 🔥 CORRIGIDO: USAR clientName (do auto-complete)
     if (!clientName.trim()) {
       alert('Digite o nome do cliente');
       return;
@@ -236,15 +238,21 @@ const BarberAgenda = () => {
       const serviceNames = selectedServices.map(s => s.service.name).join(' + ');
       const serviceIds = selectedServices.map(s => s.id).join(',');
 
+      // 🔥 CALCULAR COMISSÃO COM A TAXA DO BARBEIRO
+      const barber = barbers.find(b => b.id === selectedBarberId);
+      const taxaComissao = barber?.serviceCommissionRate || 0.50;
+      const comissao = total * taxaComissao;
+
       await appointmentService.create({
         barberId: selectedBarberId,
-        clientName: clientName.trim(), // 🔥 USAR clientName
+        clientName: clientName.trim(),
         clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
         service: serviceIds,
         serviceDescription: serviceNames,
         price: total,
+        commission: comissao,
         notes: formData.notes,
       });
 
@@ -263,7 +271,6 @@ const BarberAgenda = () => {
       }
     }
   };
-
 
   // ABRIR MODAL DE DETALHES
   const openDetailModal = (appointment: Appointment) => {
@@ -440,6 +447,7 @@ const BarberAgenda = () => {
                 <div><p className="text-sm text-[#7f7c7a]">✂️ Serviço</p><p className="font-medium">{selectedAppointment.serviceDescription || 'Serviço'}</p></div>
                 <div><p className="text-sm text-[#7f7c7a]">💰 Valor</p><p className="font-medium text-[#9c7f64]">R$ {selectedAppointment.price?.toFixed(2) || '0,00'}</p></div>
               </div>
+              <div><p className="text-sm text-[#7f7c7a]">💵 Comissão</p><p className="font-medium text-green-600">R$ {selectedAppointment.commission?.toFixed(2) || '0,00'}</p></div>
               {selectedAppointment.serviceDescription && <div><p className="text-sm text-[#7f7c7a]">📝 Descrição</p><p className="text-sm text-[#060606]">{selectedAppointment.serviceDescription}</p></div>}
               {selectedAppointment.notes && <div><p className="text-sm text-[#7f7c7a]">📌 Observações</p><p className="text-sm text-[#060606]">{selectedAppointment.notes}</p></div>}
               <div className="border-t pt-4">
@@ -537,6 +545,27 @@ const BarberAgenda = () => {
                   maxServices={5}
                 />
               </div>
+
+              {/* 🔥 MOSTRAR COMISSÃO CALCULADA */}
+              {selectedServices.length > 0 && (
+                <div className="bg-[#f5f0e8] rounded-lg p-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#7f7c7a]">Total:</span>
+                    <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+                  </div>
+                  {(() => {
+                    const barber = barbers.find(b => b.id === selectedBarberId);
+                    const taxa = barber?.serviceCommissionRate || 0.50;
+                    const comissao = getTotalServices() * taxa;
+                    return (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#7f7c7a]">Comissão ({Math.round(taxa * 100)}%):</span>
+                        <span className="font-medium text-[#9c7f64]">R$ {comissao.toFixed(2)}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Observações</label>

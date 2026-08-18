@@ -34,6 +34,7 @@ export interface Appointment {
   };
 }
 
+// 🔥 CreateAppointmentData com commission obrigatório
 export interface CreateAppointmentData {
   barberId: string;
   clientId?: string;
@@ -45,6 +46,7 @@ export interface CreateAppointmentData {
   service: string;
   serviceDescription?: string;
   price: number;
+  commission: number; // 🔥 OBRIGATÓRIO
   notes?: string;
 }
 
