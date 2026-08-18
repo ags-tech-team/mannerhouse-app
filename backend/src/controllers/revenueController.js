@@ -11,29 +11,89 @@ const getFinancialDashboard = async (req, res) => {
     const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
     const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
     
+    // 🔥 BUSCAR REVENUES COM BARBEIRO
     const revenues = await Revenue.findAll({
       where: {
         date: {
           [Op.between]: [startDate, endDate]
         }
       },
-      include: [{ model: CashRegister }]
+      include: [
+        { model: CashRegister },
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
+      ]
     });
     
     const totalRevenueFromCash = revenues.reduce((sum, r) => sum + r.total, 0);
     const totalCommissionsFromCash = revenues.reduce((sum, r) => sum + r.commissions, 0);
     
+    // 🔥 COMISSÕES POR BARBEIRO (DOS REVENUES)
+    const commissionsByBarberFromRevenue = revenues.reduce((acc, r) => {
+      const barberId = r.barberId;
+      const barberName = r.barber?.name || 'Desconhecido';
+      if (!acc[barberId]) {
+        acc[barberId] = { name: barberName, serviceCommission: 0, productCommission: 0 };
+      }
+      acc[barberId].serviceCommission += r.commissions || 0;
+      return acc;
+    }, {});
+
+    // Buscar sales (produtos)
     const sales = await Sale.findAll({
       where: {
         date: {
           [Op.between]: [startDate, endDate]
         }
-      }
+      },
+      include: [{ model: Barber, attributes: ['id', 'name'] }]
     });
     
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + (s.commission * s.quantity), 0);
-    
+
+    // Adicionar comissões de produtos ao agrupamento
+    sales.forEach(sale => {
+      const barberId = sale.barberId;
+      if (commissionsByBarberFromRevenue[barberId]) {
+        commissionsByBarberFromRevenue[barberId].productCommission += sale.commission;
+      } else {
+        const barberName = sale.Barber?.name || 'Desconhecido';
+        commissionsByBarberFromRevenue[barberId] = {
+          name: barberName,
+          serviceCommission: 0,
+          productCommission: sale.commission
+        };
+      }
+    });
+
+    // Buscar appointments (serviços) que não estão no revenue
+    const appointments = await Appointment.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        },
+        status: 'completed'
+      },
+      attributes: ['barberId', 'commission', 'price'],
+      include: [{ model: Barber, attributes: ['id', 'name'] }]
+    });
+
+    // Adicionar comissões de appointments ao agrupamento
+    appointments.forEach(app => {
+      const barberId = app.barberId;
+      if (commissionsByBarberFromRevenue[barberId]) {
+        commissionsByBarberFromRevenue[barberId].serviceCommission += app.commission || 0;
+      } else {
+        const barberName = app.Barber?.name || 'Desconhecido';
+        commissionsByBarberFromRevenue[barberId] = {
+          name: barberName,
+          serviceCommission: app.commission || 0,
+          productCommission: 0
+        };
+      }
+    });
+
+    // Calcular totais
     const expenses = await Expense.findAll({
       where: {
         date: {
@@ -43,60 +103,20 @@ const getFinancialDashboard = async (req, res) => {
     });
     
     const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
-    
     const expensesByCategory = expenses.reduce((acc, e) => {
       const category = e.category || 'outros';
       acc[category] = (acc[category] || 0) + e.value;
       return acc;
     }, {});
-    
-    const serviceCommissionsByBarber = await Appointment.findAll({
-      where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        },
-        status: 'completed'
-      },
-      attributes: ['barberId', 'commission'],
-      include: [{ model: Barber, attributes: ['id', 'name'] }]
-    });
-    
-    const commissionsByBarber = serviceCommissionsByBarber.reduce((acc, app) => {
-      const barberId = app.barberId;
-      const barberName = app.Barber?.name || 'Desconhecido';
-      if (!acc[barberId]) {
-        acc[barberId] = { name: barberName, serviceCommission: 0, productCommission: 0 };
-      }
-      acc[barberId].serviceCommission += app.commission;
-      return acc;
-    }, {});
-    
-    const productCommissionsByBarber = await Sale.findAll({
-      where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      attributes: ['barberId', 'commission'],
-      include: [{ model: Barber, attributes: ['id', 'name'] }]
-    });
-    
-    productCommissionsByBarber.forEach(sale => {
-      const barberId = sale.barberId;
-      if (commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId].productCommission += sale.commission;
-      } else {
-        const barberName = sale.Barber?.name || 'Desconhecido';
-        commissionsByBarber[barberId] = {
-          name: barberName,
-          serviceCommission: 0,
-          productCommission: sale.commission
-        };
-      }
-    });
-    
-    const totalCommissions = totalCommissionsFromCash + totalProductCommissions;
+
+    // 🔥 TOTAL DE COMISSÕES (soma de todas as fontes)
+    const totalCommissions = Object.values(commissionsByBarberFromRevenue).reduce(
+      (sum, b) => sum + b.serviceCommission + b.productCommission, 0
+    );
+
+    // 🔥 TOTAL DE RECEITA (revenue + sales)
     const totalRevenue = totalRevenueFromCash + totalProductRevenue;
+
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
     const result = {
@@ -116,9 +136,9 @@ const getFinancialDashboard = async (req, res) => {
       },
       commissions: {
         total: totalCommissions,
-        service: totalCommissionsFromCash,
-        product: totalProductCommissions,
-        byBarber: Object.values(commissionsByBarber).map(b => ({
+        service: Object.values(commissionsByBarberFromRevenue).reduce((sum, b) => sum + b.serviceCommission, 0),
+        product: Object.values(commissionsByBarberFromRevenue).reduce((sum, b) => sum + b.productCommission, 0),
+        byBarber: Object.values(commissionsByBarberFromRevenue).map(b => ({
           name: b.name,
           serviceCommission: b.serviceCommission,
           productCommission: b.productCommission,

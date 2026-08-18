@@ -14,6 +14,16 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'cash_register_id',
     },
+    // 🔥 ADICIONAR barberId
+    barberId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'barbers',
+        key: 'id',
+      },
+      field: 'barber_id',
+    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
@@ -55,7 +65,8 @@ module.exports = (sequelize, DataTypes) => {
     underscored: true,
   });
 
-  // ❌ REMOVIDAS: associações
+  // 🔥 ASSOCIAÇÃO COM BARBER
+  Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 
   return Revenue;
 };
