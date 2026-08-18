@@ -29,6 +29,7 @@ CashRegister.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(CashRegister, { foreignKey: 'userId' });
 
 // Revenue
+Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId' });
 CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId' });
 

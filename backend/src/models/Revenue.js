@@ -1,5 +1,3 @@
-const { Barber } = require('./Barber');
-
 module.exports = (sequelize, DataTypes) => {
   const Revenue = sequelize.define('Revenue', {
     id: {
@@ -16,7 +14,6 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'cash_register_id',
     },
-    // 🔥 ADICIONAR barberId
     barberId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -67,8 +64,8 @@ module.exports = (sequelize, DataTypes) => {
     underscored: true,
   });
 
-  // 🔥 ASSOCIAÇÃO COM BARBER
-  Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+  // 🔥 REMOVA ESSA LINHA DAQUI
+  // Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 
   return Revenue;
 };
