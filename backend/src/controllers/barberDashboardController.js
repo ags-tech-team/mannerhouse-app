@@ -1,4 +1,4 @@
-const { Appointment, Barber, Client, CashRegister, Revenue, Sale } = require('../models');
+const { Appointment, Barber, Client, CashRegister, Revenue, Sale, Product } = require('../models');
 const { Op } = require('sequelize');
 
 const getBarberDashboard = async (req, res) => {
