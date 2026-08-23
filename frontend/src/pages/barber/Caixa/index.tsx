@@ -128,6 +128,31 @@ const BarberCaixa = () => {
     return selectedServices.map(s => s.id).join(',');
   };
 
+  // 🔥 FUNÇÃO PARA CALCULAR COMISSÃO DE PRODUTO
+  const calcularComissaoProduto = async (productId: string, price: number) => {
+    try {
+      const response = await api.get(`/products/${productId}`);
+      const product = response.data;
+      
+      // Se o produto não tiver comissão ativa, retorna 0
+      if (!product.hasCommission) {
+        return 0;
+      }
+      
+      const barberId = formData.barbeiroId || currentBarber?.id;
+      const barber = barbersList.find(b => b.id === barberId);
+      const taxaComissao = barber?.productCommissionRate || 0.50;
+      
+      // Lucro = Preço de venda - Preço de custo
+      const lucro = product.price - product.costPrice;
+      
+      return lucro * taxaComissao;
+    } catch (error) {
+      console.error('Erro ao calcular comissão do produto:', error);
+      return 0;
+    }
+  };
+
   // CARREGAR HORÁRIOS OCUPADOS
   const loadOccupiedTimes = async () => {
     const barberId = formData.barbeiroId || currentBarber?.id;
@@ -376,10 +401,24 @@ const BarberCaixa = () => {
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
 
-      // 🔥 CALCULAR COMISSÃO COM A TAXA DO BARBEIRO
+      // 🔥 CALCULAR COMISSÃO DO SERVIÇO
       const barber = barbersList.find(b => b.id === barberId);
-      const taxaComissao = barber?.serviceCommissionRate || 0.50;
-      const comissao = total * taxaComissao;
+      const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
+      const comissaoServico = total * taxaComissaoServico;
+
+      // 🔥 CALCULAR COMISSÃO DO PRODUTO (se houver)
+      let comissaoProduto = 0;
+      for (const service of selectedServices) {
+        // Verifica se é um produto (pelo ID ou categoria)
+        // Se o serviço tiver um ID que parece de produto, calcula comissão
+        if (service.id && service.id.startsWith('prod_')) {
+          const comissao = await calcularComissaoProduto(service.id, service.service.price);
+          comissaoProduto += comissao;
+        }
+      }
+
+      // Comissão total = comissão do serviço + comissão do produto
+      const comissaoTotal = comissaoServico + comissaoProduto;
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
@@ -390,7 +429,7 @@ const BarberCaixa = () => {
                 servico: serviceNames,
                 servicoId: serviceIds,
                 valor: total,
-                comissao: comissao,
+                comissao: comissaoTotal,
                 formaPagamento: formData.formaPagamento,
                 observacao: formData.observacao,
                 barbeiro: formData.barbeiroNome || currentBarber?.name || 'Barbeiro',
@@ -409,7 +448,7 @@ const BarberCaixa = () => {
           service: serviceNames,
           serviceId: serviceIds,
           price: total,
-          commission: comissao,
+          commission: comissaoTotal,
           paymentMethod: formData.formaPagamento,
           date: selectedDate,
           time: selectedTime,
@@ -764,7 +803,7 @@ const BarberCaixa = () => {
                   <option value="">Selecione um barbeiro</option>
                   {barbersList.map((barber) => (
                     <option key={barber.id} value={barber.id}>
-                      {barber.name} ({Math.round(barber.serviceCommissionRate * 100)}%)
+                      {barber.name}
                     </option>
                   ))}
                 </select>

@@ -2,7 +2,6 @@ const { Appointment, Barber, Client, CashRegister, Revenue } = require('../model
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 
-// Buscar agendamentos com filtros
 const getAll = async (req, res) => {
   try {
     const { startDate, endDate, barberId, status } = req.query;
@@ -21,11 +20,15 @@ const getAll = async (req, res) => {
       include: [
         { 
           model: Barber, 
-          attributes: ['id', 'name', 'email', 'phone'] 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'email', 'phone'],
+          required: false
         },
         { 
           model: Client, 
-          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'phone'],
+          required: false
         }
       ],
       order: [['date', 'ASC'], ['time', 'ASC']],
@@ -38,7 +41,6 @@ const getAll = async (req, res) => {
   }
 };
 
-// Buscar agendamentos de um barbeiro específico
 const getByBarber = async (req, res) => {
   try {
     const { barberId } = req.params;
@@ -52,7 +54,8 @@ const getByBarber = async (req, res) => {
       include: [
         { 
           model: Client, 
-          attributes: ['id', 'name', 'phone']  // 🔥 REMOVER EMAIL
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'phone']
         }
       ],
       order: [['time', 'ASC']],
@@ -173,8 +176,8 @@ const create = async (req, res) => {
     
     const created = await Appointment.findByPk(appointment.id, {
       include: [
-        { model: Barber, attributes: ['id', 'name'] },
-        { model: Client, attributes: ['id', 'name', 'phone'] }
+       { model: Barber, as: 'barber', attributes: ['id', 'name'] },  
+       { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
       ],
     });
     
@@ -192,8 +195,8 @@ const updateStatus = async (req, res) => {
     
     const appointment = await Appointment.findByPk(id, {
       include: [
-        { model: Barber },
-        { model: Client }
+        { model: Barber, as: 'barber' }, 
+        { model: Client, as: 'client' }
       ]
     });
     
@@ -210,6 +213,7 @@ const updateStatus = async (req, res) => {
     if (status === 'completed' && oldStatus !== 'completed') {
       const hoje = new Date().toISOString().split('T')[0];
       
+      // 🔥 BUSCAR CAIXA
       cashRegister = await CashRegister.findOne({
         where: {
           date: hoje,
@@ -218,55 +222,52 @@ const updateStatus = async (req, res) => {
         }
       });
       
-      cashRegisterStatus = cashRegister ? 'open' : 'closed';
+      // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO - ANTES DE CONTINUAR
+      if (!cashRegister) {
+        // Reverter o status se não tiver caixa aberto
+        await appointment.update({ status: oldStatus });
+        return res.status(400).json({ 
+          error: '⚠️ Caixa fechado! Abra o caixa antes de concluir o agendamento.',
+          cashRegisterStatus: 'closed'
+        });
+      }
+      
+      cashRegisterStatus = 'open';
       
       const commission = (appointment.price || 0) * (appointment.Barber?.serviceCommissionRate || 0.50);
       
-      if (cashRegister) {
-        const services = cashRegister.services || [];
-        const totalRevenue = cashRegister.totalRevenue || 0;
-        const totalCommissions = cashRegister.totalCommissions || 0;
-        
-        services.push({
-          id: appointment.id,
-          type: 'service',
-          client: appointment.Client?.name || 'Cliente',
-          barberId: appointment.barberId,
-          barberName: appointment.Barber?.name || 'Barbeiro',
-          service: appointment.service,
-          price: appointment.price || 0,
-          commission,
-          paymentMethod: 'dinheiro',
-          time: appointment.time,
-        });
-        
-        await cashRegister.update({
-          services,
-          totalRevenue: totalRevenue + (appointment.price || 0),
-          totalCommissions: totalCommissions + commission,
-          servicesCount: services.length,
-        });
-        
-        console.log(`✅ Serviço ${id} concluído e adicionado ao caixa.`);
-      } else {
-        await Revenue.create({
-          cashRegisterId: null,
-          date: hoje,
-          total: appointment.price || 0,
-          commissions: commission,
-          servicesCount: 1,
-          initialCash: 0,
-          finalCash: appointment.price || 0,
-        });
-        
-        console.log(`⚠️ Caixa fechado. Serviço ${id} registrado diretamente no faturamento.`);
-      }
+      // 🔥 ADICIONAR AO CAIXA (cashRegister existe com certeza aqui)
+      const services = cashRegister.services || [];
+      const totalRevenue = cashRegister.totalRevenue || 0;
+      const totalCommissions = cashRegister.totalCommissions || 0;
+      
+      services.push({
+        id: appointment.id,
+        type: 'service',
+        client: appointment.Client?.name || 'Cliente',
+        barberId: appointment.barberId,
+        barberName: appointment.Barber?.name || 'Barbeiro',
+        service: appointment.service,
+        price: appointment.price || 0,
+        commission,
+        paymentMethod: 'dinheiro',
+        time: appointment.time,
+      });
+      
+      await cashRegister.update({
+        services,
+        totalRevenue: totalRevenue + (appointment.price || 0),
+        totalCommissions: totalCommissions + commission,
+        servicesCount: services.length,
+      });
+      
+      console.log(`✅ Serviço ${id} concluído e adicionado ao caixa.`);
     }
     
     const updated = await Appointment.findByPk(id, {
       include: [
         { model: Barber, attributes: ['id', 'name', 'email', 'phone'] },
-        { model: Client, attributes: ['id', 'name', 'phone'] }  // 🔥 REMOVER EMAIL
+        { model: Client, attributes: ['id', 'name', 'phone'] }
       ],
     });
     

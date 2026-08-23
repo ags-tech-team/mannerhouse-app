@@ -1,7 +1,7 @@
 const { sequelize } = require('../config/database');
 const { DataTypes } = require('sequelize');
 
-// 🔥 CARREGAR MODELOS (todos no formato de função)
+// Carregar modelos
 const User = require('./User')(sequelize, DataTypes);
 const Barber = require('./Barber')(sequelize, DataTypes);
 const Client = require('./Client')(sequelize, DataTypes);
@@ -13,37 +13,43 @@ const Expense = require('./Expense')(sequelize, DataTypes);
 const Sale = require('./Sale')(sequelize, DataTypes);
 const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
 
-// 🔥 DEFINIÇÃO DE ASSOCIAÇÕES (TUDO AQUI!)
-// Barber
-Barber.belongsTo(User, { foreignKey: 'userId' });
-User.hasOne(Barber, { foreignKey: 'userId' });
+// 🔥 ===== DEFINIÇÃO DE ASSOCIAÇÕES =====
 
-// Appointment
-Appointment.belongsTo(Barber, { foreignKey: 'barberId' });
-Appointment.belongsTo(Client, { foreignKey: 'clientId' });
-Barber.hasMany(Appointment, { foreignKey: 'barberId' });
-Client.hasMany(Appointment, { foreignKey: 'clientId' });
+// 🔥 Barber -> User
+Barber.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasOne(Barber, { foreignKey: 'userId', as: 'barber' });
 
-// CashRegister
-CashRegister.belongsTo(User, { foreignKey: 'userId' });
-User.hasMany(CashRegister, { foreignKey: 'userId' });
+// 🔥 Appointment -> Barber e Client
+Appointment.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+Appointment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
+Barber.hasMany(Appointment, { foreignKey: 'barberId', as: 'appointments' });
+Client.hasMany(Appointment, { foreignKey: 'clientId', as: 'appointments' });
 
-// Revenue
+// 🔥 Sale -> Barber, Client, Product
+Sale.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+Sale.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
+Sale.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Barber.hasMany(Sale, { foreignKey: 'barberId', as: 'sales' });
+Client.hasMany(Sale, { foreignKey: 'clientId', as: 'sales' });
+Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales' });
+
+// 🔥 CashRegister -> User
+CashRegister.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(CashRegister, { foreignKey: 'userId', as: 'cashRegisters' });
+
+// 🔥 Revenue -> CashRegister e Barber
+Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
 Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
-Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId' });
-CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId' });
+CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId', as: 'revenues' });
+Barber.hasMany(Revenue, { foreignKey: 'barberId', as: 'revenues' });
 
-// Sale
-Sale.belongsTo(Barber, { foreignKey: 'barberId' });
-Sale.belongsTo(Client, { foreignKey: 'clientId' });
-Sale.belongsTo(Product, { foreignKey: 'productId' });
-Barber.hasMany(Sale, { foreignKey: 'barberId' });
-Client.hasMany(Sale, { foreignKey: 'clientId' });
-Product.hasMany(Sale, { foreignKey: 'productId' });
+// 🔥 MonthlyPayment -> Client
+MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
+Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'payments' });
 
-// MonthlyPayment
-MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId' });
-Client.hasMany(MonthlyPayment, { foreignKey: 'clientId' });
+// 🔥 Client -> MonthlyPayment (já feito acima)
+
+// 🔥 Product -> Sale (já feito acima)
 
 const models = {
   User,

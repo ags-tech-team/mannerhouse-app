@@ -9,6 +9,7 @@ import {
   LogOut, 
   Settings, 
   Scissors,
+  FileText,
   PiggyBank,
   ShoppingBag,
   CreditCard // 🔥 ADICIONAR ESTE ÍCONE
@@ -38,7 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     { to: '/barber/cash-register', icon: PiggyBank, label: 'Caixa' },
     { to: '/barber/schedule', icon: Calendar, label: 'Agenda' },
     { to: '/barber/clients', icon: User, label: 'Clientes' },
-    { to: '/barber/mensalistas', icon: CreditCard, label: 'Mensalistas' }, // 🔥 ADICIONADO
+    { to: '/barber/historico', icon: FileText, label: 'Histórico' },
+    { to: '/barber/mensalistas', icon: CreditCard, label: 'Mensalistas' },
     { to: '/barber/shop', icon: ShoppingBag, label: 'Loja' },
   ];
 

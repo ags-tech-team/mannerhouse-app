@@ -1,7 +1,6 @@
 const { Sale, Barber, Product, Client, CashRegister, Revenue } = require('../models');
 const { Op } = require('sequelize');
 
-// 🔥 FUNÇÃO FALTANTE: Listar vendas
 const getAll = async (req, res) => {
   try {
     const { startDate, endDate, barberId } = req.query;
@@ -17,9 +16,24 @@ const getAll = async (req, res) => {
     const sales = await Sale.findAll({
       where,
       include: [
-        { model: Barber, attributes: ['id', 'name'] },
-        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
-        { model: Client, attributes: ['id', 'name'] },
+        { 
+          model: Barber, 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'],
+          required: false
+        },
+        { 
+          model: Product, 
+          as: 'product',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'price', 'costPrice'],
+          required: false
+        },
+        { 
+          model: Client, 
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'],
+          required: false
+        },
       ],
       order: [['date', 'DESC'], ['createdAt', 'DESC']],
     });
@@ -60,7 +74,6 @@ const getSummary = async (req, res) => {
   }
 };
 
-// Criar venda (com verificação de caixa)
 const create = async (req, res) => {
   try {
     const { 
@@ -91,15 +104,21 @@ const create = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO
     const hoje = new Date().toISOString().split('T')[0];
-    const cashRegister = await CashRegister.findOne({
-      where: {
-        date: hoje,
-        isOpen: true,
-        userId: req.userId, 
+      const cashRegister = await CashRegister.findOne({
+        where: {
+          date: hoje,
+          isOpen: true,
+          userId: req.userId, 
+        }
+      });
+
+      // 🔥 ADICIONAR ESTE BLOCO
+      if (!cashRegister) {
+        return res.status(400).json({ 
+          error: '⚠️ Caixa fechado! Abra o caixa antes de realizar uma venda.' 
+        });
       }
-    });
     
     // Criar cliente
     let client = null;
@@ -114,9 +133,14 @@ const create = async (req, res) => {
       });
     }
     
-    // Calcular lucro e comissão
+    // 🔥 CALCULAR LUCRO E COMISSÃO (COM VERIFICAÇÃO hasCommission)
     const profit = (product.price - product.costPrice) * quantity;
-    const commission = profit * barber.productCommissionRate;
+    let commission = 0;
+    
+    // 🔥 SÓ CALCULA COMISSÃO SE O PRODUTO TIVER COMISSÃO ATIVA
+    if (product.hasCommission) {
+      commission = profit * barber.productCommissionRate;
+    }
     
     // Criar venda
     const sale = await Sale.create({
@@ -137,7 +161,7 @@ const create = async (req, res) => {
       stock: product.stock - quantity 
     });
     
-    // 🔥 SE O CAIXA ESTIVER ABERTO, ADICIONA AO CAIXA
+    // SE O CAIXA ESTIVER ABERTO, ADICIONA AO CAIXA
     if (cashRegister) {
       const services = cashRegister.services || [];
       const totalRevenue = cashRegister.totalRevenue || 0;
@@ -151,6 +175,7 @@ const create = async (req, res) => {
         quantity,
         price: product.price,
         commission,
+        hasCommission: product.hasCommission, // 🔥 ADICIONAR
         paymentMethod: paymentMethod || 'dinheiro',
         time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       });
@@ -163,6 +188,7 @@ const create = async (req, res) => {
       });
       
       console.log(`✅ Venda adicionada ao caixa. Total: R$ ${(product.price * quantity).toFixed(2)}`);
+      console.log(`   Comissão: R$ ${commission.toFixed(2)} ${!product.hasCommission ? '(produto sem comissão)' : ''}`);
     } else {
       console.log(`⚠️ Caixa fechado. Venda registrada diretamente no faturamento.`);
       
@@ -176,13 +202,12 @@ const create = async (req, res) => {
         finalCash: product.price * quantity,
       });
     }
-    
-    // Buscar venda com relacionamentos
+
     const created = await Sale.findByPk(sale.id, {
       include: [
-        { model: Barber, attributes: ['id', 'name'] },
-        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
-        { model: Client, attributes: ['id', 'name'] },
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice', 'hasCommission'] },
+        { model: Client, as: 'client', attributes: ['id', 'name'] },
       ],
     });
     

@@ -20,7 +20,7 @@ import BarberLoja from '../pages/barber/Loja';
 import BarberAgenda from '../pages/barber/Agenda';
 import BarberCaixa from '../pages/barber/Caixa';
 import Clientes from '../pages/shared/Clientes';
-import BarberMensalistas from '../pages/barber/Mensalistas'; // 🔥 IMPORTAR (se existir)
+import BarberHistorico from '../pages/barber/Historico';
 
 // 🔥 PÁGINA PÚBLICA
 import PublicSchedule from '../pages/public/Schedule';
@@ -87,6 +87,7 @@ export const AppRoutes = () => {
           <Route path="shop" element={<BarberLoja />} />
           <Route path="clients" element={<Clientes />} />
           <Route path="mensalistas" element={<AdminMensalistas />} /> {/* 🔥 ADICIONADO (reutilizando o mesmo componente) */}
+          <Route path="historico" element={<BarberHistorico />} />
         </Route>
 
         {/* 🔥 QUALQUER OUTRA ROTA → PÁGINA INICIAL */}

@@ -10,7 +10,7 @@ const getMonthlyClients = async (req, res) => {
       include: [
         {
           model: MonthlyPayment,
-          as: 'MonthlyPayments',
+          as: 'payments',  // 🔥 ADICIONAR O 'as'
           order: [['month', 'DESC']],
           limit: 12,
         }
@@ -28,35 +28,50 @@ const createMonthlyClient = async (req, res) => {
   try {
     const { name, phone, monthlyFee, paymentMethod, notes } = req.body;
     
-    console.log('📝 Criando mensalista:', { name, phone, monthlyFee, paymentMethod });
+    console.log('📝 Criando mensalista:', { name, phone, monthlyFee });
     
-    // 🔥 USAR O SERVIÇO CENTRALIZADO
-    const { client, created } = await findOrCreateClient({
-      name,
-      phone,
+    // 🔥 VERIFICAR SE O CLIENTE JÁ EXISTE
+    let client = await Client.findOne({
+      where: { phone: phone.trim() }
+    });
+    
+    if (client) {
+      // 🔥 REMOVER PAGAMENTOS ANTIGOS
+      await MonthlyPayment.destroy({
+        where: { clientId: client.id }
+      });
+      
+      // Atualizar cliente
+      await client.update({
+        isMonthly: true,
+        monthlyFee: monthlyFee || client.monthlyFee || 0,
+        isActive: true,
+      });
+      
+      console.log('✅ Cliente reativado e pagamentos antigos removidos');
+      
+      return res.status(200).json({
+        client,
+        created: false,
+        message: `Cliente reativado como mensalista! Aguardando primeiro pagamento.`,
+      });
+    }
+    
+    // 🔥 CRIAR NOVO CLIENTE (SEM PAGAMENTO)
+    client = await Client.create({
+      name: name.trim(),
+      phone: phone.trim(),
       isMonthly: true,
       monthlyFee: monthlyFee || 0,
       isActive: true,
     });
     
-    // 🔥 SE JÁ EXISTIA, ATUALIZAR PARA MENSALISTA
-    if (!created) {
-      await client.update({ 
-        isMonthly: true,
-        monthlyFee: monthlyFee || client.monthlyFee || 0,
-      });
-    }
+    console.log('✅ Mensalista criado sem pagamento:', client.id);
     
-    const message = created 
-      ? 'Mensalista criado com sucesso!' 
-      : `Cliente já existente. Atualizado para mensalista: ${client.name}`;
-    
-    console.log(`✅ ${message}`);
-    
-    res.status(created ? 201 : 200).json({
+    res.status(201).json({
       client,
-      created,
-      message,
+      created: true,
+      message: 'Mensalista criado com sucesso! Aguardando primeiro pagamento.',
     });
   } catch (error) {
     console.error('❌ Erro ao criar mensalista:', error);
@@ -103,6 +118,13 @@ const confirmMonthlyPayment = async (req, res) => {
       }
     });
     
+    // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO - ANTES DE CONTINUAR
+    if (!cashRegister) {
+      return res.status(400).json({ 
+        error: '⚠️ Caixa fechado! Abra o caixa antes de confirmar o pagamento.' 
+      });
+    }
+    
     // Verificar se já existe pagamento
     const existing = await MonthlyPayment.findOne({
       where: {
@@ -128,28 +150,26 @@ const confirmMonthlyPayment = async (req, res) => {
     
     console.log('✅ Pagamento criado:', payment.toJSON());
     
-    // 🔥 CRIAR FATURAMENTO VINCULADO AO CAIXA
+    // Criar faturamento vinculado ao caixa
     const revenue = await Revenue.create({
-      cashRegisterId: cashRegister ? cashRegister.id : null, // 🔥 VINCULAR AO CAIXA
+      cashRegisterId: cashRegister.id,
       date: today,
       total: payment.amount,
       commissions: 0,
       servicesCount: 1,
-      initialCash: cashRegister ? cashRegister.initialCash : 0,
+      initialCash: cashRegister.initialCash,
       finalCash: payment.amount,
     });
     
     console.log('✅ Faturamento criado:', revenue.toJSON());
     
-    // 🔥 ATUALIZAR CAIXA COM O VALOR
-    if (cashRegister) {
-      const newTotal = (cashRegister.totalRevenue || 0) + payment.amount;
-      await cashRegister.update({
-        totalRevenue: newTotal,
-        finalCash: newTotal,
-        servicesCount: (cashRegister.servicesCount || 0) + 1,
-      });
-    }
+    // Atualizar caixa com o valor
+    const newTotal = (cashRegister.totalRevenue || 0) + payment.amount;
+    await cashRegister.update({
+      totalRevenue: newTotal,
+      finalCash: newTotal,
+      servicesCount: (cashRegister.servicesCount || 0) + 1,
+    });
     
     res.json({
       payment,
@@ -163,13 +183,19 @@ const confirmMonthlyPayment = async (req, res) => {
 };
 
 
-// 🔥 BUSCAR HISTÓRICO DE PAGAMENTOS DE UM CLIENTE
 const getPaymentHistory = async (req, res) => {
   try {
     const { clientId } = req.params;
     
     const payments = await MonthlyPayment.findAll({
       where: { clientId },
+      include: [
+        { 
+          model: Client,
+          as: 'client',  // 🔥 ADICIONAR O 'as'
+          attributes: ['id', 'name', 'phone']
+        }
+      ],
       order: [['month', 'DESC']],
     });
     
@@ -180,7 +206,6 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
-// 🔥 VERIFICAR PAGAMENTOS DO MÊS
 const getMonthlyPayments = async (req, res) => {
   try {
     const { month } = req.query;
@@ -192,8 +217,14 @@ const getMonthlyPayments = async (req, res) => {
         paid: true,
       },
       include: [
-        { model: Client, attributes: ['id', 'name', 'phone'] }
+        { 
+          model: Client,
+          as: 'client',  // 🔥 ADICIONAR O 'as'
+          attributes: ['id', 'name', 'phone'],
+          required: false
+        }
       ],
+      order: [['createdAt', 'DESC']],
     });
     
     // Buscar clientes mensalistas que ainda não pagaram este mês
@@ -218,6 +249,7 @@ const getMonthlyPayments = async (req, res) => {
     res.status(500).json({ error: 'Erro ao buscar pagamentos do mês' });
   }
 };
+
 
 module.exports = {
   getMonthlyClients,

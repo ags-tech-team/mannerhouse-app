@@ -51,7 +51,6 @@ const PublicSchedule = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [isGuest, setIsGuest] = useState(false);
   
   // ESTADO PARA MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
@@ -106,7 +105,6 @@ const PublicSchedule = () => {
     }
   };
 
-  // Gerar dias do mês
   const getDaysInMonth = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -125,12 +123,15 @@ const PublicSchedule = () => {
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const date = new Date(year, month, i);
       const isPast = date < today;
+      const isSunday = date.getDay() === 0;
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      
       days.push({
         day: i,
         date: dateStr,
         isPast,
         isToday: date.toDateString() === today.toDateString(),
+        isSunday,
       });
     }
     
@@ -180,11 +181,9 @@ const PublicSchedule = () => {
       return;
     }
     
-    if (!isGuest) {
-      if (!formData.clientName.trim() || !formData.clientPhone.trim()) {
-        setError('Preencha seu nome e telefone');
-        return;
-      }
+    if (!formData.clientName.trim() || !formData.clientPhone.trim()) {
+      setError('Preencha seu nome e telefone');
+      return;
     }
 
     setSubmitting(true);
@@ -193,8 +192,8 @@ const PublicSchedule = () => {
     try {
       await api.post('/public/appointments', {
         barberId: selectedBarber,
-        clientName: isGuest ? 'Cliente sem cadastro' : formData.clientName.trim(),
-        clientPhone: isGuest ? '00000000000' : formData.clientPhone.trim(),
+        clientName: formData.clientName.trim(),
+        clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
         services: selectedServices.map(s => ({
@@ -228,7 +227,6 @@ const PublicSchedule = () => {
     setSuccess(false);
     setError('');
     setSelectedServices([]);
-    setIsGuest(false);
     setClientName('');
     setClientPhone('');
     setFormData({
@@ -256,10 +254,10 @@ const PublicSchedule = () => {
           <div className="bg-[#f5f0e8] rounded-lg p-4 mb-6 text-left">
             <p className="text-sm text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
             <p className="text-sm text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
-            <p className="text-sm text-[#7f7c7a]">👤 Cliente: {isGuest ? 'Sem cadastro' : formData.clientName}</p>
+            <p className="text-sm text-[#7f7c7a]">👤 Cliente: {formData.clientName}</p>
             <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
             <p className="text-sm text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
-            {!isGuest && <p className="text-sm text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>}
+            <p className="text-sm text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
           </div>
           <button
             onClick={resetForm}
@@ -373,16 +371,23 @@ const PublicSchedule = () => {
                         <button
                           key={index}
                           type="button"
-                          disabled={!day || day.isPast}
-                          onClick={() => day && setSelectedDate(day.date)}
+                          disabled={!day || day.isPast || day.isSunday}
+                          onClick={() => {
+                            if (day && !day.isPast && !day.isSunday) {
+                              setSelectedDate(day.date);
+                            }
+                          }}
                           className={`py-2 rounded-lg text-sm transition ${
                             !day ? 'invisible' :
-                            day.isPast ? 'text-gray-300 cursor-not-allowed' :
+                            day.isPast || day.isSunday ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
                             selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
                             'hover:bg-[#9c7f64]/10'
                           }`}
                         >
                           {day?.day}
+                          {day?.isSunday && (
+                            <span className="block text-[8px] text-red-400">Fechado</span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -520,66 +525,37 @@ const PublicSchedule = () => {
                   <p className="text-sm text-[#7f7c7a] font-bold text-[#9c7f64]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="isGuest"
-                    checked={isGuest}
-                    onChange={(e) => {
-                      setIsGuest(e.target.checked);
-                      if (e.target.checked) {
-                        setClientName('');
-                        setFormData({ ...formData, clientName: '', clientPhone: '' });
-                      }
-                    }}
-                    className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
-                  />
-                  <label htmlFor="isGuest" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
-                    <UserX size={16} />
-                    Quero agendar sem cadastro
+                <div>
+                  <label className="block text-sm font-medium text-[#060606] mb-2">
+                    <User size={16} className="inline mr-1" /> Seu nome
                   </label>
+                  <ClientAutocomplete
+                    value={clientName}
+                    onChange={setClientName}
+                    onSelectClient={handleSelectClient}
+                    placeholder="Digite seu nome ou telefone..."
+                    publicMode={true}
+                    required
+                  />
                 </div>
 
-                {!isGuest && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-[#060606] mb-2">
-                        <User size={16} className="inline mr-1" /> Seu nome
-                      </label>
-                      <ClientAutocomplete
-                        value={clientName}
-                        onChange={setClientName}
-                        onSelectClient={handleSelectClient}
-                        placeholder="Digite seu nome ou telefone..."
-                        required={!isGuest}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-[#060606] mb-2">
-                        <Phone size={16} className="inline mr-1" /> Telefone
-                      </label>
-                      <div className="relative">
-                        <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
-                        <input
-                          type="text"
-                          value={formData.clientPhone}
-                          onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                          placeholder="(00) 00000-0000"
-                          required={!isGuest}
-                        />
-                      </div>
-                      <p className="text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
-                    </div>
-                  </>
-                )}
-
-                {isGuest && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
-                    ⚠️ Você está agendando como visitante. Não receberá confirmação por WhatsApp.
+                <div>
+                  <label className="block text-sm font-medium text-[#060606] mb-2">
+                    <Phone size={16} className="inline mr-1" /> Telefone
+                  </label>
+                  <div className="relative">
+                    <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                    <input
+                      type="text"
+                      value={formData.clientPhone}
+                      onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                      placeholder="(00) 00000-0000"
+                      required
+                    />
                   </div>
-                )}
+                  <p className="text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
+                </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
                   💡 Você receberá um lembrete 1 hora antes do horário agendado.

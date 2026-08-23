@@ -278,7 +278,6 @@ const BarberAgenda = () => {
     setShowDetailModal(true);
   };
 
-  // ATUALIZAR STATUS
   const handleUpdateStatus = async (status: string) => {
     if (!selectedAppointment) return;
     try {
@@ -288,9 +287,19 @@ const BarberAgenda = () => {
       if (status === 'completed') {
         alert('✅ Serviço concluído! O valor foi enviado para o caixa.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
-      alert('Erro ao atualizar status');
+      
+      // 🔥 TRATAR ERRO ESPECÍFICO DO BACKEND
+      const errorMessage = error.response?.data?.error || error.response?.data?.message;
+      
+      if (errorMessage) {
+        alert(errorMessage);
+      } else if (error.response?.status === 400) {
+        alert('⚠️ Caixa fechado! Abra o caixa antes de concluir o agendamento.');
+      } else {
+        alert('Erro ao atualizar status. Tente novamente.');
+      }
     }
   };
 

@@ -41,6 +41,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('higiene', 'cabelo', 'barba', 'acessorios', 'outros'),
       defaultValue: 'outros',
     },
+    // 🔥 NOVO CAMPO
+    hasCommission: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      field: 'has_commission',
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
@@ -57,6 +63,7 @@ module.exports = (sequelize, DataTypes) => {
   };
 
   Product.prototype.getCommission = function(commissionRate = 0.50) {
+    if (!this.hasCommission) return 0;
     const profit = this.getProfit();
     return profit * commissionRate;
   };

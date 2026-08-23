@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { productService } from '../../../services/product.service';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import type { Product } from '../../../services/product.service';
-import { Plus, Edit, Trash2, Search, Package, DollarSign, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Package, DollarSign, AlertCircle, Scissors } from 'lucide-react';
 
 const AdminEstoque = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -11,7 +11,7 @@ const AdminEstoque = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   
-  // 🔥 HOOKS PARA OS INPUTS NUMBER
+  // HOOKS PARA OS INPUTS NUMBER
   const price = useNumberInput();
   const costPrice = useNumberInput();
   const stock = useNumberInput();
@@ -20,6 +20,7 @@ const AdminEstoque = () => {
     name: '',
     description: '',
     category: 'outros',
+    hasCommission: true, // 🔥 NOVO CAMPO
   });
 
   useEffect(() => {
@@ -55,6 +56,7 @@ const AdminEstoque = () => {
         costPrice: costPrice.getNumberValue(),
         stock: stock.getNumberValue(),
         category: formData.category,
+        hasCommission: formData.hasCommission, // 🔥 ENVIAR CAMPO
       };
 
       if (editingProduct) {
@@ -88,10 +90,29 @@ const AdminEstoque = () => {
       name: '',
       description: '',
       category: 'outros',
+      hasCommission: true,
     });
     price.reset();
     costPrice.reset();
     stock.reset();
+  };
+
+  const handleOpenModal = (product?: Product) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name,
+        description: product.description || '',
+        category: product.category,
+        hasCommission: product.hasCommission !== undefined ? product.hasCommission : true,
+      });
+      price.setValue(String(product.price));
+      costPrice.setValue(String(product.costPrice));
+      stock.setValue(String(product.stock));
+    } else {
+      resetForm();
+    }
+    setShowModal(true);
   };
 
   const categories = [
@@ -102,20 +123,22 @@ const AdminEstoque = () => {
     { value: 'outros', label: 'Outros' },
   ];
 
+  const getCommissionStatus = (product: Product) => {
+    if (product.hasCommission === undefined) return '✅ Ativa';
+    return product.hasCommission ? '✅ Ativa' : '❌ Inativa';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-[#060606]">Estoque</h1>
+          <h1 className="text-3xl font-bold text-[#060606]">📦 Estoque</h1>
           <p className="text-[#7f7c7a]">Gerencie os produtos da barbearia</p>
         </div>
         <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg"
+          onClick={() => handleOpenModal()}
+          className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition"
         >
           <Plus size={18} />
           Adicionar Produto
@@ -176,35 +199,39 @@ const AdminEstoque = () => {
 
       {/* Lista de Produtos */}
       {loading ? (
-        <div className="text-center py-12">Carregando...</div>
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
+        </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center text-[#7f7c7a]">
+          <Package size={48} className="mx-auto mb-4 opacity-50" />
+          <p className="text-lg">Nenhum produto cadastrado</p>
+          <p className="text-sm mt-1">Clique em "Adicionar Produto" para começar</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map((product) => (
             <div key={product.id} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition">
               <div className="p-4">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-[#060606]">{product.name}</h3>
+                  <div>
+                    <h3 className="font-semibold text-[#060606]">{product.name}</h3>
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full">
+                      {categories.find(c => c.value === product.category)?.label || product.category}
+                    </span>
+                  </div>
                   <div className="flex gap-1">
                     <button
-                      onClick={() => {
-                        setEditingProduct(product);
-                        setFormData({
-                          name: product.name,
-                          description: product.description || '',
-                          category: product.category,
-                        });
-                        price.setValue(String(product.price));
-                        costPrice.setValue(String(product.costPrice));
-                        stock.setValue(String(product.stock));
-                        setShowModal(true);
-                      }}
+                      onClick={() => handleOpenModal(product)}
                       className="p-1 hover:bg-gray-100 rounded"
+                      title="Editar"
                     >
                       <Edit size={16} className="text-[#9c7f64]" />
                     </button>
                     <button
                       onClick={() => handleDelete(product.id)}
                       className="p-1 hover:bg-gray-100 rounded"
+                      title="Excluir"
                     >
                       <Trash2 size={16} className="text-red-500" />
                     </button>
@@ -236,6 +263,17 @@ const AdminEstoque = () => {
                       {product.stock} unidades
                     </span>
                   </div>
+                  {/* 🔥 STATUS DA COMISSÃO */}
+                  <div className="flex justify-between text-sm border-t border-gray-100 pt-1 mt-1">
+                    <span className="text-[#7f7c7a] flex items-center gap-1">
+                      <Scissors size={14} /> Comissão:
+                    </span>
+                    <span className={`font-medium ${
+                      product.hasCommission !== false ? 'text-green-600' : 'text-gray-400'
+                    }`}>
+                      {product.hasCommission !== false ? '✅ Ativa' : '❌ Inativa'}
+                    </span>
+                  </div>
                 </div>
 
                 {product.stock === 0 && (
@@ -253,14 +291,26 @@ const AdminEstoque = () => {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-[#060606] mb-4">
-              {editingProduct ? 'Editar Produto' : 'Novo Produto'}
-            </h2>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-[#060606]">
+                {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="text-[#7f7c7a] hover:text-[#060606]"
+              >
+                ✕
+              </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Nome */}
               <div>
-                <label className="block text-sm font-medium text-[#060606]">Nome</label>
+                <label className="block text-sm font-medium text-[#060606]">Nome *</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -270,6 +320,7 @@ const AdminEstoque = () => {
                 />
               </div>
 
+              {/* Descrição */}
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Descrição</label>
                 <textarea
@@ -280,9 +331,10 @@ const AdminEstoque = () => {
                 />
               </div>
 
+              {/* Preço e Custo */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#060606]">Preço (R$)</label>
+                  <label className="block text-sm font-medium text-[#060606]">Preço (R$) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -295,7 +347,7 @@ const AdminEstoque = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#060606]">Custo (R$)</label>
+                  <label className="block text-sm font-medium text-[#060606]">Custo (R$) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -309,9 +361,10 @@ const AdminEstoque = () => {
                 </div>
               </div>
 
+              {/* Estoque e Categoria */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#060606]">Estoque</label>
+                  <label className="block text-sm font-medium text-[#060606]">Estoque *</label>
                   <input
                     type="number"
                     step="1"
@@ -337,12 +390,42 @@ const AdminEstoque = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* 🔥 CHECKBOX COMISSÃO */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-[#060606] mb-3">Comissão do Produto</h3>
+                <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="hasCommission"
+                    checked={formData.hasCommission}
+                    onChange={(e) => setFormData({ ...formData, hasCommission: e.target.checked })}
+                    className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64] rounded"
+                  />
+                  <label htmlFor="hasCommission" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
+                    <Scissors size={16} className="text-[#9c7f64]" />
+                    Produto gera comissão para o barbeiro
+                  </label>
+                </div>
+                {!formData.hasCommission && (
+                  <p className="text-xs text-[#7f7c7a] mt-2 flex items-center gap-1">
+                    <AlertCircle size={14} className="text-yellow-500" />
+                    Comissão desativada. O barbeiro não vai ganhar comissão sobre este produto.
+                  </p>
+                )}
+                {formData.hasCommission && (
+                  <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                    ✅ Comissão ativada. O barbeiro vai ganhar comissão sobre o lucro do produto.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2 border-t border-gray-200">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
                 >
-                  Salvar
+                  <Plus size={18} />
+                  {editingProduct ? 'Atualizar' : 'Criar'}
                 </button>
                 <button
                   type="button"

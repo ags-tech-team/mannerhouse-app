@@ -171,7 +171,7 @@ const AdminMensalistas = () => {
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newClient.name.trim()) {
+    if (!clientName.trim()) {
       alert('Nome é obrigatório');
       return;
     }
@@ -260,7 +260,6 @@ const AdminMensalistas = () => {
     }
   };
 
-  // 🔥 CONFIRMAR PAGAMENTO (USANDO selectedMonth)
   const handleConfirmPayment = async (clientId: string) => {
     if (!confirm(`Confirmar pagamento da mensalidade para ${selectedMonth}?`)) return;
 
@@ -273,9 +272,17 @@ const AdminMensalistas = () => {
       alert('✅ Pagamento confirmado! Valor enviado para o faturamento.');
     } catch (error: any) {
       console.error('Erro ao confirmar pagamento:', error);
-      alert(error.response?.data?.error || 'Erro ao confirmar pagamento');
+      
+      // 🔥 TRATAR ERRO ESPECÍFICO
+      const errorMessage = error.response?.data?.error || error.response?.data?.message;
+      if (errorMessage) {
+        alert(errorMessage);
+      } else {
+        alert('Erro ao confirmar pagamento');
+      }
     }
   };
+
 
   // 🔥 VERIFICAR SE PAGOU NO MÊS SELECIONADO
   const hasPaidThisMonth = (client: Client) => {
