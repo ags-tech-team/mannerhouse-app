@@ -1,72 +1,45 @@
-const { 
-  Appointment, 
-  Sale, 
-  Barber, 
-  Client,
-  Revenue,
-  CashRegister
-} = require('../models');
+const { Appointment, Barber, Client, CashRegister, Revenue, Sale } = require('../models');
 const { Op } = require('sequelize');
 
-const getDashboard = async (req, res) => {
+const getBarberDashboard = async (req, res) => {
   try {
     const hoje = new Date().toISOString().split('T')[0];
-    const inicioSemana = new Date();
-    inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay());
-    const inicioSemanaStr = inicioSemana.toISOString().split('T')[0];
-    const inicioMes = new Date();
-    inicioMes.setDate(1);
-    const inicioMesStr = inicioMes.toISOString().split('T')[0];
-    
-    console.log('📊 Gerando dashboard da barbearia:', { hoje });
-    
-    // 🔥 AGENDAMENTOS DE HOJE (TODOS OS BARBEIROS)
+    const userId = req.userId;
+
+    console.log('📊 Gerando dashboard da barbearia:', { hoje, userId });
+
+    // 🔥 BUSCAR AGENDAMENTOS DO DIA (COM AS CORRETO)
     const todayAppointments = await Appointment.findAll({
       where: {
+        barberId: userId,
         date: hoje,
         status: {
           [Op.notIn]: ['cancelled']
         }
       },
       include: [
-        { model: Client, attributes: ['id', 'name', 'phone'] },
-        { model: Barber, attributes: ['id', 'name'] }
+        { 
+          model: Client, 
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'phone'] 
+        }
       ],
       order: [['time', 'ASC']]
     });
-    
-    // 🔥 AGENDAMENTOS DA SEMANA (TODOS OS BARBEIROS)
-    const weekAppointments = await Appointment.findAll({
+
+    // 🔥 BUSCAR CAIXA DO DIA
+    const cashRegister = await CashRegister.findOne({
       where: {
-        date: {
-          [Op.between]: [inicioSemanaStr, hoje]
-        },
-        status: 'completed'
+        userId: userId,
+        date: hoje,
+        isOpen: true
       }
     });
-    
-    // 🔥 AGENDAMENTOS DO MÊS (TODOS OS BARBEIROS)
-    const monthAppointments = await Appointment.findAll({
-      where: {
-        date: {
-          [Op.between]: [inicioMesStr, hoje]
-        },
-        status: 'completed'
-      }
-    });
-    
-    // 🔥 VENDAS DE PRODUTOS DO MÊS (TODOS OS BARBEIROS)
-    const sales = await Sale.findAll({
-      where: {
-        date: {
-          [Op.between]: [inicioMesStr, hoje]
-        }
-      }
-    });
-    
-    // 🔥 PRÓXIMOS AGENDAMENTOS (TODOS OS BARBEIROS)
+
+    // 🔥 BUSCAR PRÓXIMOS AGENDAMENTOS (COM AS CORRETO)
     const upcomingAppointments = await Appointment.findAll({
       where: {
+        barberId: userId,
         date: {
           [Op.gte]: hoje
         },
@@ -75,98 +48,103 @@ const getDashboard = async (req, res) => {
         }
       },
       include: [
-        { model: Client, attributes: ['id', 'name', 'phone'] },
-        { model: Barber, attributes: ['id', 'name'] }
+        { 
+          model: Client, 
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name', 'phone'] 
+        }
       ],
       order: [['date', 'ASC'], ['time', 'ASC']],
       limit: 5
     });
-    
-    // 🔥 CALCULAR TOTAIS
-    const todayRevenue = todayAppointments.reduce((sum, a) => sum + (a.price || 0), 0);
-    const todayCommission = todayAppointments.reduce((sum, a) => sum + (a.commission || 0), 0);
-    
-    const weekRevenue = weekAppointments.reduce((sum, a) => sum + (a.price || 0), 0);
-    const weekCommission = weekAppointments.reduce((sum, a) => sum + (a.commission || 0), 0);
-    
-    const monthRevenue = monthAppointments.reduce((sum, a) => sum + (a.price || 0), 0);
-    const monthCommission = monthAppointments.reduce((sum, a) => sum + (a.commission || 0), 0);
-    
-    const monthProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
-    const monthProductCommission = sales.reduce((sum, s) => sum + (s.commission || 0), 0);
-    
-    // 🔥 TOTAL DE BARBEIROS ATIVOS
-    const totalBarbers = await Barber.count({
-      where: { isActive: true }
-    });
-    
-    // 🔥 TOTAL DE CLIENTES
-    const totalClients = await Client.count();
-    
-    // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO (qualquer um)
-    const cashRegister = await CashRegister.findOne({
+
+    // 🔥 RESUMO DO MÊS
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    const startDate = startOfMonth.toISOString().split('T')[0];
+    const endDate = hoje;
+
+    const monthlyAppointments = await Appointment.findAll({
       where: {
-        date: hoje,
-        isOpen: true
-      }
+        barberId: userId,
+        date: {
+          [Op.between]: [startDate, endDate]
+        },
+        status: 'completed'
+      },
+      include: [
+        { 
+          model: Client, 
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
+      ]
     });
-    
-    // 🔥 FORMATAR RESULTADO
-    const result = {
-      summary: {
-        totalBarbers,
-        totalClients,
-        today: {
-          appointments: todayAppointments.length,
-          revenue: todayRevenue,
-          commission: todayCommission
-        },
-        week: {
-          appointments: weekAppointments.length,
-          revenue: weekRevenue,
-          commission: weekCommission
-        },
-        month: {
-          appointments: monthAppointments.length,
-          revenue: monthRevenue + monthProductRevenue,
-          commission: monthCommission + monthProductCommission,
-          serviceRevenue: monthRevenue,
-          productRevenue: monthProductRevenue,
-          serviceCommission: monthCommission,
-          productCommission: monthProductCommission
+
+    const totalServices = monthlyAppointments.length;
+    const totalRevenue = monthlyAppointments.reduce((sum, a) => sum + a.price, 0);
+    const totalCommissions = monthlyAppointments.reduce((sum, a) => sum + a.commission, 0);
+
+    // 🔥 VENDAS DE PRODUTOS DO MÊS
+    const monthlySales = await Sale.findAll({
+      where: {
+        barberId: userId,
+        date: {
+          [Op.between]: [startDate, endDate]
         }
       },
-      todayAppointments: todayAppointments.map(app => ({
-        id: app.id,
-        time: app.time,
-        client: app.Client?.name || 'Cliente',
-        phone: app.Client?.phone || '',
-        barber: app.Barber?.name || 'Barbeiro',
-        service: app.service,
-        price: app.price,
-        status: app.status,
-        isCompleted: app.status === 'completed'
-      })),
-      upcomingAppointments: upcomingAppointments.map(app => ({
-        id: app.id,
-        date: app.date,
-        time: app.time,
-        client: app.Client?.name || 'Cliente',
-        barber: app.Barber?.name || 'Barbeiro',
-        service: app.service,
-        status: app.status
-      })),
-      cashRegister: {
-        isOpen: !!cashRegister,
-        openingTime: cashRegister?.openingTime || null
+      include: [
+        { 
+          model: Product, 
+          as: 'product',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
+      ]
+    });
+
+    const totalProductsSold = monthlySales.reduce((sum, s) => sum + s.quantity, 0);
+    const totalProductRevenue = monthlySales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalProductCommissions = monthlySales.reduce((sum, s) => sum + s.commission, 0);
+
+    // 🔥 RESULTADO FINAL
+    const result = {
+      today: {
+        appointments: todayAppointments.map(a => ({
+          id: a.id,
+          time: a.time,
+          client: a.client?.name || 'Cliente',
+          service: a.service,
+          price: a.price,
+          status: a.status
+        })),
+        appointmentsCount: todayAppointments.length,
+        cashRegister: cashRegister ? {
+          isOpen: cashRegister.isOpen,
+          openingTime: cashRegister.openingTime,
+          initialCash: cashRegister.initialCash,
+          totalRevenue: cashRegister.totalRevenue,
+          totalCommissions: cashRegister.totalCommissions,
+          servicesCount: cashRegister.servicesCount
+        } : null
       },
-      stats: {
-        completedToday: todayAppointments.filter(a => a.status === 'completed').length,
-        pendingToday: todayAppointments.filter(a => a.status === 'pending' || a.status === 'confirmed').length,
-        cancelledToday: todayAppointments.filter(a => a.status === 'cancelled').length
+      upcoming: upcomingAppointments.map(a => ({
+        id: a.id,
+        date: a.date,
+        time: a.time,
+        client: a.client?.name || 'Cliente',
+        service: a.service
+      })),
+      monthly: {
+        totalServices,
+        totalRevenue,
+        totalCommissions,
+        totalProductsSold,
+        totalProductRevenue,
+        totalProductCommissions,
+        netProfit: totalRevenue + totalProductRevenue - totalCommissions - totalProductCommissions
       }
     };
-    
+
     res.json(result);
   } catch (error) {
     console.error('❌ Erro ao gerar dashboard:', error);
@@ -175,5 +153,5 @@ const getDashboard = async (req, res) => {
 };
 
 module.exports = {
-  getDashboard,
+  getBarberDashboard
 };
