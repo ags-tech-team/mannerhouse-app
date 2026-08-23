@@ -11,7 +11,7 @@ const getFinancialDashboard = async (req, res) => {
     const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
     const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
     
-    // 🔥 BUSCAR REVENUES COM BARBEIRO
+    // 🔥 BUSCAR REVENUES COM BARBEIRO E CASHREGISTER (COM AS CORRETO)
     const revenues = await Revenue.findAll({
       where: {
         date: {
@@ -19,8 +19,16 @@ const getFinancialDashboard = async (req, res) => {
         }
       },
       include: [
-        { model: CashRegister },
-        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
+        { 
+          model: CashRegister, 
+          as: 'cashRegister',  // 🔥 ADICIONAR
+          required: false 
+        },
+        { 
+          model: Barber, 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
       ]
     });
     
@@ -38,14 +46,20 @@ const getFinancialDashboard = async (req, res) => {
       return acc;
     }, {});
 
-    // Buscar sales (produtos)
+    // Buscar sales (produtos) (COM AS CORRETO)
     const sales = await Sale.findAll({
       where: {
         date: {
           [Op.between]: [startDate, endDate]
         }
       },
-      include: [{ model: Barber, attributes: ['id', 'name'] }]
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
+      ]
     });
     
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
@@ -66,7 +80,7 @@ const getFinancialDashboard = async (req, res) => {
       }
     });
 
-    // Buscar appointments (serviços) que não estão no revenue
+    // Buscar appointments (serviços) que não estão no revenue (COM AS CORRETO)
     const appointments = await Appointment.findAll({
       where: {
         date: {
@@ -75,7 +89,13 @@ const getFinancialDashboard = async (req, res) => {
         status: 'completed'
       },
       attributes: ['barberId', 'commission', 'price'],
-      include: [{ model: Barber, attributes: ['id', 'name'] }]
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
+      ]
     });
 
     // Adicionar comissões de appointments ao agrupamento
@@ -218,7 +238,13 @@ const getAll = async (req, res) => {
     
     const revenues = await Revenue.findAll({
       where,
-      include: [{ model: CashRegister }],
+      include: [
+        { 
+          model: CashRegister, 
+          as: 'cashRegister',  // 🔥 ADICIONAR
+          required: false 
+        }
+      ],
       order: [['date', 'DESC']],
     });
     
@@ -235,7 +261,13 @@ const getByDate = async (req, res) => {
     
     const revenue = await Revenue.findOne({
       where: { date },
-      include: [{ model: CashRegister }],
+      include: [
+        { 
+          model: CashRegister, 
+          as: 'cashRegister',  // 🔥 ADICIONAR
+          required: false 
+        }
+      ],
     });
     
     if (!revenue) {

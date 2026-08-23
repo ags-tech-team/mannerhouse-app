@@ -88,7 +88,7 @@ const getDashboard = async (req, res) => {
       });
     }
     
-    // 🔥 6. PERFORMANCE DOS BARBEIROS
+    // 🔥 6. PERFORMANCE DOS BARBEIROS (COM AS CORRETO)
     const barbers = await Barber.findAll({
       where: { isActive: true }
     });
@@ -101,7 +101,19 @@ const getDashboard = async (req, res) => {
           date: {
             [Op.between]: [startDate, endDate]
           }
-        }
+        },
+        include: [
+          { 
+            model: Barber, 
+            as: 'barber',  // 🔥 ADICIONAR
+            attributes: ['id', 'name'] 
+          },
+          { 
+            model: Client, 
+            as: 'client',  // 🔥 ADICIONAR
+            attributes: ['id', 'name'] 
+          }
+        ]
       });
       
       const barberSales = await Sale.findAll({
@@ -110,7 +122,24 @@ const getDashboard = async (req, res) => {
           date: {
             [Op.between]: [startDate, endDate]
           }
-        }
+        },
+        include: [
+          { 
+            model: Barber, 
+            as: 'barber',  // 🔥 ADICIONAR
+            attributes: ['id', 'name'] 
+          },
+          { 
+            model: Client, 
+            as: 'client',  // 🔥 ADICIONAR
+            attributes: ['id', 'name'] 
+          },
+          { 
+            model: Product, 
+            as: 'product',  // 🔥 ADICIONAR
+            attributes: ['id', 'name'] 
+          }
+        ]
       });
       
       const serviceRevenue = barberAppointments.reduce((sum, a) => sum + a.price, 0);
@@ -131,7 +160,7 @@ const getDashboard = async (req, res) => {
     // Ordenar por receita
     barbersPerformance.sort((a, b) => b.revenue - a.revenue);
     
-    // 🔥 7. ÚLTIMOS AGENDAMENTOS
+    // 🔥 7. ÚLTIMOS AGENDAMENTOS (COM AS CORRETO)
     const recentAppointments = await Appointment.findAll({
       limit: 10,
       where: {
@@ -140,8 +169,16 @@ const getDashboard = async (req, res) => {
         }
       },
       include: [
-        { model: Barber, attributes: ['name'] },
-        { model: Client, attributes: ['name'] }
+        { 
+          model: Barber, 
+          as: 'barber',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        },
+        { 
+          model: Client, 
+          as: 'client',  // 🔥 ADICIONAR
+          attributes: ['id', 'name'] 
+        }
       ],
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
