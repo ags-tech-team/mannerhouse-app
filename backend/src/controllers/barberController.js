@@ -6,6 +6,7 @@ const getAll = async (req, res) => {
     const { includeInactive } = req.query;
     const where = { isActive: true};
     
+    // 🔥 POR PADRÃO, NÃO MOSTRAR INATIVOS
     if (includeInactive !== 'true') {
       where.isActive = true;
     }
@@ -15,6 +16,7 @@ const getAll = async (req, res) => {
       include: [
         {
           model: User,
+          as: 'user',  // 🔥 ADICIONAR
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
@@ -34,6 +36,7 @@ const getById = async (req, res) => {
       include: [
         {
           model: User,
+          as: 'user',  // 🔥 ADICIONAR
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
@@ -85,7 +88,7 @@ const create = async (req, res) => {
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    // 🔥 CRIAR BARBEIRO COM OS CAMPOS CORRETOS
+    // Criar barbeiro
     const barber = await Barber.create({
       userId: user.id,
       name,
@@ -142,7 +145,7 @@ const update = async (req, res) => {
       });
     }
 
-    // 🔥 ATUALIZAR BARBEIRO COM OS CAMPOS CORRETOS
+    // Atualizar barbeiro
     const updateData = { 
       name, 
       email, 
@@ -171,6 +174,7 @@ const update = async (req, res) => {
       include: [
         {
           model: User,
+          as: 'user',  // 🔥 ADICIONAR
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
