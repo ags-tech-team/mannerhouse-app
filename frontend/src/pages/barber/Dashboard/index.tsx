@@ -76,19 +76,55 @@ interface DashboardData {
   };
 }
 
+// 🔥 DADOS PADRÃO PARA FALLBACK
+const defaultData: DashboardData = {
+  summary: {
+    totalBarbers: 0,
+    totalClients: 0,
+    today: { appointments: 0, revenue: 0, commission: 0 },
+    week: { appointments: 0, revenue: 0, commission: 0 },
+    month: { 
+      appointments: 0, 
+      revenue: 0, 
+      commission: 0,
+      serviceRevenue: 0,
+      productRevenue: 0,
+      serviceCommission: 0,
+      productCommission: 0
+    }
+  },
+  todayAppointments: [],
+  upcomingAppointments: [],
+  cashRegister: { isOpen: false, openingTime: null },
+  stats: { completedToday: 0, pendingToday: 0, cancelledToday: 0 }
+};
+
 const BarberDashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData>(defaultData);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.get('/barber/dashboard');
-      setData(response.data);
+      
+      // 🔥 VERIFICAR SE A RESPOSTA TEM OS DADOS ESPERADOS
+      if (response.data) {
+        setData({
+          ...defaultData,
+          ...response.data,
+          // 🔥 GARANTIR QUE cashRegister SEMPRE EXISTA
+          cashRegister: response.data.cashRegister || { isOpen: false, openingTime: null },
+          // 🔥 GARANTIR QUE stats SEMPRE EXISTA
+          stats: response.data.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 }
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
+      // 🔥 MANTER DADOS PADRÃO EM CASO DE ERRO
+      setData(defaultData);
     } finally {
       setLoading(false);
     }
@@ -108,10 +144,11 @@ const BarberDashboard = () => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatDate = (date: string) => {
+    if (!date) return '';
     return new Date(date).toLocaleDateString('pt-BR', { 
       day: '2-digit', 
       month: '2-digit' 
@@ -156,16 +193,13 @@ const BarberDashboard = () => {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="text-center py-12 text-[#7f7c7a]">
-        Nenhum dado disponível
-      </div>
-    );
-  }
-
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
+
+  // 🔥 VERIFICAÇÃO DE SEGURANÇA PARA O CAIXA
+  const cashRegister = data?.cashRegister || { isOpen: false, openingTime: null };
+  const stats = data?.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 };
+  const summary = data?.summary || defaultData.summary;
 
   return (
     <div className="space-y-6">
@@ -190,24 +224,24 @@ const BarberDashboard = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Status do Caixa */}
+          {/* 🔥 STATUS DO CAIXA COM VERIFICAÇÃO DE SEGURANÇA */}
           <div className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
-            data.cashRegister.isOpen 
+            cashRegister.isOpen 
               ? 'bg-green-100 text-green-800' 
               : 'bg-gray-100 text-gray-600'
           }`}>
             <div className={`w-2 h-2 rounded-full ${
-              data.cashRegister.isOpen ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+              cashRegister.isOpen ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
             }`} />
             <span className="text-sm font-medium">
-              {data.cashRegister.isOpen 
-                ? `Caixa aberto desde ${data.cashRegister.openingTime}` 
+              {cashRegister.isOpen 
+                ? `Caixa aberto desde ${cashRegister.openingTime || '--:--'}` 
                 : 'Caixa fechado'}
             </span>
           </div>
           <div className="text-sm text-[#7f7c7a] flex items-center gap-1">
             <Users size={16} className="text-[#9c7f64]" />
-            {data.summary.totalBarbers} barbeiros
+            {summary.totalBarbers || 0} barbeiros
           </div>
         </div>
       </div>
@@ -219,10 +253,10 @@ const BarberDashboard = () => {
             <div>
               <p className="text-sm font-medium text-[#7f7c7a]">Hoje</p>
               <p className="text-2xl font-bold text-[#060606]">
-                {data.summary.today.appointments}
+                {summary.today.appointments || 0}
               </p>
               <p className="text-sm text-[#9c7f64]">
-                {formatCurrency(data.summary.today.revenue)}
+                {formatCurrency(summary.today.revenue || 0)}
               </p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
@@ -230,7 +264,7 @@ const BarberDashboard = () => {
             </div>
           </div>
           <div className="mt-2 text-xs text-[#7f7c7a]">
-            Comissão: {formatCurrency(data.summary.today.commission)}
+            Comissão: {formatCurrency(summary.today.commission || 0)}
           </div>
         </div>
 
@@ -239,10 +273,10 @@ const BarberDashboard = () => {
             <div>
               <p className="text-sm font-medium text-[#7f7c7a]">Esta Semana</p>
               <p className="text-2xl font-bold text-[#060606]">
-                {data.summary.week.appointments}
+                {summary.week.appointments || 0}
               </p>
               <p className="text-sm text-[#9c7f64]">
-                {formatCurrency(data.summary.week.revenue)}
+                {formatCurrency(summary.week.revenue || 0)}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
@@ -250,7 +284,7 @@ const BarberDashboard = () => {
             </div>
           </div>
           <div className="mt-2 text-xs text-[#7f7c7a]">
-            Comissão: {formatCurrency(data.summary.week.commission)}
+            Comissão: {formatCurrency(summary.week.commission || 0)}
           </div>
         </div>
 
@@ -259,10 +293,10 @@ const BarberDashboard = () => {
             <div>
               <p className="text-sm font-medium text-[#7f7c7a]">Este Mês</p>
               <p className="text-2xl font-bold text-[#060606]">
-                {data.summary.month.appointments}
+                {summary.month.appointments || 0}
               </p>
               <p className="text-sm text-[#9c7f64]">
-                {formatCurrency(data.summary.month.revenue)}
+                {formatCurrency(summary.month.revenue || 0)}
               </p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
@@ -270,7 +304,7 @@ const BarberDashboard = () => {
             </div>
           </div>
           <div className="mt-2 text-xs text-[#7f7c7a]">
-            Comissão: {formatCurrency(data.summary.month.commission)}
+            Comissão: {formatCurrency(summary.month.commission || 0)}
           </div>
         </div>
 
@@ -280,13 +314,13 @@ const BarberDashboard = () => {
               <p className="text-sm font-medium text-[#7f7c7a]">Status Hoje</p>
               <div className="flex items-center gap-3 mt-1">
                 <span className="flex items-center gap-1 text-xs text-green-600">
-                  <CheckCircle size={14} /> {data.stats.completedToday}
+                  <CheckCircle size={14} /> {stats.completedToday || 0}
                 </span>
                 <span className="flex items-center gap-1 text-xs text-yellow-600">
-                  <Clock size={14} /> {data.stats.pendingToday}
+                  <Clock size={14} /> {stats.pendingToday || 0}
                 </span>
                 <span className="flex items-center gap-1 text-xs text-red-600">
-                  <XCircle size={14} /> {data.stats.cancelledToday}
+                  <XCircle size={14} /> {stats.cancelledToday || 0}
                 </span>
               </div>
             </div>
@@ -295,7 +329,7 @@ const BarberDashboard = () => {
             </div>
           </div>
           <div className="mt-2 text-xs text-[#7f7c7a]">
-            {data.todayAppointments.length} agendamentos hoje
+            {data?.todayAppointments?.length || 0} agendamentos hoje
           </div>
         </div>
       </div>
@@ -309,12 +343,12 @@ const BarberDashboard = () => {
               <Clock size={20} className="text-[#9c7f64]" />
               Agenda de Hoje
               <span className="ml-2 text-sm font-normal text-[#7f7c7a]">
-                ({data.todayAppointments.length} agendamentos)
+                ({data?.todayAppointments?.length || 0} agendamentos)
               </span>
             </h2>
           </div>
           <div className="divide-y divide-gray-100">
-            {data.todayAppointments.length > 0 ? (
+            {data?.todayAppointments && data.todayAppointments.length > 0 ? (
               data.todayAppointments.map((app) => (
                 <div key={app.id} className="p-4 hover:bg-gray-50 transition flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -368,7 +402,7 @@ const BarberDashboard = () => {
             </h2>
           </div>
           <div className="divide-y divide-gray-100">
-            {data.upcomingAppointments.length > 0 ? (
+            {data?.upcomingAppointments && data.upcomingAppointments.length > 0 ? (
               data.upcomingAppointments.map((app) => (
                 <div key={app.id} className="p-4 hover:bg-gray-50 transition">
                   <div className="flex items-center justify-between">
@@ -412,7 +446,7 @@ const BarberDashboard = () => {
               <p className="text-sm text-[#7f7c7a]">Barbeiros</p>
             </div>
             <p className="text-2xl font-bold text-[#060606] mt-1">
-              {data.summary.totalBarbers}
+              {summary.totalBarbers || 0}
             </p>
           </div>
 
@@ -422,7 +456,7 @@ const BarberDashboard = () => {
               <p className="text-sm text-[#7f7c7a]">Clientes</p>
             </div>
             <p className="text-2xl font-bold text-[#060606] mt-1">
-              {data.summary.totalClients}
+              {summary.totalClients || 0}
             </p>
           </div>
 
@@ -432,7 +466,7 @@ const BarberDashboard = () => {
               <p className="text-sm text-[#7f7c7a]">Faturamento Mês</p>
             </div>
             <p className="text-xl font-bold text-[#9c7f64] mt-1">
-              {formatCurrency(data.summary.month.revenue || 0)}
+              {formatCurrency(summary.month.revenue || 0)}
             </p>
           </div>
 
@@ -442,7 +476,7 @@ const BarberDashboard = () => {
               <p className="text-sm text-[#7f7c7a]">Serviços Mês</p>
             </div>
             <p className="text-2xl font-bold text-[#060606] mt-1">
-              {data.summary.month.appointments || 0}
+              {summary.month.appointments || 0}
             </p>
           </div>
         </div>
@@ -456,13 +490,13 @@ const BarberDashboard = () => {
             <div className="flex justify-between mt-1">
               <span className="text-[#060606]">Faturamento:</span>
               <span className="font-medium text-[#9c7f64]">
-                {formatCurrency(data.summary.month.serviceRevenue || 0)}
+                {formatCurrency(summary.month.serviceRevenue || 0)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-[#7f7c7a]">Comissão:</span>
               <span className="font-medium text-[#060606]">
-                {formatCurrency(data.summary.month.serviceCommission || 0)}
+                {formatCurrency(summary.month.serviceCommission || 0)}
               </span>
             </div>
           </div>
@@ -474,13 +508,13 @@ const BarberDashboard = () => {
             <div className="flex justify-between mt-1">
               <span className="text-[#060606]">Faturamento:</span>
               <span className="font-medium text-[#9c7f64]">
-                {formatCurrency(data.summary.month.productRevenue || 0)}
+                {formatCurrency(summary.month.productRevenue || 0)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-[#7f7c7a]">Comissão:</span>
               <span className="font-medium text-[#060606]">
-                {formatCurrency(data.summary.month.productCommission || 0)}
+                {formatCurrency(summary.month.productCommission || 0)}
               </span>
             </div>
           </div>
