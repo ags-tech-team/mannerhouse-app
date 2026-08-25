@@ -18,19 +18,19 @@ const getAll = async (req, res) => {
       include: [
         { 
           model: Barber, 
-          as: 'barber',  // 🔥 ADICIONAR
+          as: 'barber',
           attributes: ['id', 'name'],
           required: false
         },
         { 
           model: Product, 
-          as: 'product',  // 🔥 ADICIONAR
+          as: 'product',
           attributes: ['id', 'name', 'price', 'costPrice'],
           required: false
         },
         { 
           model: Client, 
-          as: 'client',  // 🔥 ADICIONAR
+          as: 'client',
           attributes: ['id', 'name'],
           required: false
         },
@@ -45,7 +45,6 @@ const getAll = async (req, res) => {
   }
 };
 
-// 🔥 FUNÇÃO FALTANTE: Resumo de vendas
 const getSummary = async (req, res) => {
   try {
     const { startDate, endDate, barberId } = req.query;
@@ -85,42 +84,37 @@ const create = async (req, res) => {
       clientName 
     } = req.body;
     
-    // Buscar produto
     const product = await Product.findByPk(productId);
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
     
-    // Verificar estoque
     if (product.stock < quantity) {
       return res.status(400).json({ 
         error: `Estoque insuficiente. Disponível: ${product.stock}` 
       });
     }
     
-    // Buscar barbeiro
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
     const hoje = new Date().toISOString().split('T')[0];
-      const cashRegister = await CashRegister.findOne({
-        where: {
-          date: hoje,
-          isOpen: true,
-          userId: req.userId, 
-        }
-      });
-
-      // 🔥 ADICIONAR ESTE BLOCO
-      if (!cashRegister) {
-        return res.status(400).json({ 
-          error: '⚠️ Caixa fechado! Abra o caixa antes de realizar uma venda.' 
-        });
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: hoje,
+        isOpen: true,
+        userId: req.userId, 
       }
+    });
+
+    if (!cashRegister) {
+      return res.status(400).json({ 
+        error: '⚠️ Caixa fechado! Abra o caixa antes de realizar uma venda.' 
+      });
+    }
     
-    // Criar cliente
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
@@ -133,16 +127,13 @@ const create = async (req, res) => {
       });
     }
     
-    // 🔥 CALCULAR LUCRO E COMISSÃO (COM VERIFICAÇÃO hasCommission)
     const profit = (product.price - product.costPrice) * quantity;
     let commission = 0;
     
-    // 🔥 SÓ CALCULA COMISSÃO SE O PRODUTO TIVER COMISSÃO ATIVA
     if (product.hasCommission) {
       commission = profit * barber.productCommissionRate;
     }
     
-    // Criar venda
     const sale = await Sale.create({
       barberId,
       clientId: client?.id || null,
@@ -156,12 +147,10 @@ const create = async (req, res) => {
       paymentMethod: paymentMethod || 'dinheiro',
     });
     
-    // Atualizar estoque
     await product.update({ 
       stock: product.stock - quantity 
     });
     
-    // SE O CAIXA ESTIVER ABERTO, ADICIONA AO CAIXA
     if (cashRegister) {
       const services = cashRegister.services || [];
       const totalRevenue = cashRegister.totalRevenue || 0;
@@ -175,7 +164,7 @@ const create = async (req, res) => {
         quantity,
         price: product.price,
         commission,
-        hasCommission: product.hasCommission, // 🔥 ADICIONAR
+        hasCommission: product.hasCommission,
         paymentMethod: paymentMethod || 'dinheiro',
         time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       });
@@ -189,20 +178,8 @@ const create = async (req, res) => {
       
       console.log(`✅ Venda adicionada ao caixa. Total: R$ ${(product.price * quantity).toFixed(2)}`);
       console.log(`   Comissão: R$ ${commission.toFixed(2)} ${!product.hasCommission ? '(produto sem comissão)' : ''}`);
-    } else {
-      console.log(`⚠️ Caixa fechado. Venda registrada diretamente no faturamento.`);
-      
-      await Revenue.create({
-        cashRegisterId: null,
-        date: hoje,
-        total: product.price * quantity,
-        commissions: commission,
-        servicesCount: 1,
-        initialCash: 0,
-        finalCash: product.price * quantity,
-      });
     }
-
+    
     const created = await Sale.findByPk(sale.id, {
       include: [
         { model: Barber, as: 'barber', attributes: ['id', 'name'] },
@@ -224,29 +201,39 @@ const create = async (req, res) => {
   }
 };
 
+// 🔥 CORRIGIDO - DELETAR VENDA
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log('🗑️ Tentando excluir venda:', id);
+    
     const sale = await Sale.findByPk(id, {
       include: [
-        { model: Product, attributes: ['id', 'name', 'stock'] }
+        { 
+          model: Product, 
+          as: 'product',
+          attributes: ['id', 'name', 'stock'] 
+        }
       ]
     });
     
     if (!sale) {
+      console.log('❌ Venda não encontrada:', id);
       return res.status(404).json({ error: 'Venda não encontrada' });
     }
     
-    // 🔥 RESTAURAR ESTOQUE DO PRODUTO
-    if (sale.Product) {
-      await sale.Product.update({
-        stock: sale.Product.stock + sale.quantity
+    console.log('✅ Venda encontrada:', sale.id);
+    
+    // Restaurar estoque
+    if (sale.product) {
+      console.log(`📦 Restaurando estoque do produto ${sale.product.name}: +${sale.quantity}`);
+      await sale.product.update({
+        stock: (sale.product.stock || 0) + sale.quantity
       });
-      console.log(`📦 Estoque do produto ${sale.Product.name} restaurado: +${sale.quantity}`);
     }
     
-    // 🔥 REMOVER DO CAIXA (se estiver no caixa)
+    // Remover do caixa
     const hoje = new Date().toISOString().split('T')[0];
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -259,44 +246,34 @@ const remove = async (req, res) => {
       const services = cashRegister.services || [];
       const updatedServices = services.filter(s => s.id !== sale.id);
       
-      // Recalcular totais
       const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || 0), 0);
       const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || 0), 0);
       
       await cashRegister.update({
         services: updatedServices,
-        totalRevenue,
-        totalCommissions,
+        totalRevenue: totalRevenue,
+        totalCommissions: totalCommissions,
         servicesCount: updatedServices.length
       });
       
       console.log(`🗑️ Venda ${id} removida do caixa`);
     }
     
-    // 🔥 REMOVER REVENUE ASSOCIADO
-    await Revenue.destroy({
-      where: {
-        cashRegisterId: null,
-        date: hoje,
-        total: sale.salePrice * sale.quantity
-      }
-    });
-    
-    // 🔥 DELETAR VENDA
     await sale.destroy();
     
+    console.log('✅ Venda excluída com sucesso!');
     res.json({ 
       message: 'Venda excluída com sucesso! Estoque restaurado.',
-      product: sale.Product?.name,
+      product: sale.product?.name,
       quantity: sale.quantity
     });
   } catch (error) {
     console.error('❌ Erro ao deletar venda:', error);
-    res.status(500).json({ error: 'Erro ao deletar venda' });
+    res.status(500).json({ error: 'Erro ao deletar venda', details: error.message });
   }
 };
 
-// 🔥 ATUALIZAR VENDA (para edição)
+// 🔥 ATUALIZAR VENDA
 const update = async (req, res) => {
   try {
     const { id } = req.params;
@@ -304,8 +281,8 @@ const update = async (req, res) => {
     
     const sale = await Sale.findByPk(id, {
       include: [
-        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
-        { model: Barber, attributes: ['id', 'name'] }
+        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
       ]
     });
     
@@ -313,11 +290,10 @@ const update = async (req, res) => {
       return res.status(404).json({ error: 'Venda não encontrada' });
     }
     
-    // Calcular novo lucro e comissão
     const newTotal = salePrice * quantity;
-    const newCost = sale.Product.costPrice * quantity;
+    const newCost = sale.product.costPrice * quantity;
     const newProfit = newTotal - newCost;
-    const newCommission = newProfit * (sale.Barber?.productCommissionRate || 0.5);
+    const newCommission = newProfit * (sale.barber?.productCommissionRate || 0.5);
     
     await sale.update({
       salePrice,
@@ -327,7 +303,6 @@ const update = async (req, res) => {
       paymentMethod: paymentMethod || sale.paymentMethod
     });
     
-    // 🔥 ATUALIZAR CAIXA
     const hoje = new Date().toISOString().split('T')[0];
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -361,12 +336,11 @@ const update = async (req, res) => {
       });
     }
     
-    // Buscar venda atualizada
     const updated = await Sale.findByPk(id, {
       include: [
-        { model: Barber, attributes: ['id', 'name'] },
-        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
-        { model: Client, attributes: ['id', 'name'] }
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Client, as: 'client', attributes: ['id', 'name'] }
       ]
     });
     
@@ -377,11 +351,10 @@ const update = async (req, res) => {
   }
 };
 
-// 🔥 EXPORTAR TODAS AS FUNÇÕES
 module.exports = {
   getAll,
   getSummary,
   create,
-  update,   
-  remove,   
+  remove,
+  update,
 };
