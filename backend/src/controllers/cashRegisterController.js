@@ -112,6 +112,7 @@ const openCashRegister = async (req, res) => {
   }
 };
 
+// 🔥 CORRIGIDO: CRIA 1 REVENUE POR SERVIÇO
 const closeCashRegister = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -143,16 +144,30 @@ const closeCashRegister = async (req, res) => {
       servicesCount,
     });
     
-    // Criar registro de faturamento
-    await Revenue.create({
-      cashRegisterId: cashRegister.id,
-      date: today,
-      total: totalRevenue,
-      commissions: totalCommissions,
-      servicesCount,
-      initialCash: cashRegister.initialCash,
-      finalCash,
-    });
+    // 🔥 CRIAR 1 REVENUE PARA CADA SERVIÇO DO CAIXA
+    console.log(`📝 Criando ${services.length} revenues...`);
+    
+    let revenueCount = 0;
+    for (const service of services) {
+      // Buscar o barbeiro para cada serviço
+      const barber = await Barber.findByPk(service.barberId);
+      
+      const revenue = await Revenue.create({
+        cashRegisterId: cashRegister.id,
+        barberId: service.barberId || null,
+        date: today,
+        total: service.price || 0,
+        commissions: service.commission || 0,
+        servicesCount: 1,
+        initialCash: 0,
+        finalCash: service.price || 0,
+      });
+      
+      console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Barbeiro: ${barber?.name || 'Desconhecido'})`);
+      revenueCount++;
+    }
+    
+    console.log(`✅ ${revenueCount} revenues criados com sucesso!`);
     
     res.json(cashRegister);
   } catch (error) {
