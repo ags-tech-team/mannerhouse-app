@@ -11,7 +11,7 @@ const getFinancialDashboard = async (req, res) => {
     const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
     const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
     
-    // 🔥 BUSCAR REVENUES COM BARBEIRO E CASHREGISTER (COM AS CORRETO)
+    // 🔥 BUSCAR APENAS REVENUES (JÁ INCLUI SERVIÇOS E PRODUTOS)
     const revenues = await Revenue.findAll({
       where: {
         date: {
@@ -21,22 +21,23 @@ const getFinancialDashboard = async (req, res) => {
       include: [
         { 
           model: CashRegister, 
-          as: 'cashRegister',  // 🔥 ADICIONAR
+          as: 'cashRegister',
           required: false 
         },
         { 
           model: Barber, 
-          as: 'barber',  // 🔥 ADICIONAR
+          as: 'barber',
           attributes: ['id', 'name'] 
         }
       ]
     });
     
-    const totalRevenueFromCash = revenues.reduce((sum, r) => sum + r.total, 0);
-    const totalCommissionsFromCash = revenues.reduce((sum, r) => sum + r.commissions, 0);
+    // 🔥 TUDO VEM DOS REVENUES - NÃO DUPLICA!
+    const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
+    const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
     
     // 🔥 COMISSÕES POR BARBEIRO (DOS REVENUES)
-    const commissionsByBarberFromRevenue = revenues.reduce((acc, r) => {
+    const commissionsByBarber = revenues.reduce((acc, r) => {
       const barberId = r.barberId;
       const barberName = r.barber?.name || 'Desconhecido';
       if (!acc[barberId]) {
@@ -46,74 +47,7 @@ const getFinancialDashboard = async (req, res) => {
       return acc;
     }, {});
 
-    // Buscar sales (produtos) (COM AS CORRETO)
-    const sales = await Sale.findAll({
-      where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      include: [
-        { 
-          model: Barber, 
-          as: 'barber',  // 🔥 ADICIONAR
-          attributes: ['id', 'name'] 
-        }
-      ]
-    });
-    
-    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
-    const totalProductCommissions = sales.reduce((sum, s) => sum + (s.commission * s.quantity), 0);
-
-    // Adicionar comissões de produtos ao agrupamento
-    sales.forEach(sale => {
-      const barberId = sale.barberId;
-      if (commissionsByBarberFromRevenue[barberId]) {
-        commissionsByBarberFromRevenue[barberId].productCommission += sale.commission;
-      } else {
-        const barberName = sale.Barber?.name || 'Desconhecido';
-        commissionsByBarberFromRevenue[barberId] = {
-          name: barberName,
-          serviceCommission: 0,
-          productCommission: sale.commission
-        };
-      }
-    });
-
-    // Buscar appointments (serviços) que não estão no revenue (COM AS CORRETO)
-    const appointments = await Appointment.findAll({
-      where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        },
-        status: 'completed'
-      },
-      attributes: ['barberId', 'commission', 'price'],
-      include: [
-        { 
-          model: Barber, 
-          as: 'barber',  // 🔥 ADICIONAR
-          attributes: ['id', 'name'] 
-        }
-      ]
-    });
-
-    // Adicionar comissões de appointments ao agrupamento
-    appointments.forEach(app => {
-      const barberId = app.barberId;
-      if (commissionsByBarberFromRevenue[barberId]) {
-        commissionsByBarberFromRevenue[barberId].serviceCommission += app.commission || 0;
-      } else {
-        const barberName = app.Barber?.name || 'Desconhecido';
-        commissionsByBarberFromRevenue[barberId] = {
-          name: barberName,
-          serviceCommission: app.commission || 0,
-          productCommission: 0
-        };
-      }
-    });
-
-    // Calcular totais
+    // Buscar expenses (despesas)
     const expenses = await Expense.findAll({
       where: {
         date: {
@@ -129,14 +63,6 @@ const getFinancialDashboard = async (req, res) => {
       return acc;
     }, {});
 
-    // 🔥 TOTAL DE COMISSÕES (soma de todas as fontes)
-    const totalCommissions = Object.values(commissionsByBarberFromRevenue).reduce(
-      (sum, b) => sum + b.serviceCommission + b.productCommission, 0
-    );
-
-    // 🔥 TOTAL DE RECEITA (revenue + sales)
-    const totalRevenue = totalRevenueFromCash + totalProductRevenue;
-
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
     const result = {
@@ -151,18 +77,18 @@ const getFinancialDashboard = async (req, res) => {
         totalExpenses,
         totalCommissions,
         netProfit,
-        revenueFromServices: totalRevenueFromCash,
-        revenueFromProducts: totalProductRevenue,
+        revenueFromServices: totalRevenue,
+        revenueFromProducts: 0,
       },
       commissions: {
         total: totalCommissions,
-        service: Object.values(commissionsByBarberFromRevenue).reduce((sum, b) => sum + b.serviceCommission, 0),
-        product: Object.values(commissionsByBarberFromRevenue).reduce((sum, b) => sum + b.productCommission, 0),
-        byBarber: Object.values(commissionsByBarberFromRevenue).map(b => ({
+        service: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.serviceCommission, 0),
+        product: 0,
+        byBarber: Object.values(commissionsByBarber).map(b => ({
           name: b.name,
           serviceCommission: b.serviceCommission,
-          productCommission: b.productCommission,
-          total: b.serviceCommission + b.productCommission
+          productCommission: 0,
+          total: b.serviceCommission
         }))
       },
       expenses: {
@@ -172,7 +98,7 @@ const getFinancialDashboard = async (req, res) => {
       },
       revenues: {
         services: revenues,
-        products: sales
+        products: []
       }
     };
     
@@ -241,7 +167,7 @@ const getAll = async (req, res) => {
       include: [
         { 
           model: CashRegister, 
-          as: 'cashRegister',  // 🔥 ADICIONAR
+          as: 'cashRegister',
           required: false 
         }
       ],
@@ -264,7 +190,7 @@ const getByDate = async (req, res) => {
       include: [
         { 
           model: CashRegister, 
-          as: 'cashRegister',  // 🔥 ADICIONAR
+          as: 'cashRegister',
           required: false 
         }
       ],
