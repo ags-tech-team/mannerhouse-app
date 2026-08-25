@@ -9,6 +9,7 @@ interface AuthContextData {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
+  verifyPassword: (password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -62,8 +63,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
   };
 
+  const verifyPassword = async (password: string): Promise<boolean> => {
+    try {
+      const response = await api.post('/auth/verify-password', { password });
+      return response.data.valid === true;
+    } catch (error) {
+      console.error('Erro ao verificar senha:', error);
+      return false;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, login, logout, verifyPassword }}>
       {children}
     </AuthContext.Provider>
   );

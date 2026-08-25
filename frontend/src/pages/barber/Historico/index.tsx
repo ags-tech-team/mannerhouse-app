@@ -66,9 +66,10 @@ interface ProductSale {
 }
 
 const BarberHistorico = () => {
-  const { user } = useAuth();
+  const { user, verifyPassword} = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'payments' | 'services' | 'products'>('payments');
+  
   
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -162,7 +163,7 @@ const BarberHistorico = () => {
       return;
     }
 
-    const isValid = await verifyBarberPassword(password);
+    const isValid = await verifyPassword(password); 
     
     if (!isValid) {
       setPasswordError('Senha incorreta!');

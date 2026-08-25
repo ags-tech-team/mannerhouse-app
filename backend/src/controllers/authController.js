@@ -117,8 +117,32 @@ const me = async (req, res) => {
   }
 };
 
+const verifyPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const userId = req.userId;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Senha é obrigatória' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const isValid = await user.comparePassword(password);
+
+    res.json({ valid: isValid });
+  } catch (error) {
+    console.error('❌ Erro ao verificar senha:', error);
+    res.status(500).json({ error: 'Erro ao verificar senha' });
+  }
+};
+
 module.exports = {
   login,
   register,
   me,
+  verifyPassword, 
 };
