@@ -326,7 +326,7 @@ const BarberCaixa = () => {
       setSelectedServices([]);
     } else {
       setEditingServico(null);
-      setClientName('');
+      setClientName('');  // 🔥 LIMPAR clientName
       setClientPhone('');
       setFormData({
         cliente: '',
@@ -354,6 +354,7 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
+
   // 🔥 SUBMIT COM COMISSÃO REAL
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -374,7 +375,7 @@ const BarberCaixa = () => {
       return;
     }
 
-    if (!isGuest && !formData.cliente.trim()) {
+    if (!isGuest && !clientName.trim()) {
       alert('Digite o nome do cliente');
       return;
     }
