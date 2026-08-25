@@ -224,9 +224,164 @@ const create = async (req, res) => {
   }
 };
 
+const remove = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const sale = await Sale.findByPk(id, {
+      include: [
+        { model: Product, attributes: ['id', 'name', 'stock'] }
+      ]
+    });
+    
+    if (!sale) {
+      return res.status(404).json({ error: 'Venda não encontrada' });
+    }
+    
+    // 🔥 RESTAURAR ESTOQUE DO PRODUTO
+    if (sale.Product) {
+      await sale.Product.update({
+        stock: sale.Product.stock + sale.quantity
+      });
+      console.log(`📦 Estoque do produto ${sale.Product.name} restaurado: +${sale.quantity}`);
+    }
+    
+    // 🔥 REMOVER DO CAIXA (se estiver no caixa)
+    const hoje = new Date().toISOString().split('T')[0];
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: hoje,
+        isOpen: true,
+      }
+    });
+    
+    if (cashRegister) {
+      const services = cashRegister.services || [];
+      const updatedServices = services.filter(s => s.id !== sale.id);
+      
+      // Recalcular totais
+      const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+      const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || 0), 0);
+      
+      await cashRegister.update({
+        services: updatedServices,
+        totalRevenue,
+        totalCommissions,
+        servicesCount: updatedServices.length
+      });
+      
+      console.log(`🗑️ Venda ${id} removida do caixa`);
+    }
+    
+    // 🔥 REMOVER REVENUE ASSOCIADO
+    await Revenue.destroy({
+      where: {
+        cashRegisterId: null,
+        date: hoje,
+        total: sale.salePrice * sale.quantity
+      }
+    });
+    
+    // 🔥 DELETAR VENDA
+    await sale.destroy();
+    
+    res.json({ 
+      message: 'Venda excluída com sucesso! Estoque restaurado.',
+      product: sale.Product?.name,
+      quantity: sale.quantity
+    });
+  } catch (error) {
+    console.error('❌ Erro ao deletar venda:', error);
+    res.status(500).json({ error: 'Erro ao deletar venda' });
+  }
+};
+
+// 🔥 ATUALIZAR VENDA (para edição)
+const update = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { salePrice, quantity, paymentMethod } = req.body;
+    
+    const sale = await Sale.findByPk(id, {
+      include: [
+        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Barber, attributes: ['id', 'name'] }
+      ]
+    });
+    
+    if (!sale) {
+      return res.status(404).json({ error: 'Venda não encontrada' });
+    }
+    
+    // Calcular novo lucro e comissão
+    const newTotal = salePrice * quantity;
+    const newCost = sale.Product.costPrice * quantity;
+    const newProfit = newTotal - newCost;
+    const newCommission = newProfit * (sale.Barber?.productCommissionRate || 0.5);
+    
+    await sale.update({
+      salePrice,
+      quantity,
+      profit: newProfit,
+      commission: newCommission,
+      paymentMethod: paymentMethod || sale.paymentMethod
+    });
+    
+    // 🔥 ATUALIZAR CAIXA
+    const hoje = new Date().toISOString().split('T')[0];
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: hoje,
+        isOpen: true,
+      }
+    });
+    
+    if (cashRegister) {
+      const services = cashRegister.services || [];
+      const updatedServices = services.map(s => {
+        if (s.id === sale.id) {
+          return {
+            ...s,
+            price: salePrice * quantity,
+            commission: newCommission,
+            quantity: quantity
+          };
+        }
+        return s;
+      });
+      
+      const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+      const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || 0), 0);
+      
+      await cashRegister.update({
+        services: updatedServices,
+        totalRevenue,
+        totalCommissions,
+        servicesCount: updatedServices.length
+      });
+    }
+    
+    // Buscar venda atualizada
+    const updated = await Sale.findByPk(id, {
+      include: [
+        { model: Barber, attributes: ['id', 'name'] },
+        { model: Product, attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Client, attributes: ['id', 'name'] }
+      ]
+    });
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('❌ Erro ao atualizar venda:', error);
+    res.status(500).json({ error: 'Erro ao atualizar venda' });
+  }
+};
+
 // 🔥 EXPORTAR TODAS AS FUNÇÕES
 module.exports = {
   getAll,
   getSummary,
   create,
+  update,   
+  remove,   
 };

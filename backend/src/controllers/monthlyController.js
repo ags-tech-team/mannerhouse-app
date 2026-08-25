@@ -250,6 +250,22 @@ const getMonthlyPayments = async (req, res) => {
   }
 };
 
+const removePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const payment = await MonthlyPayment.findByPk(id);
+    if (!payment) {
+      return res.status(404).json({ error: 'Pagamento não encontrado' });
+    }
+    
+    await payment.destroy();
+    res.json({ message: 'Pagamento excluído com sucesso!' });
+  } catch (error) {
+    console.error('❌ Erro ao deletar pagamento:', error);
+    res.status(500).json({ error: 'Erro ao deletar pagamento' });
+  }
+};
 
 module.exports = {
   getMonthlyClients,
@@ -257,5 +273,6 @@ module.exports = {
   confirmMonthlyPayment,
   getPaymentHistory,
   getMonthlyPayments,
-  createMonthlyClient
+  createMonthlyClient,
+  removePayment
 };
