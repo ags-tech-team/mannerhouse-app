@@ -266,8 +266,8 @@ const updateStatus = async (req, res) => {
     
     const updated = await Appointment.findByPk(id, {
       include: [
-        { model: Barber, attributes: ['id', 'name', 'email', 'phone'] },
-        { model: Client, attributes: ['id', 'name', 'phone'] }
+        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'] }, // ✅ ADICIONAR 'as'
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }            // ✅ ADICIONAR 'as'
       ],
     });
     
