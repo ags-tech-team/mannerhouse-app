@@ -23,7 +23,8 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye
+  Eye,
+  DollarSign
 } from 'lucide-react';
 
 interface Barber {
@@ -67,6 +68,9 @@ const BarberAgenda = () => {
   // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  
+  // 🔥 VALOR PERSONALIZADO
+  const valorPersonalizado = useNumberInput();
   
   const [formData, setFormData] = useState({
     clientName: '',
@@ -201,10 +205,11 @@ const BarberAgenda = () => {
     });
     setSelectedServices([]);
     price.reset();
+    valorPersonalizado.reset();
     setShowModal(true);
   };
 
-  // 🔥 CRIAÇÃO DE AGENDAMENTO COM COMISSÃO REAL
+  // 🔥 CRIAÇÃO DE AGENDAMENTO COM VALOR PERSONALIZADO
   const handleCreateAppointment = async () => {
     if (!selectedBarberId) {
       alert('Selecione um barbeiro');
@@ -228,17 +233,21 @@ const BarberAgenda = () => {
       return;
     }
 
-    if (selectedServices.length === 0) {
-      alert('Selecione pelo menos um serviço');
+    // 🔥 USAR VALOR PERSONALIZADO SE PREENCHIDO
+    const valorDigitado = valorPersonalizado.getNumberValue();
+    const total = valorDigitado > 0 ? valorDigitado : getTotalServices();
+    
+    if (total <= 0) {
+      alert('Digite um valor válido ou selecione um serviço');
       return;
     }
 
     try {
-      const total = getTotalServices();
-      const serviceNames = selectedServices.map(s => s.service.name).join(' + ');
+      const serviceNames = selectedServices.length > 0 
+        ? selectedServices.map(s => s.service.name).join(' + ') 
+        : 'Serviço Personalizado';
       const serviceIds = selectedServices.map(s => s.id).join(',');
 
-      // 🔥 CALCULAR COMISSÃO COM A TAXA DO BARBEIRO
       const barber = barbers.find(b => b.id === selectedBarberId);
       const taxaComissao = barber?.serviceCommissionRate || 0.50;
       const comissao = total * taxaComissao;
@@ -249,17 +258,18 @@ const BarberAgenda = () => {
         clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
-        service: serviceIds,
-        serviceDescription: serviceNames,
+        service: serviceIds || 'personalizado',
+        serviceDescription: serviceNames || 'Serviço Personalizado',
         price: total,
         commission: comissao,
-        notes: formData.notes,
+        notes: formData.notes + (valorDigitado > 0 ? ` (Valor personalizado: R$ ${valorDigitado.toFixed(2)})` : ''),
       });
 
       setShowModal(false);
       setClientName('');
       setClientPhone('');
       setSelectedServices([]);
+      valorPersonalizado.reset();
       await loadAppointments();
       alert('✅ Agendamento criado com sucesso!');
     } catch (error: any) {
@@ -278,6 +288,7 @@ const BarberAgenda = () => {
     setShowDetailModal(true);
   };
 
+  // ATUALIZAR STATUS
   const handleUpdateStatus = async (status: string) => {
     if (!selectedAppointment) return;
     try {
@@ -287,19 +298,9 @@ const BarberAgenda = () => {
       if (status === 'completed') {
         alert('✅ Serviço concluído! O valor foi enviado para o caixa.');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao atualizar status:', error);
-      
-      // 🔥 TRATAR ERRO ESPECÍFICO DO BACKEND
-      const errorMessage = error.response?.data?.error || error.response?.data?.message;
-      
-      if (errorMessage) {
-        alert(errorMessage);
-      } else if (error.response?.status === 400) {
-        alert('⚠️ Caixa fechado! Abra o caixa antes de concluir o agendamento.');
-      } else {
-        alert('Erro ao atualizar status. Tente novamente.');
-      }
+      alert('Erro ao atualizar status');
     }
   };
 
@@ -555,17 +556,42 @@ const BarberAgenda = () => {
                 />
               </div>
 
+              {/* 🔥 VALOR PERSONALIZADO */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  <DollarSign size={16} className="inline mr-1" /> Valor Personalizado (R$)
+                </label>
+                <div className="relative">
+                  <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={valorPersonalizado.value}
+                    onChange={valorPersonalizado.onChange}
+                    placeholder="Digite o valor manualmente"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                  />
+                </div>
+                <p className="text-xs text-[#7f7c7a] mt-1">
+                  Deixe em branco para usar o valor dos serviços selecionados
+                </p>
+              </div>
+
               {/* 🔥 MOSTRAR COMISSÃO CALCULADA */}
-              {selectedServices.length > 0 && (
+              {(getTotalServices() > 0 || valorPersonalizado.getNumberValue() > 0) && (
                 <div className="bg-[#f5f0e8] rounded-lg p-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-[#7f7c7a]">Total:</span>
-                    <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+                    <span className="font-medium">
+                      R$ {(valorPersonalizado.getNumberValue() > 0 ? valorPersonalizado.getNumberValue() : getTotalServices()).toFixed(2)}
+                    </span>
                   </div>
                   {(() => {
+                    const total = valorPersonalizado.getNumberValue() > 0 ? valorPersonalizado.getNumberValue() : getTotalServices();
                     const barber = barbers.find(b => b.id === selectedBarberId);
                     const taxa = barber?.serviceCommissionRate || 0.50;
-                    const comissao = getTotalServices() * taxa;
+                    const comissao = total * taxa;
                     return (
                       <div className="flex justify-between text-sm">
                         <span className="text-[#7f7c7a]">Comissão ({Math.round(taxa * 100)}%):</span>
