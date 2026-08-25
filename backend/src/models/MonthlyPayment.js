@@ -44,7 +44,5 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: true,
   });
 
-  // ❌ REMOVIDAS: associações
-
   return MonthlyPayment;
 };

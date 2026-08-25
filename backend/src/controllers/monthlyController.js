@@ -2,7 +2,7 @@ const { Client, MonthlyPayment, Revenue, CashRegister } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 
-// 🔥 LISTAR TODOS OS CLIENTES MENSALISTAS
+// LISTAR TODOS OS CLIENTES MENSALISTAS
 const getMonthlyClients = async (req, res) => {
   try {
     const clients = await Client.findAll({
@@ -10,7 +10,7 @@ const getMonthlyClients = async (req, res) => {
       include: [
         {
           model: MonthlyPayment,
-          as: 'payments',  // 🔥 ADICIONAR O 'as'
+          as: 'MonthlyPayments', // 🔥 CORRIGIDO: 'payments' -> 'MonthlyPayments'
           order: [['month', 'DESC']],
           limit: 12,
         }
@@ -30,18 +30,15 @@ const createMonthlyClient = async (req, res) => {
     
     console.log('📝 Criando mensalista:', { name, phone, monthlyFee });
     
-    // 🔥 VERIFICAR SE O CLIENTE JÁ EXISTE
     let client = await Client.findOne({
       where: { phone: phone.trim() }
     });
     
     if (client) {
-      // 🔥 REMOVER PAGAMENTOS ANTIGOS
       await MonthlyPayment.destroy({
         where: { clientId: client.id }
       });
       
-      // Atualizar cliente
       await client.update({
         isMonthly: true,
         monthlyFee: monthlyFee || client.monthlyFee || 0,
@@ -57,7 +54,6 @@ const createMonthlyClient = async (req, res) => {
       });
     }
     
-    // 🔥 CRIAR NOVO CLIENTE (SEM PAGAMENTO)
     client = await Client.create({
       name: name.trim(),
       phone: phone.trim(),
@@ -79,8 +75,7 @@ const createMonthlyClient = async (req, res) => {
   }
 };
 
-
-// 🔥 ATUALIZAR CLIENTE PARA MENSALISTA
+// ATUALIZAR CLIENTE PARA MENSALISTA
 const updateMonthlyStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -99,6 +94,7 @@ const updateMonthlyStatus = async (req, res) => {
   }
 };
 
+// CONFIRMAR PAGAMENTO
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -109,7 +105,6 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    // 🔥 BUSCAR CAIXA ABERTO DO DIA
     const today = new Date().toISOString().split('T')[0];
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -118,14 +113,12 @@ const confirmMonthlyPayment = async (req, res) => {
       }
     });
     
-    // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO - ANTES DE CONTINUAR
     if (!cashRegister) {
       return res.status(400).json({ 
         error: '⚠️ Caixa fechado! Abra o caixa antes de confirmar o pagamento.' 
       });
     }
     
-    // Verificar se já existe pagamento
     const existing = await MonthlyPayment.findOne({
       where: {
         clientId,
@@ -138,7 +131,6 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(400).json({ error: `Pagamento de ${month} já foi confirmado` });
     }
     
-    // Criar registro de pagamento
     const payment = await MonthlyPayment.create({
       clientId,
       month,
@@ -150,20 +142,19 @@ const confirmMonthlyPayment = async (req, res) => {
     
     console.log('✅ Pagamento criado:', payment.toJSON());
     
-    // Criar faturamento vinculado ao caixa
     const revenue = await Revenue.create({
       cashRegisterId: cashRegister.id,
+      barberId: null,
       date: today,
       total: payment.amount,
       commissions: 0,
       servicesCount: 1,
-      initialCash: cashRegister.initialCash,
+      initialCash: cashRegister.initialCash || 0,
       finalCash: payment.amount,
     });
     
     console.log('✅ Faturamento criado:', revenue.toJSON());
     
-    // Atualizar caixa com o valor
     const newTotal = (cashRegister.totalRevenue || 0) + payment.amount;
     await cashRegister.update({
       totalRevenue: newTotal,
@@ -182,7 +173,7 @@ const confirmMonthlyPayment = async (req, res) => {
   }
 };
 
-
+// BUSCAR HISTÓRICO DE PAGAMENTOS
 const getPaymentHistory = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -192,7 +183,7 @@ const getPaymentHistory = async (req, res) => {
       include: [
         { 
           model: Client,
-          as: 'client',  // 🔥 ADICIONAR O 'as'
+          as: 'client',
           attributes: ['id', 'name', 'phone']
         }
       ],
@@ -206,6 +197,7 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
+// BUSCAR PAGAMENTOS DO MÊS
 const getMonthlyPayments = async (req, res) => {
   try {
     const { month } = req.query;
@@ -219,7 +211,7 @@ const getMonthlyPayments = async (req, res) => {
       include: [
         { 
           model: Client,
-          as: 'client',  // 🔥 ADICIONAR O 'as'
+          as: 'client',
           attributes: ['id', 'name', 'phone'],
           required: false
         }
@@ -227,7 +219,6 @@ const getMonthlyPayments = async (req, res) => {
       order: [['createdAt', 'DESC']],
     });
     
-    // Buscar clientes mensalistas que ainda não pagaram este mês
     const paidClientIds = payments.map(p => p.clientId);
     const pendingClients = await Client.findAll({
       where: {
@@ -250,6 +241,7 @@ const getMonthlyPayments = async (req, res) => {
   }
 };
 
+// 🔥 DELETAR PAGAMENTO (CORRIGIDO)
 const removePayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -259,8 +251,56 @@ const removePayment = async (req, res) => {
       return res.status(404).json({ error: 'Pagamento não encontrado' });
     }
     
+    // 🔥 BUSCAR O REVENUE ASSOCIADO
+    const today = new Date().toISOString().split('T')[0];
+    const revenue = await Revenue.findOne({
+      where: {
+        date: today,
+        total: payment.amount,
+        commissions: 0,
+        servicesCount: 1,
+      }
+    });
+    
+    // 🔥 REMOVER DO CAIXA
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: today,
+        isOpen: true,
+      }
+    });
+    
+    if (cashRegister) {
+      const services = cashRegister.services || [];
+      const updatedServices = services.filter(s => s.id !== payment.id);
+      
+      const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+      const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || 0), 0);
+      
+      await cashRegister.update({
+        services: updatedServices,
+        totalRevenue: totalRevenue,
+        totalCommissions: totalCommissions,
+        servicesCount: updatedServices.length
+      });
+      
+      console.log(`🗑️ Pagamento ${id} removido do caixa`);
+    }
+    
+    // 🔥 DELETAR REVENUE
+    if (revenue) {
+      await revenue.destroy();
+      console.log(`🗑️ Revenue ${revenue.id} removido`);
+    }
+    
+    // 🔥 DELETAR PAGAMENTO
     await payment.destroy();
-    res.json({ message: 'Pagamento excluído com sucesso!' });
+    console.log(`🗑️ Pagamento ${id} removido`);
+    
+    res.json({ 
+      message: 'Pagamento excluído com sucesso! O faturamento foi atualizado.',
+      paymentId: id
+    });
   } catch (error) {
     console.error('❌ Erro ao deletar pagamento:', error);
     res.status(500).json({ error: 'Erro ao deletar pagamento' });

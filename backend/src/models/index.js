@@ -43,13 +43,9 @@ Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId', as: 'revenues' });
 Barber.hasMany(Revenue, { foreignKey: 'barberId', as: 'revenues' });
 
-// 🔥 MonthlyPayment -> Client
+// 🔥 MonthlyPayment -> Client (CORRIGIDO)
 MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
-Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'payments' });
-
-// 🔥 Client -> MonthlyPayment (já feito acima)
-
-// 🔥 Product -> Sale (já feito acima)
+Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'MonthlyPayments' }); // 🔥 MUDEI DE 'payments' PARA 'MonthlyPayments'
 
 const models = {
   User,
