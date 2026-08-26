@@ -14,7 +14,7 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log('📊 Gerando dashboard financeiro:', { startDate, endDate, monthString });
     
-    // 🔥 1. BUSCAR REVENUES (JÁ TEM TUDO: SERVIÇOS + PRODUTOS)
+    // 🔥 1. BUSCAR REVENUES (CADA UM É UM SERVIÇO)
     const revenues = await Revenue.findAll({
       where: {
         date: {
@@ -35,7 +35,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 2. BUSCAR VENDAS DE PRODUTOS (SÓ PRA SABER QUANTOS FORAM)
+    // 🔥 2. BUSCAR VENDAS DE PRODUTOS
     const sales = await Sale.findAll({
       where: {
         date: {
@@ -79,29 +79,27 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
-    // 🔥 4. TUDO VEM DO REVENUE - NÃO SOMA NADA SEPARADO!
+    // 🔥 4. TUDO VEM DO REVENUE
     const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
     const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
     
-    // 🔥 5. CALCULAR RECEITA DE PRODUTOS (PELO SALE - SÓ PRA SEPARAR NA TELA)
+    // 🔥 5. CALCULAR RECEITAS POR CATEGORIA
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalServiceRevenue = totalRevenue - totalProductRevenue - totalMonthlyRevenue;
     
-    // 🔥 6. CALCULAR COMISSÕES DE PRODUTOS E MENSAL (SÓ PRA SEPARAR NA TELA)
+    // 🔥 6. CALCULAR COMISSÕES POR CATEGORIA
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
       const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
       return sum + (mp.amount * rate);
     }, 0);
-    
-    // 🔥 A COMISSÃO DE SERVIÇO = TOTAL - PRODUTO - MENSAL
     const totalServiceCommissions = totalCommissions - totalProductCommissions - totalMonthlyCommissions;
     
     // 🔥 7. COMISSÕES POR BARBEIRO
     const commissionsByBarber = {};
 
-    // 🔥 PEGAR AS COMISSÕES DO REVENUE (JÁ INCLUI TUDO)
+    // 🔥 COMISSÕES DE SERVIÇOS (REVENUE) - CADA REVENUE É UM SERVIÇO
     revenues.forEach(r => {
       const barberId = r.barberId || 'sem-barbeiro';
       const barberName = r.barber?.name || 'Sem Barbeiro';
@@ -109,16 +107,16 @@ const getFinancialDashboard = async (req, res) => {
       if (!commissionsByBarber[barberId]) {
         commissionsByBarber[barberId] = { 
           name: barberName, 
-          totalCommission: 0,
           serviceCommission: 0, 
           productCommission: 0,
           monthlyCommission: 0
         };
       }
-      commissionsByBarber[barberId].totalCommission += r.commissions || 0;
+      // 🔥 A COMISSÃO DO REVENUE É A COMISSÃO DO SERVIÇO
+      commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
     });
 
-    // 🔥 ADICIONAR COMISSÕES DE PRODUTOS (SALE)
+    // 🔥 COMISSÕES DE PRODUTOS (SALE)
     sales.forEach(s => {
       const barberId = s.barberId || 'sem-barbeiro';
       const barberName = s.barber?.name || 'Sem Barbeiro';
@@ -126,7 +124,6 @@ const getFinancialDashboard = async (req, res) => {
       if (!commissionsByBarber[barberId]) {
         commissionsByBarber[barberId] = { 
           name: barberName, 
-          totalCommission: 0,
           serviceCommission: 0, 
           productCommission: 0,
           monthlyCommission: 0
@@ -135,7 +132,7 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].productCommission += s.commission || 0;
     });
 
-    // 🔥 ADICIONAR COMISSÕES DE MENSALIDADES
+    // 🔥 COMISSÕES DE MENSALIDADES
     monthlyPayments.forEach(mp => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
       const barberName = mp.client?.barber?.name || 'Sem Barbeiro';
@@ -145,21 +142,12 @@ const getFinancialDashboard = async (req, res) => {
       if (!commissionsByBarber[barberId]) {
         commissionsByBarber[barberId] = { 
           name: barberName, 
-          totalCommission: 0,
           serviceCommission: 0, 
           productCommission: 0,
           monthlyCommission: 0
         };
       }
       commissionsByBarber[barberId].monthlyCommission += commission;
-    });
-
-    // 🔥 CALCULAR SERVIÇO = TOTAL - PRODUTO - MENSAL
-    Object.keys(commissionsByBarber).forEach(barberId => {
-      const barber = commissionsByBarber[barberId];
-      barber.serviceCommission = Math.max(0, 
-        barber.totalCommission - barber.productCommission - barber.monthlyCommission
-      );
     });
     
     // 🔥 8. BUSCAR DESPESAS
