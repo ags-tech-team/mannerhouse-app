@@ -27,15 +27,18 @@ interface FinancialDashboard {
     netProfit: number;
     revenueFromServices: number;
     revenueFromProducts: number;
+    revenueFromMonthly: number; // 🔥 NOVO
   };
   commissions: {
     total: number;
     service: number;
     product: number;
+    monthly: number; // 🔥 NOVO
     byBarber: Array<{
       name: string;
       serviceCommission: number;
       productCommission: number;
+      monthlyCommission: number; // 🔥 NOVO
       total: number;
     }>;
   };
@@ -182,6 +185,8 @@ const AdminFaturamento = () => {
             <span>Serviços: {formatCurrency(summary.revenueFromServices)}</span>
             <br />
             <span>Produtos: {formatCurrency(summary.revenueFromProducts)}</span>
+            <br />
+            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(summary.revenueFromMonthly || 0)}</span> {/* 🔥 NOVO */}
           </div>
         </div>
 
@@ -215,6 +220,8 @@ const AdminFaturamento = () => {
             <span>Serviços: {formatCurrency(commissions.service)}</span>
             <br />
             <span>Produtos: {formatCurrency(commissions.product)}</span>
+            <br />
+            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(commissions.monthly || 0)}</span> {/* 🔥 NOVO */}
           </div>
         </div>
 
@@ -254,13 +261,14 @@ const AdminFaturamento = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Serviços</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Produtos</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-[#9c7f64] uppercase">Mensal</th> {/* 🔥 NOVO */}
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {commissions.byBarber.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center text-[#7f7c7a]">
+                  <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]"> {/* 🔥 MUDOU DE 4 PARA 5 */}
                     Nenhuma comissão registrada neste período
                   </td>
                 </tr>
@@ -275,6 +283,9 @@ const AdminFaturamento = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
                       {formatCurrency(barber.productCommission)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#9c7f64] font-bold"> {/* 🔥 NOVO */}
+                      {formatCurrency(barber.monthlyCommission || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-[#9c7f64]">
                       {formatCurrency(barber.total)}
