@@ -167,7 +167,7 @@ const PublicSchedule = () => {
     }));
   };
 
-  // Enviar agendamento
+  // 🔥 CORRIGIDO: Enviar agendamento
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -181,7 +181,8 @@ const PublicSchedule = () => {
       return;
     }
     
-    if (!formData.clientName.trim() || !formData.clientPhone.trim()) {
+    // 🔥 CORRIGIDO: Validar clientName (do autocomplete) e formData.clientPhone
+    if (!clientName.trim() || !formData.clientPhone.trim()) {
       setError('Preencha seu nome e telefone');
       return;
     }
@@ -192,7 +193,7 @@ const PublicSchedule = () => {
     try {
       await api.post('/public/appointments', {
         barberId: selectedBarber,
-        clientName: formData.clientName.trim(),
+        clientName: clientName.trim(), // 🔥 USAR clientName
         clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
@@ -254,7 +255,7 @@ const PublicSchedule = () => {
           <div className="bg-[#f5f0e8] rounded-lg p-4 mb-6 text-left">
             <p className="text-sm text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
             <p className="text-sm text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
-            <p className="text-sm text-[#7f7c7a]">👤 Cliente: {formData.clientName}</p>
+            <p className="text-sm text-[#7f7c7a]">👤 Cliente: {clientName}</p>
             <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
             <p className="text-sm text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
             <p className="text-sm text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
