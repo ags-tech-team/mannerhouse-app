@@ -261,7 +261,7 @@ const AdminFaturamento = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Serviços</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Produtos</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[#9c7f64] uppercase">Mensal</th> {/* 🔥 NOVO */}
+                <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Mensal</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Total</th>
               </tr>
             </thead>
@@ -284,7 +284,7 @@ const AdminFaturamento = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
                       {formatCurrency(barber.productCommission)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#9c7f64] font-bold"> {/* 🔥 NOVO */}
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
                       {formatCurrency(barber.monthlyCommission || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-[#9c7f64]">
