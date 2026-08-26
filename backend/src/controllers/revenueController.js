@@ -79,13 +79,16 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
-    // 🔥 4. CALCULAR RECEITAS
+    // 🔥 4. CALCULAR RECEITAS - TUDO VEM DO REVENUE
+    // O Revenue já tem o valor total de cada serviço
     const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
+    
+    // 🔥 5. CALCULAR RECEITAS POR CATEGORIA (usando dados separados)
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalServiceRevenue = totalRevenue - totalProductRevenue - totalMonthlyRevenue;
     
-    // 🔥 5. CALCULAR COMISSÕES SEPARADAS
+    // 🔥 6. CALCULAR COMISSÕES SEPARADAS
     const totalServiceCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
@@ -96,10 +99,10 @@ const getFinancialDashboard = async (req, res) => {
     // 🔥 TOTAL DE COMISSÕES = SOMA DE TUDO
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // 🔥 6. COMISSÕES POR BARBEIRO - SEPARADAS
+    // 🔥 7. COMISSÕES POR BARBEIRO - SEPARADAS CORRETAMENTE
     const commissionsByBarber = {};
 
-    // Comissões de serviços (Revenue)
+    // Comissões de serviços (Revenue) - CADA REVENUE É UM SERVIÇO
     revenues.forEach(r => {
       const barberId = r.barberId || 'sem-barbeiro';
       const barberName = r.barber?.name || 'Sem Barbeiro';
@@ -112,6 +115,7 @@ const getFinancialDashboard = async (req, res) => {
           monthlyCommission: 0
         };
       }
+      // 🔥 A COMISSÃO DO REVENUE É SOMENTE DO SERVIÇO
       commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
     });
 
@@ -128,6 +132,7 @@ const getFinancialDashboard = async (req, res) => {
           monthlyCommission: 0
         };
       }
+      // 🔥 A COMISSÃO DO SALE É SOMENTE DO PRODUTO
       commissionsByBarber[barberId].productCommission += s.commission || 0;
     });
 
@@ -146,10 +151,11 @@ const getFinancialDashboard = async (req, res) => {
           monthlyCommission: 0
         };
       }
+      // 🔥 A COMISSÃO DA MENSALIDADE É SOMENTE DA MENSALIDADE
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
-    // 🔥 7. BUSCAR DESPESAS
+    // 🔥 8. BUSCAR DESPESAS
     const expenses = await Expense.findAll({
       where: {
         date: {
@@ -167,7 +173,7 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 8. MONTAR RESULTADO
+    // 🔥 9. MONTAR RESULTADO
     const result = {
       period: {
         month: mes,
@@ -206,7 +212,14 @@ const getFinancialDashboard = async (req, res) => {
         list: expenses
       },
       revenues: {
-        services: revenues.filter(r => r.barberId !== null),
+        services: revenues.map(r => ({
+          id: r.id,
+          date: r.date,
+          barber: r.barber?.name || 'Desconhecido',
+          total: r.total,
+          commission: r.commissions,
+          servicesCount: r.servicesCount
+        })),
         products: sales.map(s => ({
           id: s.id,
           date: s.date,
@@ -237,7 +250,6 @@ const getFinancialDashboard = async (req, res) => {
   }
 };
 
-// O RESTO DO CÓDIGO IGUAL...
 const getSummary = async (req, res) => {
   try {
     const { period } = req.query;
@@ -270,13 +282,39 @@ const getSummary = async (req, res) => {
       }
     });
     
-    const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
-    const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
+    const sales = await Sale.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      }
+    });
+    
+    const monthString = startDate.substring(0, 7);
+    const monthlyPayments = await MonthlyPayment.findAll({
+      where: {
+        month: monthString,
+        paid: true,
+      }
+    });
+    
+    const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0) + 
+                         sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0) +
+                         monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
+    
+    const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0) +
+                             sales.reduce((sum, s) => sum + s.commission, 0) +
+                             monthlyPayments.reduce((sum, mp) => {
+                               const rate = 0.5;
+                               return sum + (mp.amount * rate);
+                             }, 0);
     
     res.json({
       totalRevenue,
       totalCommissions,
       totalServices: revenues.length,
+      totalProducts: sales.length,
+      totalMonthly: monthlyPayments.length,
     });
   } catch (error) {
     console.error('Erro ao buscar resumo:', error);
