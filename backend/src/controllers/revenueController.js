@@ -1,4 +1,4 @@
-const { Revenue, CashRegister, Expense, Appointment, Sale, Barber } = require('../models');
+const { Revenue, CashRegister, Expense, Appointment, Sale, Barber, Product } = require('../models');
 const { Op } = require('sequelize');
 
 const getFinancialDashboard = async (req, res) => {
