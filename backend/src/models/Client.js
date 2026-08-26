@@ -26,6 +26,16 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'monthly_fee',
     },
+    // 🔥 NOVO CAMPO: Vinculação com barbeiro
+    barberId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'barbers',
+        key: 'id',
+      },
+      field: 'barber_id',
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
@@ -35,7 +45,6 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'clients',
     underscored: true,
     timestamps: true,
-    // 🔥 VALIDAÇÃO ÚNICA COMPOSTA (nome + telefone)
     indexes: [
       {
         unique: true,
@@ -44,6 +53,11 @@ module.exports = (sequelize, DataTypes) => {
       }
     ]
   });
+
+  // 🔥 ASSOCIAÇÃO
+  Client.associate = function(models) {
+    Client.belongsTo(models.Barber, { foreignKey: 'barberId', as: 'barber' });
+  };
 
   return Client;
 };

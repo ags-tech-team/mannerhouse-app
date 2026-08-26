@@ -25,6 +25,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+interface Barber {
+  id: string;
+  name: string;
+  serviceCommissionRate: number;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -32,6 +38,8 @@ interface Client {
   isMonthly: boolean;
   monthlyFee: number;
   isActive: boolean;
+  barberId: string | null;
+  barber?: Barber;
   MonthlyPayments?: MonthlyPayment[];
 }
 
@@ -49,6 +57,7 @@ interface NewClientData {
   name: string;
   phone: string;
   monthlyFee: number;
+  barberId: string;
   paymentMethod: 'dinheiro' | 'cartao' | 'pix' | 'debito';
   notes: string;
 }
@@ -56,12 +65,13 @@ interface NewClientData {
 const AdminMensalistas = () => {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
-  // 🔥 MÊS SELECIONADO (COM NAVEGAÇÃO)
+  // 🔥 MÊS SELECIONADO
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -75,11 +85,26 @@ const AdminMensalistas = () => {
     name: '',
     phone: '',
     monthlyFee: 0,
+    barberId: '',
     paymentMethod: 'pix',
     notes: ''
   });
 
   const monthlyFee = useNumberInput();
+
+  // 🔥 CARREGAR BARBEIROS
+  useEffect(() => {
+    loadBarbers();
+  }, []);
+
+  const loadBarbers = async () => {
+    try {
+      const response = await api.get('/barbers');
+      setBarbers(response.data);
+    } catch (error) {
+      console.error('❌ Erro ao carregar barbeiros:', error);
+    }
+  };
 
   // 🔥 FUNÇÕES DE NAVEGAÇÃO DE MÊS
   const changeMonth = (delta: number) => {
@@ -114,7 +139,6 @@ const AdminMensalistas = () => {
     }
   };
 
-  // 🔥 PEGAR O ÚLTIMO PAGAMENTO DO CLIENTE
   const getLastPayment = (client: Client) => {
     if (!client.MonthlyPayments || client.MonthlyPayments.length === 0) {
       return null;
@@ -135,7 +159,6 @@ const AdminMensalistas = () => {
     return sorted[0];
   };
 
-  // 🔥 FORMATAR DATA DO PAGAMENTO (com dia completo)
   const formatPaymentDate = (payment: MonthlyPayment | null) => {
     if (!payment) return 'Nunca';
     
@@ -157,7 +180,6 @@ const AdminMensalistas = () => {
     });
   };
 
-  // 🔥 HANDLE SELECT CLIENT
   const handleSelectClient = (client: Client) => {
     setClientName(client.name);
     setClientPhone(client.phone);
@@ -186,6 +208,11 @@ const AdminMensalistas = () => {
       return;
     }
 
+    if (!newClient.barberId) {
+      alert('Selecione um barbeiro responsável');
+      return;
+    }
+
     try {
       console.log('📝 Criando mensalista:', newClient);
       
@@ -193,6 +220,7 @@ const AdminMensalistas = () => {
         name: newClient.name.trim(),
         phone: newClient.phone.trim(),
         monthlyFee: newClient.monthlyFee,
+        barberId: newClient.barberId,
         paymentMethod: newClient.paymentMethod,
         notes: newClient.notes || 'Nova assinatura',
       });
@@ -208,6 +236,7 @@ const AdminMensalistas = () => {
         name: '',
         phone: '',
         monthlyFee: 0,
+        barberId: '',
         paymentMethod: 'pix',
         notes: ''
       });
@@ -230,6 +259,7 @@ const AdminMensalistas = () => {
       await api.put(`/monthly/client/${client.id}`, {
         isMonthly: !client.isMonthly,
         monthlyFee: client.monthlyFee || 0,
+        barberId: client.barberId || null,
       });
       await loadClients();
     } catch (error) {
@@ -249,6 +279,7 @@ const AdminMensalistas = () => {
       await api.put(`/monthly/client/${client.id}`, {
         isMonthly: true,
         monthlyFee: fee,
+        barberId: client.barberId || null,
       });
       monthlyFee.reset();
       await loadClients();
@@ -269,11 +300,10 @@ const AdminMensalistas = () => {
         notes: `Pagamento mensalidade - ${selectedMonth}`,
       });
       await loadClients();
-      alert('✅ Pagamento confirmado! Valor enviado para o faturamento.');
+      alert('✅ Pagamento confirmado! Comissão enviada para o faturamento.');
     } catch (error: any) {
       console.error('Erro ao confirmar pagamento:', error);
       
-      // 🔥 TRATAR ERRO ESPECÍFICO
       const errorMessage = error.response?.data?.error || error.response?.data?.message;
       if (errorMessage) {
         alert(errorMessage);
@@ -283,8 +313,6 @@ const AdminMensalistas = () => {
     }
   };
 
-
-  // 🔥 VERIFICAR SE PAGOU NO MÊS SELECIONADO
   const hasPaidThisMonth = (client: Client) => {
     if (!client.MonthlyPayments) return false;
     return client.MonthlyPayments.some(p => p.month === selectedMonth && p.paid);
@@ -308,7 +336,6 @@ const AdminMensalistas = () => {
       .reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
   };
 
-  // 🔥 RESGATANDO OS VALORES DO MÊS SELECIONADO
   const getPaidThisMonth = () => {
     return clients
       .filter(c => c.isMonthly && hasPaidThisMonth(c))
@@ -338,6 +365,7 @@ const AdminMensalistas = () => {
                 name: '',
                 phone: '',
                 monthlyFee: 0,
+                barberId: '',
                 paymentMethod: 'pix',
                 notes: ''
               });
@@ -349,7 +377,6 @@ const AdminMensalistas = () => {
             Nova Assinatura
           </button>
           
-          {/* 🔥 NAVEGAÇÃO DE MÊS */}
           <div className="flex items-center gap-2 bg-white rounded-lg shadow px-3 py-2">
             <button
               onClick={() => changeMonth(-1)}
@@ -469,6 +496,7 @@ const AdminMensalistas = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mensalidade</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mês Atual</th>
@@ -493,6 +521,18 @@ const AdminMensalistas = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
                         {client.phone}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {client.barber ? (
+                          <span className="text-sm text-[#9c7f64] font-medium">
+                            {client.barber.name}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-red-500">
+                            <AlertCircle size={16} className="inline mr-1" />
+                            Sem barbeiro
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {client.isMonthly ? (
@@ -613,6 +653,7 @@ const AdminMensalistas = () => {
                     name: '',
                     phone: '',
                     monthlyFee: 0,
+                    barberId: '',
                     paymentMethod: 'pix',
                     notes: ''
                   });
@@ -654,6 +695,28 @@ const AdminMensalistas = () => {
                     placeholder="(00) 00000-0000"
                     required
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  Barbeiro Responsável *
+                </label>
+                <div className="relative">
+                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <select
+                    value={newClient.barberId}
+                    onChange={(e) => setNewClient({ ...newClient, barberId: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent appearance-none"
+                    required
+                  >
+                    <option value="">Selecione um barbeiro...</option>
+                    {barbers.map(barber => (
+                      <option key={barber.id} value={barber.id}>
+                        {barber.name} ({barber.serviceCommissionRate * 100}% comissão)
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -722,6 +785,12 @@ const AdminMensalistas = () => {
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-[#7f7c7a]">Barbeiro:</span>
+                    <span className="font-medium">
+                      {barbers.find(b => b.id === newClient.barberId)?.name || 'Não selecionado'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-[#7f7c7a]">Mês de início:</span>
                     <span className="font-medium">
                       {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
@@ -745,6 +814,7 @@ const AdminMensalistas = () => {
                       name: '',
                       phone: '',
                       monthlyFee: 0,
+                      barberId: '',
                       paymentMethod: 'pix',
                       notes: ''
                     });

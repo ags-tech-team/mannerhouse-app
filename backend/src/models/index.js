@@ -15,17 +15,21 @@ const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
 
 // 🔥 ===== DEFINIÇÃO DE ASSOCIAÇÕES =====
 
-// 🔥 Barber -> User
+// Barber -> User
 Barber.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasOne(Barber, { foreignKey: 'userId', as: 'barber' });
 
-// 🔥 Appointment -> Barber e Client
+// 🔥 NOVA ASSOCIAÇÃO: Client -> Barber
+Client.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+Barber.hasMany(Client, { foreignKey: 'barberId', as: 'clients' });
+
+// Appointment -> Barber e Client
 Appointment.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 Appointment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 Barber.hasMany(Appointment, { foreignKey: 'barberId', as: 'appointments' });
 Client.hasMany(Appointment, { foreignKey: 'clientId', as: 'appointments' });
 
-// 🔥 Sale -> Barber, Client, Product
+// Sale -> Barber, Client, Product
 Sale.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 Sale.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 Sale.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
@@ -33,19 +37,19 @@ Barber.hasMany(Sale, { foreignKey: 'barberId', as: 'sales' });
 Client.hasMany(Sale, { foreignKey: 'clientId', as: 'sales' });
 Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales' });
 
-// 🔥 CashRegister -> User
+// CashRegister -> User
 CashRegister.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(CashRegister, { foreignKey: 'userId', as: 'cashRegisters' });
 
-// 🔥 Revenue -> CashRegister e Barber
+// Revenue -> CashRegister e Barber
 Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
 Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 CashRegister.hasMany(Revenue, { foreignKey: 'cashRegisterId', as: 'revenues' });
 Barber.hasMany(Revenue, { foreignKey: 'barberId', as: 'revenues' });
 
-// 🔥 MonthlyPayment -> Client (CORRIGIDO)
+// MonthlyPayment -> Client
 MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
-Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'MonthlyPayments' }); // 🔥 MUDEI DE 'payments' PARA 'MonthlyPayments'
+Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'MonthlyPayments' });
 
 const models = {
   User,

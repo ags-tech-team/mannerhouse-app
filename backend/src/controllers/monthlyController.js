@@ -1,6 +1,5 @@
-const { Client, MonthlyPayment, Revenue, CashRegister } = require('../models');
+const { Client, MonthlyPayment, Revenue, CashRegister, Barber } = require('../models');
 const { Op } = require('sequelize');
-const { findOrCreateClient } = require('../services/clientService');
 
 // LISTAR TODOS OS CLIENTES MENSALISTAS
 const getMonthlyClients = async (req, res) => {
@@ -10,9 +9,14 @@ const getMonthlyClients = async (req, res) => {
       include: [
         {
           model: MonthlyPayment,
-          as: 'MonthlyPayments', // 🔥 CORRIGIDO: 'payments' -> 'MonthlyPayments'
+          as: 'MonthlyPayments',
           order: [['month', 'DESC']],
           limit: 12,
+        },
+        {
+          model: Barber,
+          as: 'barber',
+          attributes: ['id', 'name', 'serviceCommissionRate']
         }
       ],
       order: [['name', 'ASC']],
@@ -24,11 +28,20 @@ const getMonthlyClients = async (req, res) => {
   }
 };
 
+// CRIAR MENSALISTA
 const createMonthlyClient = async (req, res) => {
   try {
-    const { name, phone, monthlyFee, paymentMethod, notes } = req.body;
+    const { name, phone, monthlyFee, barberId, paymentMethod, notes } = req.body;
     
-    console.log('📝 Criando mensalista:', { name, phone, monthlyFee });
+    console.log('📝 Criando mensalista:', { name, phone, monthlyFee, barberId });
+    
+    // 🔥 VERIFICAR SE BARBEIRO EXISTE
+    if (barberId) {
+      const barber = await Barber.findByPk(barberId);
+      if (!barber) {
+        return res.status(404).json({ error: 'Barbeiro não encontrado' });
+      }
+    }
     
     let client = await Client.findOne({
       where: { phone: phone.trim() }
@@ -42,6 +55,7 @@ const createMonthlyClient = async (req, res) => {
       await client.update({
         isMonthly: true,
         monthlyFee: monthlyFee || client.monthlyFee || 0,
+        barberId: barberId || client.barberId,
         isActive: true,
       });
       
@@ -59,6 +73,7 @@ const createMonthlyClient = async (req, res) => {
       phone: phone.trim(),
       isMonthly: true,
       monthlyFee: monthlyFee || 0,
+      barberId: barberId || null,
       isActive: true,
     });
     
@@ -79,14 +94,26 @@ const createMonthlyClient = async (req, res) => {
 const updateMonthlyStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { isMonthly, monthlyFee } = req.body;
+    const { isMonthly, monthlyFee, barberId } = req.body;
     
     const client = await Client.findByPk(id);
     if (!client) {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    await client.update({ isMonthly, monthlyFee });
+    // 🔥 VERIFICAR BARBEIRO
+    if (barberId) {
+      const barber = await Barber.findByPk(barberId);
+      if (!barber) {
+        return res.status(404).json({ error: 'Barbeiro não encontrado' });
+      }
+    }
+    
+    await client.update({ 
+      isMonthly, 
+      monthlyFee,
+      barberId: barberId || null
+    });
     res.json(client);
   } catch (error) {
     console.error('❌ Erro ao atualizar status mensal:', error);
@@ -100,9 +127,25 @@ const confirmMonthlyPayment = async (req, res) => {
     const { clientId } = req.params;
     const { month, amount, notes } = req.body;
     
-    const client = await Client.findByPk(clientId);
+    const client = await Client.findByPk(clientId, {
+      include: [
+        {
+          model: Barber,
+          as: 'barber',
+          attributes: ['id', 'name', 'serviceCommissionRate']
+        }
+      ]
+    });
+    
     if (!client) {
       return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+    
+    // 🔥 VERIFICAR SE TEM BARBEIRO
+    if (!client.barberId || !client.barber) {
+      return res.status(400).json({ 
+        error: '⚠️ Cliente não está vinculado a um barbeiro! Defina um barbeiro para este cliente.' 
+      });
     }
     
     const today = new Date().toISOString().split('T')[0];
@@ -131,41 +174,71 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(400).json({ error: `Pagamento de ${month} já foi confirmado` });
     }
     
+    // 🔥 CALCULAR COMISSÃO DO BARBEIRO
+    const paymentAmount = amount || client.monthlyFee || 0;
+    const commissionRate = client.barber.serviceCommissionRate || 0.5;
+    const commission = paymentAmount * commissionRate;
+    
     const payment = await MonthlyPayment.create({
       clientId,
       month,
-      amount: amount || client.monthlyFee || 0,
+      amount: paymentAmount,
       paid: true,
       paidAt: new Date(),
       notes: notes || `Pagamento mensalidade - ${month}`,
     });
     
     console.log('✅ Pagamento criado:', payment.toJSON());
+    console.log(`   Comissão do barbeiro ${client.barber.name}: R$ ${commission.toFixed(2)} (${commissionRate * 100}%)`);
     
+    // 🔥 CRIAR REVENUE COM COMISSÃO
     const revenue = await Revenue.create({
       cashRegisterId: cashRegister.id,
-      barberId: null,
+      barberId: client.barberId,
       date: today,
-      total: payment.amount,
-      commissions: 0,
+      total: paymentAmount,
+      commissions: commission,
       servicesCount: 1,
       initialCash: cashRegister.initialCash || 0,
-      finalCash: payment.amount,
+      finalCash: paymentAmount,
     });
     
     console.log('✅ Faturamento criado:', revenue.toJSON());
     
-    const newTotal = (cashRegister.totalRevenue || 0) + payment.amount;
+    // 🔥 ADICIONAR AO CAIXA
+    const services = cashRegister.services || [];
+    const totalRevenue = cashRegister.totalRevenue || 0;
+    const totalCommissions = cashRegister.totalCommissions || 0;
+    
+    services.push({
+      id: payment.id,
+      type: 'monthly',
+      client: client.name,
+      barberId: client.barberId,
+      barberName: client.barber.name,
+      service: 'Mensalidade',
+      price: paymentAmount,
+      commission: commission,
+      commissionRate: commissionRate,
+      paymentMethod: 'pix',
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      month: month,
+    });
+    
     await cashRegister.update({
-      totalRevenue: newTotal,
-      finalCash: newTotal,
-      servicesCount: (cashRegister.servicesCount || 0) + 1,
+      services,
+      totalRevenue: totalRevenue + paymentAmount,
+      totalCommissions: totalCommissions + commission,
+      servicesCount: services.length,
     });
     
     res.json({
       payment,
       revenue,
-      message: 'Pagamento confirmado e adicionado ao caixa!'
+      commission,
+      commissionRate: commissionRate * 100,
+      barberName: client.barber.name,
+      message: `Pagamento confirmado! Comissão de ${commissionRate * 100}% para ${client.barber.name}: R$ ${commission.toFixed(2)}`
     });
   } catch (error) {
     console.error('❌ Erro ao confirmar pagamento:', error);
@@ -184,7 +257,14 @@ const getPaymentHistory = async (req, res) => {
         { 
           model: Client,
           as: 'client',
-          attributes: ['id', 'name', 'phone']
+          attributes: ['id', 'name', 'phone', 'barberId'],
+          include: [
+            {
+              model: Barber,
+              as: 'barber',
+              attributes: ['id', 'name']
+            }
+          ]
         }
       ],
       order: [['month', 'DESC']],
@@ -212,7 +292,14 @@ const getMonthlyPayments = async (req, res) => {
         { 
           model: Client,
           as: 'client',
-          attributes: ['id', 'name', 'phone'],
+          attributes: ['id', 'name', 'phone', 'barberId'],
+          include: [
+            {
+              model: Barber,
+              as: 'barber',
+              attributes: ['id', 'name']
+            }
+          ],
           required: false
         }
       ],
@@ -226,7 +313,14 @@ const getMonthlyPayments = async (req, res) => {
         isActive: true,
         id: { [Op.notIn]: paidClientIds },
       },
-      attributes: ['id', 'name', 'phone', 'monthlyFee'],
+      include: [
+        {
+          model: Barber,
+          as: 'barber',
+          attributes: ['id', 'name']
+        }
+      ],
+      attributes: ['id', 'name', 'phone', 'monthlyFee', 'barberId'],
     });
     
     res.json({
@@ -241,7 +335,7 @@ const getMonthlyPayments = async (req, res) => {
   }
 };
 
-// 🔥 DELETAR PAGAMENTO (CORRIGIDO)
+// DELETAR PAGAMENTO
 const removePayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -251,18 +345,15 @@ const removePayment = async (req, res) => {
       return res.status(404).json({ error: 'Pagamento não encontrado' });
     }
     
-    // 🔥 BUSCAR O REVENUE ASSOCIADO
     const today = new Date().toISOString().split('T')[0];
     const revenue = await Revenue.findOne({
       where: {
         date: today,
         total: payment.amount,
-        commissions: 0,
         servicesCount: 1,
       }
     });
     
-    // 🔥 REMOVER DO CAIXA
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -287,13 +378,11 @@ const removePayment = async (req, res) => {
       console.log(`🗑️ Pagamento ${id} removido do caixa`);
     }
     
-    // 🔥 DELETAR REVENUE
     if (revenue) {
       await revenue.destroy();
       console.log(`🗑️ Revenue ${revenue.id} removido`);
     }
     
-    // 🔥 DELETAR PAGAMENTO
     await payment.destroy();
     console.log(`🗑️ Pagamento ${id} removido`);
     
