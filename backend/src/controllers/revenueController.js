@@ -14,7 +14,7 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log('📊 Gerando dashboard financeiro:', { startDate, endDate, monthString });
     
-    // 🔥 1. BUSCAR REVENUES
+    // 🔥 1. BUSCAR REVENUES (SERVIÇOS)
     const revenues = await Revenue.findAll({
       where: {
         date: {
@@ -81,6 +81,9 @@ const getFinancialDashboard = async (req, res) => {
     
     // 🔥 4. CALCULAR RECEITAS
     const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
+    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
+    const totalServiceRevenue = totalRevenue - totalProductRevenue - totalMonthlyRevenue;
     
     // 🔥 5. CALCULAR COMISSÕES SEPARADAS
     const totalServiceCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
@@ -93,14 +96,9 @@ const getFinancialDashboard = async (req, res) => {
     // 🔥 TOTAL DE COMISSÕES = SOMA DE TUDO
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // 🔥 6. CALCULAR RECEITAS POR CATEGORIA
-    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
-    const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
-    const totalServiceRevenue = totalRevenue - totalProductRevenue - totalMonthlyRevenue;
-    
-    // 🔥 7. COMISSÕES POR BARBEIRO
+    // 🔥 6. COMISSÕES POR BARBEIRO - SEPARADAS
     const commissionsByBarber = {};
-    
+
     // Comissões de serviços (Revenue)
     revenues.forEach(r => {
       const barberId = r.barberId || 'sem-barbeiro';
@@ -116,7 +114,7 @@ const getFinancialDashboard = async (req, res) => {
       }
       commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
     });
-    
+
     // Comissões de produtos (Sale)
     sales.forEach(s => {
       const barberId = s.barberId || 'sem-barbeiro';
@@ -132,7 +130,7 @@ const getFinancialDashboard = async (req, res) => {
       }
       commissionsByBarber[barberId].productCommission += s.commission || 0;
     });
-    
+
     // Comissões de mensalidades
     monthlyPayments.forEach(mp => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
@@ -151,7 +149,7 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
-    // 🔥 8. BUSCAR DESPESAS
+    // 🔥 7. BUSCAR DESPESAS
     const expenses = await Expense.findAll({
       where: {
         date: {
@@ -169,7 +167,7 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 9. MONTAR RESULTADO
+    // 🔥 8. MONTAR RESULTADO
     const result = {
       period: {
         month: mes,
@@ -188,10 +186,10 @@ const getFinancialDashboard = async (req, res) => {
         revenueFromMonthly: totalMonthlyRevenue,
       },
       commissions: {
-        total: totalCommissions, // 🔥 R$ 2.648,00
-        service: totalServiceCommissions, // 🔥 R$ 1.728,00
-        product: totalProductCommissions, // 🔥 R$ 70,00
-        monthly: totalMonthlyCommissions, // 🔥 R$ 850,00
+        total: totalCommissions,
+        service: totalServiceCommissions,
+        product: totalProductCommissions,
+        monthly: totalMonthlyCommissions,
         byBarber: Object.values(commissionsByBarber)
           .filter(b => b.serviceCommission > 0 || b.productCommission > 0 || b.monthlyCommission > 0)
           .map(b => ({
