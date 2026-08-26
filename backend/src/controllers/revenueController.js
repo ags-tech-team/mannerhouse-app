@@ -80,14 +80,15 @@ const getFinancialDashboard = async (req, res) => {
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
     // 🔥 4. CALCULAR RECEITAS - CORRIGIDO
-    // A receita de serviços é a soma dos revenues (agora só tem serviços)
-    const totalServiceRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
+    // FILTRA SÓ OS REVENUES QUE TÊM BARBEIRO (SERVIÇOS)
+    const serviceRevenues = revenues.filter(r => r.barberId !== null);
+    const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
     // 🔥 5. CALCULAR COMISSÕES - CORRIGIDO
-    const totalServiceCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
+    const totalServiceCommissions = serviceRevenues.reduce((sum, r) => sum + r.commissions, 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
       const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
@@ -98,9 +99,9 @@ const getFinancialDashboard = async (req, res) => {
     // 🔥 6. COMISSÕES POR BARBEIRO
     const commissionsByBarber = {};
 
-    // Comissões de serviços (Revenue)
-    revenues.forEach(r => {
-      const barberId = r.barberId || 'sem-barbeiro';
+    // Comissões de serviços (Revenue) - SÓ OS QUE TÊM BARBEIRO
+    serviceRevenues.forEach(r => {
+      const barberId = r.barberId;
       const barberName = r.barber?.name || 'Sem Barbeiro';
       
       if (!commissionsByBarber[barberId]) {
@@ -205,7 +206,7 @@ const getFinancialDashboard = async (req, res) => {
         list: expenses
       },
       revenues: {
-        services: revenues.map(r => ({
+        services: serviceRevenues.map(r => ({
           id: r.id,
           date: r.date,
           barber: r.barber?.name || 'Desconhecido',
