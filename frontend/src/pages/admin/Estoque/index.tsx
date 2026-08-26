@@ -31,7 +31,9 @@ const AdminEstoque = () => {
     setLoading(true);
     try {
       const data = await productService.getAll();
-      setProducts(data);
+      // 🔥 FILTRA SÓ OS PRODUTOS ATIVOS
+      const activeProducts = data.filter(product => product.isActive !== false);
+      setProducts(activeProducts);
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
       alert('Erro ao carregar produtos');
