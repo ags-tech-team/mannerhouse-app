@@ -43,7 +43,8 @@ export const productService = {
     return response.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await api.delete(`/products/${id}`);
+  async delete(id: string): Promise<{ message: string; action: string; salesCount?: number }> {
+    const response = await api.delete(`/products/${id}`);
+    return response.data;
   },
 };

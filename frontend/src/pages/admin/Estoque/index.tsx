@@ -77,15 +77,32 @@ const AdminEstoque = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    
+    const message = `Tem certeza que deseja excluir "${product.name}"?\n\n`;
+    const confirmMessage = product.stock > 0 
+      ? `${message}Este produto tem ${product.stock} unidades em estoque.`
+      : message;
+    
+    if (!confirm(confirmMessage)) return;
+    
     try {
-      await productService.delete(id);
+      const response = await productService.delete(id);
+      
+      if (response.action === 'deactivated') {
+        alert(`✅ Produto "${product.name}" foi desativado!\n\nMotivo: Possui ${response.salesCount} venda(s) associada(s).\nEle não aparecerá mais no estoque, mas o histórico de vendas permanece intacto.`);
+      } else {
+        alert(`✅ Produto "${product.name}" foi excluído com sucesso!`);
+      }
+      
       await loadProducts();
-    } catch (error) {
-      alert('Erro ao excluir produto');
+    } catch (error: any) {
+      console.error('Erro ao deletar produto:', error);
+      alert(error.response?.data?.error || 'Erro ao excluir produto');
     }
   };
-
+  
   const resetForm = () => {
     setEditingProduct(null);
     setFormData({

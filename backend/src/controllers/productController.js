@@ -1,10 +1,15 @@
-const { Product } = require('../models');
+const { Product, Sale } = require('../models');
 const { Op } = require('sequelize');
 
 const getAll = async (req, res) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, includeInactive } = req.query;
     const where = {};
+    
+    // 🔥 POR PADRÃO, NÃO MOSTRA INATIVOS
+    if (includeInactive !== 'true') {
+      where.isActive = true;
+    }
     
     if (category) where.category = category;
     if (search) {
@@ -43,7 +48,7 @@ const getById = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { name, description, price, costPrice, stock, category } = req.body;
+    const { name, description, price, costPrice, stock, category, hasCommission } = req.body;
     
     console.log('📦 Criando produto:', { name, price, costPrice, stock });
     
@@ -54,6 +59,7 @@ const create = async (req, res) => {
       costPrice: parseFloat(costPrice) || 0,
       stock: parseInt(stock) || 0,
       category: category || 'outros',
+      hasCommission: hasCommission !== undefined ? hasCommission : true,
       isActive: true,
     });
     
@@ -69,7 +75,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, costPrice, stock, category, isActive } = req.body;
+    const { name, description, price, costPrice, stock, category, isActive, hasCommission } = req.body;
     
     const product = await Product.findByPk(id);
     if (!product) {
@@ -84,6 +90,7 @@ const update = async (req, res) => {
       stock: stock !== undefined ? parseInt(stock) : product.stock,
       category: category || product.category,
       isActive: isActive !== undefined ? isActive : product.isActive,
+      hasCommission: hasCommission !== undefined ? hasCommission : product.hasCommission,
     });
     
     res.json(product);
@@ -93,20 +100,44 @@ const update = async (req, res) => {
   }
 };
 
+// 🔥 CORRIGIDO: DELETE LÓGICO (DESATIVA) EM VEZ DE DELETE FÍSICO
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findByPk(id);
     
+    const product = await Product.findByPk(id);
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
     
-    await product.destroy();
-    res.status(204).send();
+    // 🔥 VERIFICAR SE O PRODUTO TEM VENDAS
+    const salesCount = await Sale.count({
+      where: { productId: id }
+    });
+    
+    if (salesCount > 0) {
+      // 🔥 TEM VENDAS → DESATIVA
+      await product.update({ isActive: false });
+      console.log(`📦 Produto ${product.name} desativado (tem ${salesCount} vendas associadas)`);
+      return res.json({
+        message: 'Produto desativado com sucesso! (possui vendas associadas)',
+        product: product,
+        action: 'deactivated',
+        salesCount
+      });
+    } else {
+      // 🔥 NÃO TEM VENDAS → DELETA FÍSICO
+      await product.destroy();
+      console.log(`🗑️ Produto ${product.name} deletado fisicamente (sem vendas associadas)`);
+      return res.json({
+        message: 'Produto excluído com sucesso!',
+        product: product,
+        action: 'deleted'
+      });
+    }
   } catch (error) {
     console.error('❌ Erro ao deletar produto:', error);
-    res.status(500).json({ error: 'Erro ao deletar produto' });
+    res.status(500).json({ error: 'Erro ao deletar produto', details: error.message });
   }
 };
 
