@@ -70,6 +70,7 @@ const AdminMensalistas = () => {
   const [showModal, setShowModal] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [editingBarberId, setEditingBarberId] = useState('');
   
   // 🔥 MÊS SELECIONADO
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -268,7 +269,18 @@ const AdminMensalistas = () => {
     }
   };
 
-  const handleSetMonthlyFee = async (client: Client) => {
+  // 🔥 FUNÇÃO PARA ABRIR MODAL DE EDIÇÃO
+  const handleEditClient = (client: Client) => {
+    setSelectedClient(client);
+    setEditingBarberId(client.barberId || '');
+    monthlyFee.setValue(String(client.monthlyFee || 0));
+    setShowModal(true);
+  };
+
+  // 🔥 FUNÇÃO PARA SALVAR EDIÇÃO
+  const handleSaveEdit = async () => {
+    if (!selectedClient) return;
+    
     const fee = monthlyFee.getNumberValue();
     if (!fee || fee < 0) {
       alert('Digite um valor válido');
@@ -276,18 +288,20 @@ const AdminMensalistas = () => {
     }
 
     try {
-      await api.put(`/monthly/client/${client.id}`, {
+      await api.put(`/monthly/client/${selectedClient.id}`, {
         isMonthly: true,
         monthlyFee: fee,
-        barberId: client.barberId || null,
+        barberId: editingBarberId || null,
       });
+      
       monthlyFee.reset();
       await loadClients();
       setShowModal(false);
-      alert('✅ Valor da mensalidade atualizado!');
+      setSelectedClient(null);
+      alert('✅ Cliente atualizado com sucesso!');
     } catch (error) {
       console.error('Erro ao atualizar:', error);
-      alert('Erro ao atualizar valor');
+      alert('Erro ao atualizar cliente');
     }
   };
 
@@ -587,7 +601,8 @@ const AdminMensalistas = () => {
                           <button
                             onClick={() => {
                               setSelectedClient(client);
-                              monthlyFee.reset();
+                              setEditingBarberId(client.barberId || '');
+                              monthlyFee.setValue(String(client.monthlyFee || 0));
                               setShowModal(true);
                             }}
                             className="text-[#9c7f64] hover:text-[#544941] transition text-sm"
@@ -597,13 +612,9 @@ const AdminMensalistas = () => {
                         ) : (
                           <>
                             <button
-                              onClick={() => {
-                                setSelectedClient(client);
-                                monthlyFee.setValue(String(client.monthlyFee || 0));
-                                setShowModal(true);
-                              }}
+                              onClick={() => handleEditClient(client)}
                               className="text-blue-600 hover:text-blue-800 transition"
-                              title="Editar valor"
+                              title="Editar"
                             >
                               <Edit size={18} />
                             </button>
@@ -713,7 +724,7 @@ const AdminMensalistas = () => {
                     <option value="">Selecione um barbeiro...</option>
                     {barbers.map(barber => (
                       <option key={barber.id} value={barber.id}>
-                        {barber.name} 
+                        {barber.name} ({barber.serviceCommissionRate * 100}% comissão)
                       </option>
                     ))}
                   </select>
@@ -836,13 +847,13 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* Modal Editar Mensalidade */}
+      {/* MODAL EDITAR MENSALIDADE */}
       {showModal && selectedClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#060606]">
-                {selectedClient.isMonthly ? 'Editar Mensalidade' : 'Tornar Mensalista'}
+                {selectedClient.isMonthly ? 'Editar Mensalista' : 'Tornar Mensalista'}
               </h2>
               <button
                 onClick={() => {
@@ -862,6 +873,33 @@ const AdminMensalistas = () => {
                 <p className="text-sm text-[#7f7c7a]">{selectedClient.phone}</p>
               </div>
 
+              {/* 🔥 SELETOR DE BARBEIRO */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  Barbeiro Responsável
+                </label>
+                <div className="relative">
+                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <select
+                    value={editingBarberId}
+                    onChange={(e) => setEditingBarberId(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent appearance-none"
+                  >
+                    <option value="">Selecione um barbeiro...</option>
+                    {barbers.map(barber => (
+                      <option key={barber.id} value={barber.id}>
+                        {barber.name} ({barber.serviceCommissionRate * 100}% comissão)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedClient.barber && (
+                  <p className="text-xs text-[#7f7c7a] mt-1">
+                    Atual: {selectedClient.barber.name}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   Valor da Mensalidade (R$)
@@ -878,13 +916,25 @@ const AdminMensalistas = () => {
                 />
               </div>
 
-              <button
-                onClick={() => handleSetMonthlyFee(selectedClient)}
-                className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
-              >
-                <Check size={18} />
-                {selectedClient.isMonthly ? 'Atualizar Valor' : 'Ativar Mensalidade'}
-              </button>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setSelectedClient(null);
+                    monthlyFee.reset();
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  Salvar Alterações
+                </button>
+              </div>
             </div>
           </div>
         </div>

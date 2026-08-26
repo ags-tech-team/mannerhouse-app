@@ -90,7 +90,6 @@ const createMonthlyClient = async (req, res) => {
   }
 };
 
-// ATUALIZAR CLIENTE PARA MENSALISTA
 const updateMonthlyStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -101,7 +100,7 @@ const updateMonthlyStatus = async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    // 🔥 VERIFICAR BARBEIRO
+    // 🔥 VERIFICAR BARBEIRO SE FOI ENVIADO
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) {
@@ -110,11 +109,23 @@ const updateMonthlyStatus = async (req, res) => {
     }
     
     await client.update({ 
-      isMonthly, 
-      monthlyFee,
-      barberId: barberId || null
+      isMonthly: isMonthly !== undefined ? isMonthly : client.isMonthly,
+      monthlyFee: monthlyFee !== undefined ? monthlyFee : client.monthlyFee,
+      barberId: barberId !== undefined ? barberId : client.barberId,
     });
-    res.json(client);
+    
+    // Buscar o cliente atualizado com o barbeiro
+    const updatedClient = await Client.findByPk(id, {
+      include: [
+        {
+          model: Barber,
+          as: 'barber',
+          attributes: ['id', 'name', 'serviceCommissionRate']
+        }
+      ]
+    });
+    
+    res.json(updatedClient);
   } catch (error) {
     console.error('❌ Erro ao atualizar status mensal:', error);
     res.status(500).json({ error: 'Erro ao atualizar status mensal' });
