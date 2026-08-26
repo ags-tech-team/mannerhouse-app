@@ -117,11 +117,18 @@ const createAppointment = async (req, res) => {
       notes: `Agendamento feito pelo site - Cliente: ${clientName}`,
     });
     
-    // Buscar agendamento criado
     const created = await Appointment.findByPk(appointment.id, {
       include: [
-        { model: Barber, attributes: ['id', 'name'] },
-        { model: Client, attributes: ['id', 'name', 'phone'] }
+        { 
+          model: Barber, 
+          as: 'barber',  // ✅ ADICIONADO
+          attributes: ['id', 'name'] 
+        },
+        { 
+          model: Client, 
+          as: 'client',  // ✅ ADICIONADO
+          attributes: ['id', 'name', 'phone'] 
+        }
       ],
     });
     
