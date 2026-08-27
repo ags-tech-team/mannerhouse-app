@@ -22,6 +22,6 @@ router.get('/barber/:barberId/available', getAvailableTimes);
 router.post('/', create);
 router.patch('/:id/status', updateStatus);
 router.delete('/:id', remove);
-router.get('/:id', appointmentController.getById);
+router.get('/:id', getById);
 
 module.exports = router;
