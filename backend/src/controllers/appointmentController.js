@@ -17,24 +17,31 @@ const getAll = async (req, res) => {
     
     const appointments = await Appointment.findAll({
       where,
-      include: [
-        { 
-          model: Barber, 
-          as: 'barber',  // 🔥 ADICIONAR
-          attributes: ['id', 'name', 'email', 'phone'],
-          required: false
-        },
-        { 
-          model: Client, 
-          as: 'client',  // 🔥 ADICIONAR
-          attributes: ['id', 'name', 'phone'],
-          required: false
-        }
-      ],
       order: [['date', 'ASC'], ['time', 'ASC']],
     });
     
-    res.json(appointments);
+    // 🔥 BUSCAR CLIENTES E BARBEIROS MANUALMENTE
+    const result = await Promise.all(appointments.map(async (app) => {
+      const appData = app.toJSON();
+      
+      if (app.clientId) {
+        const client = await Client.findByPk(app.clientId, {
+          attributes: ['id', 'name', 'phone']
+        });
+        appData.Client = client;
+      }
+      
+      if (app.barberId) {
+        const barber = await Barber.findByPk(app.barberId, {
+          attributes: ['id', 'name', 'email', 'phone']
+        });
+        appData.Barber = barber;
+      }
+      
+      return appData;
+    }));
+    
+    res.json(result);
   } catch (error) {
     console.error('Erro ao buscar agendamentos:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamentos' });
@@ -51,17 +58,24 @@ const getByBarber = async (req, res) => {
     
     const appointments = await Appointment.findAll({
       where,
-      include: [
-        { 
-          model: Client, 
-          as: 'client',  // 🔥 ADICIONAR
-          attributes: ['id', 'name', 'phone']
-        }
-      ],
       order: [['time', 'ASC']],
     });
     
-    res.json(appointments);
+    // 🔥 BUSCAR CLIENTES MANUALMENTE
+    const result = await Promise.all(appointments.map(async (app) => {
+      const appData = app.toJSON();
+      
+      if (app.clientId) {
+        const client = await Client.findByPk(app.clientId, {
+          attributes: ['id', 'name', 'phone']
+        });
+        appData.Client = client;
+      }
+      
+      return appData;
+    }));
+    
+    res.json(result);
   } catch (error) {
     console.error('Erro ao buscar agendamentos do barbeiro:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamentos' });
@@ -116,13 +130,11 @@ const create = async (req, res) => {
     
     console.log('📝 Criando agendamento:', { barberId, clientName, clientPhone, date, time });
     
-    // Verificar se barbeiro existe
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // Verificar se o horário já está ocupado
     const existing = await Appointment.findOne({
       where: {
         barberId,
@@ -136,13 +148,11 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // 🔥 BUSCAR OU CRIAR CLIENTE PELO TELEFONE
     let client = null;
     
     if (clientId) {
       client = await Client.findByPk(clientId);
     } else if (clientPhone) {
-      // 🔥 USAR SERVIÇO CENTRALIZADO
       const result = await findOrCreateClient({
         name: clientName || 'Cliente sem nome',
         phone: clientPhone,
@@ -155,10 +165,8 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
-    // Calcular comissão
     const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
     
-    // Criar agendamento
     const appointment = await Appointment.create({
       barberId,
       clientId: client.id,
@@ -174,14 +182,25 @@ const create = async (req, res) => {
     
     console.log('✅ Agendamento criado:', appointment.id);
     
-    const created = await Appointment.findByPk(appointment.id, {
-      include: [
-       { model: Barber, as: 'barber', attributes: ['id', 'name'] },  
-       { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
-      ],
-    });
+    // 🔥 BUSCAR DADOS COMPLETOS MANUALMENTE
+    const created = await Appointment.findByPk(appointment.id);
+    const result = created.toJSON();
     
-    res.status(201).json(created);
+    if (created.clientId) {
+      const clientData = await Client.findByPk(created.clientId, {
+        attributes: ['id', 'name', 'phone']
+      });
+      result.Client = clientData;
+    }
+    
+    if (created.barberId) {
+      const barberData = await Barber.findByPk(created.barberId, {
+        attributes: ['id', 'name']
+      });
+      result.Barber = barberData;
+    }
+    
+    res.status(201).json(result);
   } catch (error) {
     console.error('❌ Erro ao criar agendamento:', error);
     res.status(500).json({ error: error.message || 'Erro ao criar agendamento' });
@@ -193,12 +212,7 @@ const updateStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     
-    const appointment = await Appointment.findByPk(id, {
-      include: [
-        { model: Barber, as: 'barber' }, 
-        { model: Client, as: 'client' }
-      ]
-    });
+    const appointment = await Appointment.findByPk(id);
     
     if (!appointment) {
       return res.status(404).json({ error: 'Agendamento não encontrado' });
@@ -213,7 +227,6 @@ const updateStatus = async (req, res) => {
     if (status === 'completed' && oldStatus !== 'completed') {
       const hoje = new Date().toISOString().split('T')[0];
       
-      // 🔥 BUSCAR CAIXA
       cashRegister = await CashRegister.findOne({
         where: {
           date: hoje,
@@ -222,9 +235,7 @@ const updateStatus = async (req, res) => {
         }
       });
       
-      // 🔥 VERIFICAR SE O CAIXA ESTÁ ABERTO - ANTES DE CONTINUAR
       if (!cashRegister) {
-        // Reverter o status se não tiver caixa aberto
         await appointment.update({ status: oldStatus });
         return res.status(400).json({ 
           error: '⚠️ Caixa fechado! Abra o caixa antes de concluir o agendamento.',
@@ -234,19 +245,23 @@ const updateStatus = async (req, res) => {
       
       cashRegisterStatus = 'open';
       
-      const commission = (appointment.price || 0) * (appointment.Barber?.serviceCommissionRate || 0.50);
+      // 🔥 BUSCAR BARBEIRO PARA CALCULAR COMISSÃO
+      const barber = await Barber.findByPk(appointment.barberId);
+      const commission = (appointment.price || 0) * (barber?.serviceCommissionRate || 0.50);
       
-      // 🔥 ADICIONAR AO CAIXA (cashRegister existe com certeza aqui)
       const services = cashRegister.services || [];
       const totalRevenue = cashRegister.totalRevenue || 0;
       const totalCommissions = cashRegister.totalCommissions || 0;
       
+      // 🔥 BUSCAR CLIENTE PARA O NOME
+      const client = await Client.findByPk(appointment.clientId);
+      
       services.push({
         id: appointment.id,
         type: 'service',
-        client: appointment.Client?.name || 'Cliente',
+        client: client?.name || 'Cliente',
         barberId: appointment.barberId,
-        barberName: appointment.Barber?.name || 'Barbeiro',
+        barberName: barber?.name || 'Barbeiro',
         service: appointment.service,
         price: appointment.price || 0,
         commission,
@@ -264,15 +279,26 @@ const updateStatus = async (req, res) => {
       console.log(`✅ Serviço ${id} concluído e adicionado ao caixa.`);
     }
     
-    const updated = await Appointment.findByPk(id, {
-      include: [
-        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'] }, // ✅ ADICIONAR 'as'
-        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }            // ✅ ADICIONAR 'as'
-      ],
-    });
+    // 🔥 BUSCAR DADOS COMPLETOS MANUALMENTE
+    const updated = await Appointment.findByPk(id);
+    const result = updated.toJSON();
+    
+    if (updated.clientId) {
+      const clientData = await Client.findByPk(updated.clientId, {
+        attributes: ['id', 'name', 'phone']
+      });
+      result.Client = clientData;
+    }
+    
+    if (updated.barberId) {
+      const barberData = await Barber.findByPk(updated.barberId, {
+        attributes: ['id', 'name', 'email', 'phone']
+      });
+      result.Barber = barberData;
+    }
     
     res.json({
-      ...updated.toJSON(),
+      ...result,
       cashRegisterStatus: cashRegisterStatus,
       message: status === 'completed' 
         ? (cashRegister 
@@ -333,28 +359,42 @@ const searchClients = async (req, res) => {
 const getById = async (req, res) => {
   try {
     const { id } = req.params;
-    const appointment = await Appointment.findByPk(id, {
-      include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name', 'email', 'phone']
-        },
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone']
-        }
-      ],
-    });
+    console.log('🔍 Buscando agendamento:', id);
+    
+    const appointment = await Appointment.findByPk(id);
     
     if (!appointment) {
+      console.log('❌ Agendamento não encontrado');
       return res.status(404).json({ error: 'Agendamento não encontrado' });
     }
     
-    res.json(appointment);
+    // 🔥 BUSCAR MANUALMENTE O CLIENTE
+    let client = null;
+    let barber = null;
+    
+    if (appointment.clientId) {
+      client = await Client.findByPk(appointment.clientId, {
+        attributes: ['id', 'name', 'phone']
+      });
+      console.log('👤 Cliente encontrado manualmente:', client?.name);
+    }
+    
+    if (appointment.barberId) {
+      barber = await Barber.findByPk(appointment.barberId, {
+        attributes: ['id', 'name', 'email', 'phone']
+      });
+      console.log('✂️ Barbeiro encontrado manualmente:', barber?.name);
+    }
+    
+    const result = {
+      ...appointment.toJSON(),
+      Client: client,
+      Barber: barber
+    };
+    
+    res.json(result);
   } catch (error) {
-    console.error('Erro ao buscar agendamento:', error);
+    console.error('❌ Erro ao buscar agendamento:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamento' });
   }
 };
