@@ -31,7 +31,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // 🔥 CORRIGIDO: STRING em vez de ENUM
     service: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -67,6 +66,18 @@ module.exports = (sequelize, DataTypes) => {
     underscored: true,
     timestamps: true,
   });
+
+  // 🔥 ADICIONAR AS ASSOCIAÇÕES AQUI
+  Appointment.associate = function(models) {
+    Appointment.belongsTo(models.Barber, { 
+      foreignKey: 'barberId', 
+      as: 'barber' 
+    });
+    Appointment.belongsTo(models.Client, { 
+      foreignKey: 'clientId', 
+      as: 'client' 
+    });
+  };
 
   return Appointment;
 };
