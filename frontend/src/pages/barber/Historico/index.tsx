@@ -309,7 +309,7 @@ const BarberHistorico = () => {
             <ChevronLeft size={20} />
           </button>
           <span className="text-lg font-semibold min-w-[140px] text-center">
-            {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            {new Date(selectedMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
           </span>
           <button
             onClick={() => changeMonth(1)}
