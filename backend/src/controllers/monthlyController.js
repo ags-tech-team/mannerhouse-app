@@ -1,15 +1,21 @@
 const { Client, MonthlyPayment, Revenue, CashRegister, Barber } = require('../models');
 const { Op } = require('sequelize');
 
-// LISTAR TODOS OS CLIENTES MENSALISTAS
 const getMonthlyClients = async (req, res) => {
   try {
+    const { month } = req.query; // 🔥 PEGAR O MÊS DA QUERY
+    const currentMonth = month || new Date().toISOString().slice(0, 7); // 🔥 USAR O MÊS PASSADO OU ATUAL
+    
+    console.log('📅 Mês solicitado:', currentMonth); // 🔥 DEBUG
+    
     const clients = await Client.findAll({
       where: { isMonthly: true, isActive: true },
       include: [
         {
           model: MonthlyPayment,
           as: 'MonthlyPayments',
+          where: { month: currentMonth }, // 🔥 FILTRAR PELO MÊS
+          required: false, // 🔥 TRAZ CLIENTES MESMO SEM PAGAMENTO
           order: [['month', 'DESC']],
           limit: 12,
         },
@@ -21,6 +27,7 @@ const getMonthlyClients = async (req, res) => {
       ],
       order: [['name', 'ASC']],
     });
+    
     res.json(clients);
   } catch (error) {
     console.error('❌ Erro ao buscar mensalistas:', error);

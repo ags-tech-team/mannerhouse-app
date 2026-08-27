@@ -107,11 +107,12 @@ const AdminMensalistas = () => {
     }
   };
 
-  // 🔥 FUNÇÕES DE NAVEGAÇÃO DE MÊS
   const changeMonth = (delta: number) => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const newDate = new Date(year, month - 1 + delta, 1);
-    setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+    const newYear = newDate.getFullYear();
+    const newMonth = String(newDate.getMonth() + 1).padStart(2, '0');
+    setSelectedMonth(`${newYear}-${newMonth}`);
   };
 
   const isCurrentMonth = () => {
@@ -122,23 +123,29 @@ const AdminMensalistas = () => {
 
   useEffect(() => {
     loadClients();
-  }, []);
+  }, [selectedMonth]);
 
   const loadClients = async () => {
-    setLoading(true);
-    try {
-      console.log('🔄 Buscando clientes mensalistas...');
-      const response = await api.get('/monthly/clients');
-      console.log('📦 Clientes carregados:', response.data);
-      setClients(response.data);
-    } catch (error: any) {
-      console.error('❌ Erro ao carregar mensalistas:', error);
-      console.error('Detalhes:', error.response?.data || error.message);
-      setClients([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    console.log('🔄 Buscando clientes mensalistas...');
+    console.log('📅 Mês selecionado:', selectedMonth); // 🔥 DEBUG
+    
+    // 🔥 ENVIAR O MÊS PARA O BACKEND
+    const response = await api.get('/monthly/clients', {
+      params: { month: selectedMonth }
+    });
+    
+    console.log('📦 Clientes carregados:', response.data);
+    setClients(response.data);
+  } catch (error: any) {
+    console.error('❌ Erro ao carregar mensalistas:', error);
+    console.error('Detalhes:', error.response?.data || error.message);
+    setClients([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getLastPayment = (client: Client) => {
     if (!client.MonthlyPayments || client.MonthlyPayments.length === 0) {
