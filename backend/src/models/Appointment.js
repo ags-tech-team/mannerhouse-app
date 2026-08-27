@@ -67,7 +67,7 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: true,
   });
 
-  // 🔥 ADICIONAR AS ASSOCIAÇÕES AQUI
+  // 🔥 ASSOCIAÇÃO - É ISSO QUE ESTAVA FALTANDO!
   Appointment.associate = function(models) {
     Appointment.belongsTo(models.Barber, { 
       foreignKey: 'barberId', 
