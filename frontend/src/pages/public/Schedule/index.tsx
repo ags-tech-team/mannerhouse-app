@@ -52,10 +52,7 @@ const PublicSchedule = () => {
   const [error, setError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
-  // ESTADO PARA MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
-  
-  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   
@@ -64,7 +61,6 @@ const PublicSchedule = () => {
     clientPhone: '',
   });
 
-  // Carregar barbeiros
   useEffect(() => {
     loadBarbers();
   }, []);
@@ -82,7 +78,6 @@ const PublicSchedule = () => {
     }
   };
 
-  // Carregar horários disponíveis
   useEffect(() => {
     if (selectedBarber && selectedDate) {
       loadAvailableTimes();
@@ -105,6 +100,22 @@ const PublicSchedule = () => {
     }
   };
 
+  // 🔥 FUNÇÃO PARA VERIFICAR SE O DIA É PERMITIDO PARA AGENDAMENTO
+  const isDayAllowedForBooking = (date: Date) => {
+    const dayOfWeek = date.getDay(); // 0 = Domingo, 5 = Sexta, 6 = Sábado
+    
+    // 🔥 DOMINGO: Fechado (não permite)
+    if (dayOfWeek === 0) return { allowed: false, reason: 'Fechado' };
+    
+    // 🔥 SEXTA (5) e SÁBADO (6): Apenas ordem de chegada
+    if (dayOfWeek === 5 || dayOfWeek === 6) {
+      return { allowed: false, reason: 'Apenas ordem de chegada' };
+    }
+    
+    // 🔥 SEGUNDA A QUINTA: Normal (permite)
+    return { allowed: true, reason: '' };
+  };
+
   const getDaysInMonth = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -123,7 +134,7 @@ const PublicSchedule = () => {
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const date = new Date(year, month, i);
       const isPast = date < today;
-      const isSunday = date.getDay() === 0;
+      const dayInfo = isDayAllowedForBooking(date);
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       
       days.push({
@@ -131,7 +142,11 @@ const PublicSchedule = () => {
         date: dateStr,
         isPast,
         isToday: date.toDateString() === today.toDateString(),
-        isSunday,
+        isSunday: date.getDay() === 0,
+        isFriday: date.getDay() === 5,
+        isSaturday: date.getDay() === 6,
+        allowed: dayInfo.allowed,
+        reason: dayInfo.reason,
       });
     }
     
@@ -146,17 +161,14 @@ const PublicSchedule = () => {
     setCurrentMonth(newDate);
   };
 
-  // CALCULAR TOTAL DOS SERVIÇOS
   const getTotalPrice = () => {
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
-  // PEGAR NOMES DOS SERVIÇOS
   const getServiceNames = () => {
     return selectedServices.map(s => s.service.name).join(', ');
   };
 
-  // HANDLE SELECT CLIENT
   const handleSelectClient = (client: any) => {
     setClientName(client.name);
     setClientPhone(client.phone);
@@ -167,7 +179,6 @@ const PublicSchedule = () => {
     }));
   };
 
-  // 🔥 CORRIGIDO: Enviar agendamento
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -181,7 +192,6 @@ const PublicSchedule = () => {
       return;
     }
     
-    // 🔥 CORRIGIDO: Validar clientName (do autocomplete) e formData.clientPhone
     if (!clientName.trim() || !formData.clientPhone.trim()) {
       setError('Preencha seu nome e telefone');
       return;
@@ -193,7 +203,7 @@ const PublicSchedule = () => {
     try {
       await api.post('/public/appointments', {
         barberId: selectedBarber,
-        clientName: clientName.trim(), // 🔥 USAR clientName
+        clientName: clientName.trim(),
         clientPhone: formData.clientPhone.trim(),
         date: selectedDate,
         time: selectedTime,
@@ -236,7 +246,6 @@ const PublicSchedule = () => {
     });
   };
 
-  // HANDLE PARA MULTI SERVICE SELECTOR
   const handleServicesChange = (services: SelectedService[]) => {
     setSelectedServices(services);
   };
@@ -368,29 +377,58 @@ const PublicSchedule = () => {
                           {day}
                         </div>
                       ))}
-                      {days.map((day, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          disabled={!day || day.isPast || day.isSunday}
-                          onClick={() => {
-                            if (day && !day.isPast && !day.isSunday) {
-                              setSelectedDate(day.date);
-                            }
-                          }}
-                          className={`py-2 rounded-lg text-sm transition ${
-                            !day ? 'invisible' :
-                            day.isPast || day.isSunday ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
-                            selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
-                            'hover:bg-[#9c7f64]/10'
-                          }`}
-                        >
-                          {day?.day}
-                          {day?.isSunday && (
-                            <span className="block text-[8px] text-red-400">Fechado</span>
-                          )}
-                        </button>
-                      ))}
+                      {days.map((day, index) => {
+                        // 🔥 VERIFICAR SE O DIA É PERMITIDO
+                        const isDisabled = !day || day.isPast || !day.allowed;
+                        const dayLabel = day?.reason || '';
+                        
+                        return (
+                          <button
+                            key={index}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => {
+                              if (day && !day.isPast && day.allowed) {
+                                setSelectedDate(day.date);
+                              }
+                            }}
+                            className={`py-2 rounded-lg text-sm transition relative ${
+                              !day ? 'invisible' :
+                              day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
+                              !day.allowed ? 'text-gray-400 cursor-not-allowed bg-gray-100' :
+                              selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
+                              'hover:bg-[#9c7f64]/10'
+                            }`}
+                          >
+                            {day?.day}
+                            {/* 🔥 LEGENDA PARA DIAS NÃO PERMITIDOS */}
+                            {day && !day.allowed && (
+                              <span className="block text-[8px] leading-tight">
+                                {day.reason === 'Fechado' ? '🔴' : '🚶'}
+                              </span>
+                            )}
+                            {day && day.isPast && (
+                              <span className="block text-[8px] leading-tight text-gray-400">Passado</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* 🔥 LEGENDA */}
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#7f7c7a] justify-center border-t pt-3">
+                      <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
+                        Disponível
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 bg-gray-100 border border-gray-300 rounded inline-block"></span>
+                        🚶 Ordem de chegada
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 bg-red-100 border border-red-300 rounded inline-block"></span>
+                        🔴 Fechado
+                      </span>
                     </div>
                   </div>
                 </div>
