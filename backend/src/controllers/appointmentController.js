@@ -330,8 +330,38 @@ const searchClients = async (req, res) => {
   }
 };
 
+const getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const appointment = await Appointment.findByPk(id, {
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber',
+          attributes: ['id', 'name', 'email', 'phone']
+        },
+        { 
+          model: Client, 
+          as: 'client',
+          attributes: ['id', 'name', 'phone']
+        }
+      ],
+    });
+    
+    if (!appointment) {
+      return res.status(404).json({ error: 'Agendamento não encontrado' });
+    }
+    
+    res.json(appointment);
+  } catch (error) {
+    console.error('Erro ao buscar agendamento:', error);
+    res.status(500).json({ error: 'Erro ao buscar agendamento' });
+  }
+};
+
 module.exports = {
   getAll,
+  getById, 
   getByBarber,
   getAvailableTimes,
   create,

@@ -56,6 +56,11 @@ export const appointmentService = {
     return response.data;
   },
 
+  async getById(id: string): Promise<Appointment> {
+    const response = await api.get(`/appointments/${id}`);
+    return response.data;
+  },
+
   async getByBarber(barberId: string, date?: string): Promise<Appointment[]> {
     const response = await api.get(`/appointments/barber/${barberId}`, { params: { date } });
     return response.data;

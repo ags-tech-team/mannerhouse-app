@@ -282,10 +282,18 @@ const BarberAgenda = () => {
     }
   };
 
-  // ABRIR MODAL DE DETALHES
-  const openDetailModal = (appointment: Appointment) => {
-    setSelectedAppointment(appointment);
-    setShowDetailModal(true);
+  const openDetailModal = async (appointment: Appointment) => {
+    try {
+      // 🔥 BUSCAR OS DADOS COMPLETOS DO AGENDAMENTO
+      const fullAppointment = await appointmentService.getById(appointment.id);
+      setSelectedAppointment(fullAppointment);
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Erro ao carregar detalhes do agendamento:', error);
+      // Fallback: usar os dados que já temos
+      setSelectedAppointment(appointment);
+      setShowDetailModal(true);
+    }
   };
 
   // ATUALIZAR STATUS
