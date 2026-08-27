@@ -3,18 +3,45 @@ const { Op } = require('sequelize');
 
 const getFinancialDashboard = async (req, res) => {
   try {
-    const { month } = req.query;
+    const { month, period, startDate: queryStart, endDate: queryEnd } = req.query;
     const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = month ? parseInt(month) : hoje.getMonth() + 1;
+    let ano = hoje.getFullYear();
+    let mes = hoje.getMonth() + 1;
+    let startDate, endDate, monthString;
     
-    const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
-    const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
-    const monthString = `${ano}-${String(mes).padStart(2, '0')}`;
+    // 🔥 SE FOR PERÍODO "week", CALCULAR A SEMANA
+    if (period === 'week') {
+      // 🔥 PEGAR A SEMANA ATUAL (DOMINGO A SÁBADO)
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 = Domingo, 1 = Segunda, etc.
+      
+      // 🔥 CALCULAR O INÍCIO DA SEMANA (DOMINGO)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - dayOfWeek);
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      // 🔥 CALCULAR O FIM DA SEMANA (SÁBADO)
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      
+      startDate = startOfWeek.toISOString().split('T')[0];
+      endDate = endOfWeek.toISOString().split('T')[0];
+      monthString = startDate.substring(0, 7);
+      
+      console.log('📊 Gerando dashboard SEMANAL:', { startDate, endDate });
+    } 
+    // 🔥 SE FOR PERÍODO "month" OU NÃO ESPECIFICADO
+    else {
+      mes = month ? parseInt(month) : hoje.getMonth() + 1;
+      ano = hoje.getFullYear();
+      startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
+      monthString = `${ano}-${String(mes).padStart(2, '0')}`;
+      console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
+    }
     
-    console.log('📊 Gerando dashboard financeiro:', { startDate, endDate, monthString });
-    
-    // 🔥 1. BUSCAR REVENUES (SERVIÇOS)
+    // 🔥 BUSCAR REVENUES (SERVIÇOS)
     const revenues = await Revenue.findAll({
       where: {
         date: {
@@ -35,7 +62,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 2. BUSCAR VENDAS DE PRODUTOS
+    // 🔥 BUSCAR VENDAS DE PRODUTOS
     const sales = await Sale.findAll({
       where: {
         date: {
@@ -56,7 +83,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 3. BUSCAR PAGAMENTOS DE MENSALIDADES
+    // 🔥 BUSCAR PAGAMENTOS DE MENSALIDADES
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         month: monthString,
@@ -79,15 +106,14 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
-    // 🔥 4. CALCULAR RECEITAS - CORRIGIDO
-    // FILTRA SÓ OS REVENUES QUE TÊM BARBEIRO (SERVIÇOS)
+    // 🔥 CALCULAR RECEITAS
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
-    // 🔥 5. CALCULAR COMISSÕES - CORRIGIDO
+    // 🔥 CALCULAR COMISSÕES
     const totalServiceCommissions = serviceRevenues.reduce((sum, r) => sum + r.commissions, 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
@@ -96,10 +122,9 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // 🔥 6. COMISSÕES POR BARBEIRO
+    // 🔥 COMISSÕES POR BARBEIRO
     const commissionsByBarber = {};
 
-    // Comissões de serviços (Revenue) - SÓ OS QUE TÊM BARBEIRO
     serviceRevenues.forEach(r => {
       const barberId = r.barberId;
       const barberName = r.barber?.name || 'Sem Barbeiro';
@@ -115,7 +140,6 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
     });
 
-    // Comissões de produtos (Sale)
     sales.forEach(s => {
       const barberId = s.barberId || 'sem-barbeiro';
       const barberName = s.barber?.name || 'Sem Barbeiro';
@@ -131,7 +155,6 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].productCommission += s.commission || 0;
     });
 
-    // Comissões de mensalidades
     monthlyPayments.forEach(mp => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
       const barberName = mp.client?.barber?.name || 'Sem Barbeiro';
@@ -149,7 +172,7 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
-    // 🔥 7. BUSCAR DESPESAS
+    // 🔥 BUSCAR DESPESAS
     const expenses = await Expense.findAll({
       where: {
         date: {
@@ -167,13 +190,14 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 8. MONTAR RESULTADO
+    // 🔥 MONTAR RESULTADO
     const result = {
       period: {
-        month: mes,
-        year: ano,
+        type: period || 'month',
         startDate,
         endDate,
+        month: mes,
+        year: ano,
         monthString,
       },
       summary: {
@@ -187,9 +211,9 @@ const getFinancialDashboard = async (req, res) => {
       },
       commissions: {
         total: totalCommissions,
-        service: totalServiceCommissions,
-        product: totalProductCommissions,
-        monthly: totalMonthlyCommissions,
+        service: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.serviceCommission, 0),
+        product: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.productCommission, 0),
+        monthly: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.monthlyCommission, 0),
         byBarber: Object.values(commissionsByBarber)
           .filter(b => b.serviceCommission > 0 || b.productCommission > 0 || b.monthlyCommission > 0)
           .map(b => ({
@@ -244,9 +268,10 @@ const getFinancialDashboard = async (req, res) => {
   }
 };
 
+// 🔥 O RESTO DO CÓDIGO IGUAL...
 const getSummary = async (req, res) => {
   try {
-    const { period } = req.query;
+    const { period, startDate: queryStart, endDate: queryEnd } = req.query;
     let startDate, endDate;
     const hoje = new Date();
     
@@ -254,10 +279,15 @@ const getSummary = async (req, res) => {
       startDate = hoje.toISOString().split('T')[0];
       endDate = hoje.toISOString().split('T')[0];
     } else if (period === 'week') {
-      const weekStart = new Date(hoje);
-      weekStart.setDate(hoje.getDate() - hoje.getDay());
-      startDate = weekStart.toISOString().split('T')[0];
-      endDate = hoje.toISOString().split('T')[0];
+      const dayOfWeek = hoje.getDay();
+      const startOfWeek = new Date(hoje);
+      startOfWeek.setDate(hoje.getDate() - dayOfWeek);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      startDate = startOfWeek.toISOString().split('T')[0];
+      endDate = endOfWeek.toISOString().split('T')[0];
     } else if (period === 'month') {
       const monthStart = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       startDate = monthStart.toISOString().split('T')[0];

@@ -10,15 +10,18 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Eye
+  Eye,
+  CalendarDays
 } from 'lucide-react';
 
 interface FinancialDashboard {
   period: {
-    month: number;
-    year: number;
+    type: string;
     startDate: string;
     endDate: string;
+    month: number;
+    year: number;
+    monthString: string;
   };
   summary: {
     totalRevenue: number;
@@ -27,18 +30,18 @@ interface FinancialDashboard {
     netProfit: number;
     revenueFromServices: number;
     revenueFromProducts: number;
-    revenueFromMonthly: number; // 🔥 NOVO
+    revenueFromMonthly: number;
   };
   commissions: {
     total: number;
     service: number;
     product: number;
-    monthly: number; // 🔥 NOVO
+    monthly: number;
     byBarber: Array<{
       name: string;
       serviceCommission: number;
       productCommission: number;
-      monthlyCommission: number; // 🔥 NOVO
+      monthlyCommission: number;
       total: number;
     }>;
   };
@@ -58,6 +61,7 @@ interface FinancialDashboard {
 const AdminFaturamento = () => {
   const [data, setData] = useState<FinancialDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [periodType, setPeriodType] = useState<'month' | 'week'>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return now.getMonth() + 1;
@@ -65,23 +69,46 @@ const AdminFaturamento = () => {
   const [selectedYear, setSelectedYear] = useState(() => {
     return new Date().getFullYear();
   });
+  const [weekOffset, setWeekOffset] = useState(0);
 
   useEffect(() => {
     loadData();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, periodType, weekOffset]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/revenues/dashboard', {
-        params: { month: selectedMonth }
-      });
+      const params: any = {};
+      
+      if (periodType === 'week') {
+        params.period = 'week';
+        // Calcular a semana com offset
+        const now = new Date();
+        now.setDate(now.getDate() + (weekOffset * 7));
+        const dayOfWeek = now.getDay();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - dayOfWeek);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        params.startDate = startOfWeek.toISOString().split('T')[0];
+        params.endDate = endOfWeek.toISOString().split('T')[0];
+      } else {
+        params.month = selectedMonth;
+      }
+      
+      const response = await api.get('/revenues/dashboard', { params });
       setData(response.data);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const changeWeek = (delta: number) => {
+    setWeekOffset(weekOffset + delta);
   };
 
   const changeMonth = (delta: number) => {
@@ -105,10 +132,15 @@ const AdminFaturamento = () => {
     }).format(value);
   };
 
-  const formatMonth = (month: number, year: number) => {
+  const formatPeriod = () => {
+    if (periodType === 'week' && data?.period) {
+      const start = new Date(data.period.startDate);
+      const end = new Date(data.period.endDate);
+      return `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}`;
+    }
     const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    return `${months[month - 1]} ${year}`;
+    return `${months[selectedMonth - 1]} ${selectedYear}`;
   };
 
   const getCategoryLabel = (category: string) => {
@@ -148,22 +180,45 @@ const AdminFaturamento = () => {
           <h1 className="text-3xl font-bold text-[#060606]">📊 Faturamento</h1>
           <p className="text-[#7f7c7a]">Visão completa das finanças da barbearia</p>
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => changeMonth(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <span className="text-lg font-semibold min-w-[140px] text-center">
-            {formatMonth(selectedMonth, selectedYear)}
-          </span>
-          <button
-            onClick={() => changeMonth(1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
-            <ChevronRight size={20} />
-          </button>
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* 🔥 SELETOR DE PERÍODO */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => { setPeriodType('month'); setWeekOffset(0); }}
+              className={`px-3 py-1 rounded-lg text-sm transition ${
+                periodType === 'month' ? 'bg-white shadow text-[#060606]' : 'text-[#7f7c7a] hover:text-[#060606]'
+              }`}
+            >
+              📅 Mês
+            </button>
+            <button
+              onClick={() => { setPeriodType('week'); setWeekOffset(0); }}
+              className={`px-3 py-1 rounded-lg text-sm transition ${
+                periodType === 'week' ? 'bg-white shadow text-[#060606]' : 'text-[#7f7c7a] hover:text-[#060606]'
+              }`}
+            >
+              📆 Semana
+            </button>
+          </div>
+          
+          {/* 🔥 NAVEGAÇÃO */}
+          <div className="flex items-center gap-2 bg-white rounded-lg shadow px-3 py-2">
+            <button
+              onClick={() => periodType === 'week' ? changeWeek(-1) : changeMonth(-1)}
+              className="p-1 hover:bg-gray-100 rounded transition"
+            >
+              <ChevronLeft size={16} className="text-[#7f7c7a]" />
+            </button>
+            <span className="text-sm font-medium min-w-[180px] text-center">
+              {formatPeriod()}
+            </span>
+            <button
+              onClick={() => periodType === 'week' ? changeWeek(1) : changeMonth(1)}
+              className="p-1 hover:bg-gray-100 rounded transition"
+            >
+              <ChevronRight size={16} className="text-[#7f7c7a]" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -186,7 +241,7 @@ const AdminFaturamento = () => {
             <br />
             <span>Produtos: {formatCurrency(summary.revenueFromProducts)}</span>
             <br />
-            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(summary.revenueFromMonthly || 0)}</span> {/* 🔥 NOVO */}
+            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(summary.revenueFromMonthly || 0)}</span>
           </div>
         </div>
 
@@ -221,7 +276,7 @@ const AdminFaturamento = () => {
             <br />
             <span>Produtos: {formatCurrency(commissions.product)}</span>
             <br />
-            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(commissions.monthly || 0)}</span> {/* 🔥 NOVO */}
+            <span className="text-[#9c7f64] font-medium">Mensal: {formatCurrency(commissions.monthly || 0)}</span>
           </div>
         </div>
 
@@ -268,7 +323,7 @@ const AdminFaturamento = () => {
             <tbody className="divide-y divide-gray-200">
               {commissions.byBarber.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]"> {/* 🔥 MUDOU DE 4 PARA 5 */}
+                  <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]">
                     Nenhuma comissão registrada neste período
                   </td>
                 </tr>
