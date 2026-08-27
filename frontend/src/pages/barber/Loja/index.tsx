@@ -4,6 +4,7 @@ import { productService } from '../../../services/product.service';
 import type { Product } from '../../../services/product.service';
 import { saleService } from '../../../services/sale.service';
 import { api } from '../../../api/client';
+import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
   ShoppingCart, 
   Search, 
@@ -26,6 +27,15 @@ interface Barber {
   isActive: boolean;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  isMonthly: boolean;
+  monthlyFee: number;
+  isActive: boolean;
+}
+
 const BarberLoja = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
@@ -38,6 +48,8 @@ const BarberLoja = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedBarberId, setSelectedBarberId] = useState<string>('');
   const [saleLoading, setSaleLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -74,6 +86,12 @@ const BarberLoja = () => {
       console.error('Erro ao buscar barbeiros:', error);
       setError(`Erro ao buscar barbeiros: ${error.response?.data?.error || error.message}`);
     }
+  };
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+    setClientName(client.name);
+    setClientPhone(client.phone);
   };
 
   const addToCart = (product: Product) => {
@@ -146,6 +164,7 @@ const BarberLoja = () => {
         await saleService.create({
           barberId: selectedBarberId,
           clientName: clientName,
+          clientPhone: clientPhone || '(00) 00000-0000',
           productId: item.product.id,
           quantity: item.quantity,
           paymentMethod: paymentMethod,
@@ -154,6 +173,8 @@ const BarberLoja = () => {
 
       setCart([]);
       setClientName('');
+      setClientPhone('');
+      setSelectedClient(null);
       setShowPaymentModal(false);
       setShowCart(false);
       setSuccessMessage(`Venda finalizada com sucesso! Total: R$ ${getTotal().toFixed(2)}`);
@@ -391,7 +412,7 @@ const BarberLoja = () => {
       {/* Modal de Pagamento */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-[#060606] mb-4">
               💳 Finalizar Venda
             </h2>
@@ -429,29 +450,27 @@ const BarberLoja = () => {
                     ⚠️ Nenhum barbeiro cadastrado. Cadastre barbeiros no painel admin.
                   </p>
                 )}
-                {barbers.length > 0 && (
-                  <p className="text-xs text-[#7f7c7a] mt-1">
-                    A comissão será calculada com base no barbeiro selecionado
-                  </p>
-                )}
               </div>
 
-              {/* Nome do Cliente */}
+              {/* 🔥 CLIENTE COM AUTOCOMPLETE */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Nome do Cliente
+                  Cliente
                 </label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
-                  <input
-                    type="text"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64]"
-                    placeholder="Digite o nome do cliente"
-                    required
-                  />
-                </div>
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone do cliente..."
+                />
+                {selectedClient && (
+                  <p className="text-xs text-[#7f7c7a] mt-1">
+                    📱 Telefone: {selectedClient.phone}
+                    {selectedClient.isMonthly && (
+                      <span className="ml-2 text-purple-600">🔹 Mensalista</span>
+                    )}
+                  </p>
+                )}
               </div>
 
               {/* Forma de Pagamento */}

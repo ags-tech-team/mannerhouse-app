@@ -3,7 +3,7 @@ import { api } from '../api/client';
 export interface Sale {
   id: string;
   barberId: string;
-  clientId: string | null;
+  clientId: string;
   productId: string;
   quantity: number;
   salePrice: number;
@@ -11,35 +11,35 @@ export interface Sale {
   profit: number;
   commission: number;
   date: string;
-  paymentMethod: 'dinheiro' | 'cartao' | 'pix' | 'debito';
-  Barber?: { id: string; name: string };
-  Product?: { id: string; name: string; price: number; costPrice: number };
-  Client?: { id: string; name: string };
+  paymentMethod: string;
 }
 
 export interface CreateSaleData {
-  barberId: string; 
-  clientId?: string;
+  barberId: string;
   clientName?: string;
+  clientPhone?: string;
   productId: string;
   quantity: number;
   paymentMethod: string;
 }
 
 export const saleService = {
-  async getAll(): Promise<Sale[]> {
-    const response = await api.get('/sales');
+  async getAll(params?: { startDate?: string; endDate?: string; barberId?: string }): Promise<Sale[]> {
+    const response = await api.get('/sales', { params });
     return response.data;
   },
 
   async create(data: CreateSaleData): Promise<Sale> {
-    console.log('📦 Criando venda com barbeiro:', data.barberId); // 🔥 DEBUG
     const response = await api.post('/sales', data);
     return response.data;
   },
 
-  async getSummary(params?: { startDate?: string; endDate?: string; barberId?: string }) {
-    const response = await api.get('/sales/summary', { params });
+  async update(id: string, data: Partial<Sale>): Promise<Sale> {
+    const response = await api.put(`/sales/${id}`, data);
     return response.data;
+  },
+
+  async delete(id: string): Promise<void> {
+    await api.delete(`/sales/${id}`);
   },
 };

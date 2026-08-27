@@ -1,5 +1,6 @@
 const { Sale, Barber, Product, Client, CashRegister, Revenue } = require('../models');
 const { Op } = require('sequelize');
+const { findOrCreateClient } = require('../services/clientService');
 
 const getAll = async (req, res) => {
   try {
@@ -31,7 +32,7 @@ const getAll = async (req, res) => {
         { 
           model: Client, 
           as: 'client',
-          attributes: ['id', 'name'],
+          attributes: ['id', 'name', 'phone'],
           required: false
         },
       ],
@@ -81,7 +82,8 @@ const create = async (req, res) => {
       productId, 
       quantity = 1, 
       paymentMethod,
-      clientName 
+      clientName,
+      clientPhone
     } = req.body;
     
     const product = await Product.findByPk(productId);
@@ -115,16 +117,27 @@ const create = async (req, res) => {
       });
     }
     
+    // 🔥 BUSCAR OU CRIAR CLIENTE USANDO O SERVIÇO
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
     } else if (clientName) {
-      client = await Client.create({
-        name: clientName,
-        email: `${clientName.toLowerCase().replace(/\s/g, '')}@cliente.com`,
-        phone: '(00) 00000-0000',
-        isActive: true,
-      });
+      try {
+        const result = await findOrCreateClient({
+          name: clientName,
+          phone: clientPhone || '(00) 00000-0000',
+          isActive: true,
+        });
+        client = result.client;
+        console.log(`✅ Cliente ${result.created ? 'criado' : 'encontrado'}: ${client.name} (${client.phone})`);
+      } catch (error) {
+        console.error('❌ Erro ao buscar/criar cliente:', error);
+        return res.status(400).json({ error: error.message || 'Erro ao processar cliente' });
+      }
+    }
+    
+    if (!client) {
+      return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
     const profit = (product.price - product.costPrice) * quantity;
@@ -136,7 +149,7 @@ const create = async (req, res) => {
     
     const sale = await Sale.create({
       barberId,
-      clientId: client?.id || null,
+      clientId: client.id,
       productId,
       quantity,
       salePrice: product.price,
@@ -159,10 +172,11 @@ const create = async (req, res) => {
       services.push({
         id: sale.id,
         type: 'product',
-        client: client?.name || clientName || 'Cliente',
+        client: client.name,
+        clientId: client.id,
         product: product.name,
         quantity,
-        price: product.price,
+        price: product.price * quantity,
         commission,
         hasCommission: product.hasCommission,
         paymentMethod: paymentMethod || 'dinheiro',
@@ -184,7 +198,7 @@ const create = async (req, res) => {
       include: [
         { model: Barber, as: 'barber', attributes: ['id', 'name'] },
         { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice', 'hasCommission'] },
-        { model: Client, as: 'client', attributes: ['id', 'name'] },
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] },
       ],
     });
     
