@@ -293,6 +293,13 @@ const BarberHistorico = () => {
     p.barber?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const formatMonthDisplay = (monthString: string) => {
+    const [year, month] = monthString.split('-').map(Number);
+    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    return `${months[month - 1]} ${year}`;
+  };
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -309,7 +316,7 @@ const BarberHistorico = () => {
             <ChevronLeft size={20} />
           </button>
           <span className="text-lg font-semibold min-w-[140px] text-center">
-            {new Date(selectedMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            {formatMonthDisplay(selectedMonth)}
           </span>
           <button
             onClick={() => changeMonth(1)}
