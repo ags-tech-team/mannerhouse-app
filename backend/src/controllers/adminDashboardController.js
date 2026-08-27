@@ -91,13 +91,14 @@ const getDashboard = async (req, res) => {
       }
     });
     
-    // 🔥 5. CALCULAR TOTAIS
-    const totalServiceRevenue = revenues.reduce((sum, r) => sum + r.total, 0);
+    // 🔥 5. CALCULAR TOTAIS - MESMA LÓGICA DO FATURAMENTO
+    const serviceRevenues = revenues.filter(r => r.barberId !== null);
+    const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
-    const totalServiceCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0);
+    const totalServiceCommissions = serviceRevenues.reduce((sum, r) => sum + r.commissions, 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
       const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
@@ -108,66 +109,13 @@ const getDashboard = async (req, res) => {
     const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 6. COMISSÕES POR BARBEIRO
-    const commissionsByBarber = {};
-    
-    // Comissões de serviços (Revenue)
-    revenues.forEach(r => {
-      const barberId = r.barberId || 'sem-barbeiro';
-      const barberName = r.barber?.name || 'Sem Barbeiro';
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
-      }
-      commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
-    });
-    
-    // Comissões de produtos (Sale)
-    sales.forEach(s => {
-      const barberId = s.barberId || 'sem-barbeiro';
-      const barberName = s.barber?.name || 'Sem Barbeiro';
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
-      }
-      commissionsByBarber[barberId].productCommission += s.commission || 0;
-    });
-    
-    // Comissões de mensalidades
-    monthlyPayments.forEach(mp => {
-      const barberId = mp.client?.barberId || 'sem-barbeiro';
-      const barberName = mp.client?.barber?.name || 'Sem Barbeiro';
-      const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-      const commission = mp.amount * rate;
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
-      }
-      commissionsByBarber[barberId].monthlyCommission += commission;
-    });
-    
-    // 🔥 7. CONTAGENS
-    const totalServices = revenues.length;
+    // 🔥 6. CONTAGENS
+    const totalServices = serviceRevenues.length;
     const totalProductsSold = sales.reduce((sum, s) => sum + s.quantity, 0);
     const activeBarbers = await Barber.count({ where: { isActive: true } });
     const totalClients = await Client.count({ where: { isActive: true } });
     
-    // 🔥 8. FATURAMENTO MENSAL (ÚLTIMOS 12 MESES)
+    // 🔥 7. FATURAMENTO MENSAL (ÚLTIMOS 12 MESES)
     const monthlyRevenue = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
@@ -178,30 +126,16 @@ const getDashboard = async (req, res) => {
       const end = `${year}-${String(monthNum).padStart(2, '0')}-${new Date(year, monthNum, 0).getDate()}`;
       const monthKey = `${year}-${String(monthNum).padStart(2, '0')}`;
       
-      // Buscar revenues do mês
       const monthRevenues = await Revenue.findAll({
-        where: {
-          date: {
-            [Op.between]: [start, end]
-          }
-        }
+        where: { date: { [Op.between]: [start, end] } }
       });
       
-      // Buscar sales do mês
       const monthSales = await Sale.findAll({
-        where: {
-          date: {
-            [Op.between]: [start, end]
-          }
-        }
+        where: { date: { [Op.between]: [start, end] } }
       });
       
-      // Buscar monthly payments do mês
       const monthMonthly = await MonthlyPayment.findAll({
-        where: {
-          month: monthKey,
-          paid: true,
-        }
+        where: { month: monthKey, paid: true }
       });
       
       const total = monthRevenues.reduce((sum, r) => sum + r.total, 0) +
@@ -214,25 +148,22 @@ const getDashboard = async (req, res) => {
       });
     }
     
-    // 🔥 9. PERFORMANCE DOS BARBEIROS
+    // 🔥 8. PERFORMANCE DOS BARBEIROS
     const barbers = await Barber.findAll({
       where: { isActive: true },
       attributes: ['id', 'name']
     });
     
     const barbersPerformance = await Promise.all(barbers.map(async (barber) => {
-      // Serviços do barbeiro no período
-      const barberRevenues = revenues.filter(r => r.barberId === barber.id);
+      const barberRevenues = serviceRevenues.filter(r => r.barberId === barber.id);
       const serviceRevenue = barberRevenues.reduce((sum, r) => sum + r.total, 0);
       const serviceCommission = barberRevenues.reduce((sum, r) => sum + r.commissions, 0);
       const servicesCount = barberRevenues.length;
       
-      // Vendas de produtos do barbeiro no período
       const barberSales = sales.filter(s => s.barberId === barber.id);
       const productRevenue = barberSales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
       const productCommission = barberSales.reduce((sum, s) => sum + s.commission, 0);
       
-      // Mensalidades do barbeiro no período
       const barberMonthly = monthlyPayments.filter(mp => mp.client?.barberId === barber.id);
       const monthlyRevenue_total = barberMonthly.reduce((sum, mp) => sum + mp.amount, 0);
       const monthlyCommission = barberMonthly.reduce((sum, mp) => {
@@ -249,10 +180,9 @@ const getDashboard = async (req, res) => {
       };
     }));
     
-    // Ordenar por receita
     barbersPerformance.sort((a, b) => b.revenue - a.revenue);
     
-    // 🔥 10. ÚLTIMOS AGENDAMENTOS
+    // 🔥 9. ÚLTIMOS AGENDAMENTOS
     const recentAppointments = await Appointment.findAll({
       limit: 10,
       where: {
@@ -263,7 +193,6 @@ const getDashboard = async (req, res) => {
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
     
-    // Buscar clientes e barbeiros manualmente
     const recentAppointmentsWithData = await Promise.all(recentAppointments.map(async (app) => {
       let clientName = 'Cliente';
       let barberName = 'Barbeiro';
@@ -289,33 +218,27 @@ const getDashboard = async (req, res) => {
       };
     }));
     
-    // 🔥 11. ESTOQUE BAIXO
+    // 🔥 10. ESTOQUE BAIXO
     const lowStockProducts = await Product.findAll({
       where: {
-        stock: {
-          [Op.lt]: 5
-        },
+        stock: { [Op.lt]: 5 },
         isActive: true
       },
       order: [['stock', 'ASC']],
       limit: 10
     });
     
-    // 🔥 12. ALERTAS
+    // 🔥 11. ALERTAS
     const pendingAppointments = await Appointment.count({
-      where: {
-        status: 'pending'
-      }
+      where: { status: 'pending' }
     });
     
     const today = new Date().toISOString().split('T')[0];
     const todayAppointments = await Appointment.count({
-      where: {
-        date: today
-      }
+      where: { date: today }
     });
     
-    // 🔥 13. MONTAR RESULTADO
+    // 🔥 12. MONTAR RESULTADO
     const result = {
       summary: {
         totalRevenue,
