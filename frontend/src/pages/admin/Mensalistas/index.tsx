@@ -107,6 +107,13 @@ const AdminMensalistas = () => {
     }
   };
 
+  const formatMonthDisplay = (monthString: string) => {
+    const [year, month] = monthString.split('-').map(Number);
+    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    return `${months[month - 1]} ${year}`;
+  };
+
   const changeMonth = (delta: number) => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const newDate = new Date(year, month - 1 + delta, 1);
@@ -407,7 +414,7 @@ const AdminMensalistas = () => {
               <ChevronLeft size={16} className="text-[#7f7c7a]" />
             </button>
             <span className="text-sm font-medium min-w-[120px] text-center">
-              {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+             {formatMonthDisplay(selectedMonth)}
             </span>
             <button
               onClick={() => changeMonth(1)}
@@ -811,7 +818,7 @@ const AdminMensalistas = () => {
                   <div className="flex justify-between">
                     <span className="text-[#7f7c7a]">Mês de início:</span>
                     <span className="font-medium">
-                      {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      {formatMonthDisplay(selectedMonth)}
                     </span>
                   </div>
                   <div className="flex justify-between">
