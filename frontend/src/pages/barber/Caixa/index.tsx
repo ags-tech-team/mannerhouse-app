@@ -80,17 +80,11 @@ const BarberCaixa = () => {
   const [barbersList, setBarbersList] = useState<Barber[]>([]);
   const [isGuest, setIsGuest] = useState(false);
   
-  // MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
-  
-  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
-  
-  // HORÁRIOS OCUPADOS
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
-  
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -105,7 +99,6 @@ const BarberCaixa = () => {
   const valor = useNumberInput();
   const valorInicial = useNumberInput();
 
-  // HANDLE SELECT CLIENT
   const handleSelectClient = (client: any) => {
     setClientName(client.name);
     setClientPhone(client.phone);
@@ -128,24 +121,15 @@ const BarberCaixa = () => {
     return selectedServices.map(s => s.id).join(',');
   };
 
-  // 🔥 FUNÇÃO PARA CALCULAR COMISSÃO DE PRODUTO
   const calcularComissaoProduto = async (productId: string, price: number) => {
     try {
       const response = await api.get(`/products/${productId}`);
       const product = response.data;
-      
-      // Se o produto não tiver comissão ativa, retorna 0
-      if (!product.hasCommission) {
-        return 0;
-      }
-      
+      if (!product.hasCommission) return 0;
       const barberId = formData.barbeiroId || currentBarber?.id;
       const barber = barbersList.find(b => b.id === barberId);
       const taxaComissao = barber?.productCommissionRate || 0.50;
-      
-      // Lucro = Preço de venda - Preço de custo
       const lucro = product.price - product.costPrice;
-      
       return lucro * taxaComissao;
     } catch (error) {
       console.error('Erro ao calcular comissão do produto:', error);
@@ -153,30 +137,22 @@ const BarberCaixa = () => {
     }
   };
 
-  // CARREGAR HORÁRIOS OCUPADOS
   const loadOccupiedTimes = async () => {
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId || !selectedDate) {
       setOccupiedTimes([]);
       return;
     }
-    
     setLoadingTimes(true);
     try {
       const response = await api.get('/appointments/check-availability', {
-        params: {
-          barberId,
-          date: selectedDate,
-        }
+        params: { barberId, date: selectedDate }
       });
-      
       const bookedFromAppointments = response.data.times || [];
-      
       const caixaAtual = await cashRegisterService.getToday();
       const bookedFromCashRegister = caixaAtual?.services
         ?.filter((s: any) => s.barberId === barberId && s.date === selectedDate)
         ?.map((s: any) => s.time) || [];
-      
       const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
       setOccupiedTimes(allBooked);
     } catch (error) {
@@ -187,7 +163,6 @@ const BarberCaixa = () => {
     }
   };
 
-  // VERIFICAR SE HORÁRIO ESTÁ OCUPADO
   const isTimeOccupied = (time: string) => {
     return occupiedTimes.includes(time);
   };
@@ -224,7 +199,6 @@ const BarberCaixa = () => {
     try {
       const data = await cashRegisterService.getToday();
       setCaixa(data);
-      
       if (data.services && data.services.length > 0) {
         const servicosFormatados = data.services.map((s: any) => ({
           id: s.id || Date.now().toString(),
@@ -300,6 +274,8 @@ const BarberCaixa = () => {
       await loadData();
       setShowModalFecharCaixa(false);
       alert('✅ Caixa fechado com sucesso!');
+      // 🔥 RECARREGAR A PÁGINA APÓS FECHAR O CAIXA
+      window.location.reload();
     } catch (error: any) {
       console.error('Erro ao fechar caixa:', error);
       alert(error.response?.data?.error || 'Erro ao fechar caixa');
@@ -326,7 +302,7 @@ const BarberCaixa = () => {
       setSelectedServices([]);
     } else {
       setEditingServico(null);
-      setClientName('');  // 🔥 LIMPAR clientName
+      setClientName('');
       setClientPhone('');
       setFormData({
         cliente: '',
@@ -341,7 +317,6 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
-      
       if (barbersList.length > 0) {
         setCurrentBarber(barbersList[0]);
         setFormData(prev => ({
@@ -354,42 +329,33 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
-
-  // 🔥 SUBMIT COM COMISSÃO REAL
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!caixa?.isOpen) {
       alert('O caixa precisa estar aberto para registrar serviços!');
       return;
     }
-
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId) {
       alert('Selecione um barbeiro');
       return;
     }
-
     if (selectedServices.length === 0) {
       alert('Selecione pelo menos um serviço');
       return;
     }
-
     if (!isGuest && !clientName.trim()) {
       alert('Digite o nome do cliente');
       return;
     }
-
     if (!selectedDate) {
       alert('Selecione uma data');
       return;
     }
-
     if (!selectedTime) {
       alert('Selecione um horário');
       return;
     }
-
     if (isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
@@ -402,23 +368,18 @@ const BarberCaixa = () => {
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
 
-      // 🔥 CALCULAR COMISSÃO DO SERVIÇO
       const barber = barbersList.find(b => b.id === barberId);
       const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
       const comissaoServico = total * taxaComissaoServico;
 
-      // 🔥 CALCULAR COMISSÃO DO PRODUTO (se houver)
       let comissaoProduto = 0;
       for (const service of selectedServices) {
-        // Verifica se é um produto (pelo ID ou categoria)
-        // Se o serviço tiver um ID que parece de produto, calcula comissão
         if (service.id && service.id.startsWith('prod_')) {
           const comissao = await calcularComissaoProduto(service.id, service.service.price);
           comissaoProduto += comissao;
         }
       }
 
-      // Comissão total = comissão do serviço + comissão do produto
       const comissaoTotal = comissaoServico + comissaoProduto;
 
       if (editingServico) {
@@ -543,12 +504,12 @@ const BarberCaixa = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#060606]">💰 Caixa</h1>
-          <p className="text-[#7f7c7a]">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">💰 Caixa</h1>
+          <p className="text-sm sm:text-base text-[#7f7c7a]">
             {caixa?.isOpen ? (
               <span className="flex items-center gap-2 text-green-600">
                 <Unlock size={16} /> Caixa aberto desde {caixa.openingTime}
@@ -559,116 +520,127 @@ const BarberCaixa = () => {
               </span>
             )}
             {currentBarber && (
-              <span className="ml-4 text-sm text-[#9c7f64]">👤 Barbeiro: {currentBarber.name}</span>
+              <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           {!caixa?.isOpen ? (
-            <button onClick={() => setShowModalAbrirCaixa(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+            <button 
+              onClick={() => setShowModalAbrirCaixa(true)} 
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
+            >
               <Unlock size={18} /> Abrir Caixa
             </button>
           ) : (
             <>
-              <button onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition">
+              <button 
+                onClick={() => handleOpenModal()} 
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
+              >
                 <Plus size={18} /> Novo Serviço
               </button>
-              <button onClick={() => setShowModalFecharCaixa(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
-                <Lock size={18} /> Fechar Caixa
+              <button 
+                onClick={() => setShowModalFecharCaixa(true)} 
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
+              >
+                <Lock size={18} /> Fechar
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Alertas */}
+      {/* Alertas - Responsivo */}
       {!caixa?.isOpen && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="text-yellow-600" size={20} />
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
+          <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
           <div>
-            <p className="text-yellow-800 font-medium">Caixa fechado</p>
-            <p className="text-yellow-700 text-sm">Abra o caixa para começar a registrar os serviços do dia</p>
+            <p className="text-yellow-800 font-medium text-sm sm:text-base">Caixa fechado</p>
+            <p className="text-yellow-700 text-xs sm:text-sm">Abra o caixa para começar a registrar os serviços do dia</p>
           </div>
         </div>
       )}
 
       {caixa?.isOpen && servicos.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="text-blue-600" size={20} />
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
+          <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
           <div>
-            <p className="text-blue-800 font-medium">Nenhum serviço registrado</p>
-            <p className="text-blue-700 text-sm">Clique em "Novo Serviço" para adicionar o primeiro serviço do dia</p>
+            <p className="text-blue-800 font-medium text-sm sm:text-base">Nenhum serviço registrado</p>
+            <p className="text-blue-700 text-xs sm:text-sm">Clique em "Novo Serviço" para adicionar o primeiro serviço do dia</p>
           </div>
         </div>
       )}
 
-      {/* Cards de Resumo */}
+      {/* Cards de Resumo - Responsivo */}
       {(caixa?.isOpen || servicos.length > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-6 rounded-lg shadow">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Vendas do Dia</p>
-                <p className="text-2xl font-bold text-[#060606]">R$ {totalVendas.toFixed(2)}</p>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Vendas</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalVendas.toFixed(2)}</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-full"><DollarSign size={20} className="text-green-600" /></div>
+              <div className="p-2 sm:p-3 bg-green-100 rounded-full"><DollarSign size={16} className="sm:w-5 sm:h-5 text-green-600" /></div>
             </div>
-            {caixa?.initialCash !== undefined && <p className="text-sm text-[#7f7c7a] mt-1">Caixa inicial: R$ {caixa.initialCash.toFixed(2)}</p>}
+            {caixa?.initialCash !== undefined && (
+              <p className="text-xs text-[#7f7c7a] mt-1">Inicial: R$ {caixa.initialCash.toFixed(2)}</p>
+            )}
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Comissões</p>
-                <p className="text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Comissões</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p>
               </div>
-              <div className="p-3 bg-orange-100 rounded-full"><TrendingUp size={20} className="text-orange-600" /></div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Ticket Médio</p>
-                <p className="text-2xl font-bold text-[#060606]">R$ {ticketMedio.toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full"><Users size={20} className="text-blue-600" /></div>
+              <div className="p-2 sm:p-3 bg-orange-100 rounded-full"><TrendingUp size={16} className="sm:w-5 sm:h-5 text-orange-600" /></div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#7f7c7a]">Serviços</p>
-                <p className="text-2xl font-bold text-[#060606]">{totalServicos}</p>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Ticket Médio</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {ticketMedio.toFixed(2)}</p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-full"><Clock size={20} className="text-purple-600" /></div>
+              <div className="p-2 sm:p-3 bg-blue-100 rounded-full"><Users size={16} className="sm:w-5 sm:h-5 text-blue-600" /></div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Serviços</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">{totalServicos}</p>
+              </div>
+              <div className="p-2 sm:p-3 bg-purple-100 rounded-full"><Clock size={16} className="sm:w-5 sm:h-5 text-purple-600" /></div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filtros */}
+      {/* Filtros - Responsivo */}
       {(caixa?.isOpen || servicos.length > 0) && (
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex flex-col sm:flex-row gap-4">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <div className="flex-1 flex items-center gap-2">
-              <Search size={18} className="text-[#7f7c7a]" />
+              <Search size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Buscar por cliente, barbeiro ou serviço..."
+                placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
                 disabled={!caixa?.isOpen}
               />
             </div>
             <div className="flex items-center gap-2">
-              <Filter size={18} className="text-[#7f7c7a]" />
+              <Filter size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
               <select
                 value={filtroStatus}
                 onChange={(e) => setFiltroStatus(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
                 disabled={!caixa?.isOpen}
               >
                 <option value="todos">Todos</option>
@@ -681,98 +653,142 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Tabela */}
+      {/* Tabela - Responsivo com scroll horizontal */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-[#f5f0e8]">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Serviço</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Valor</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Comissão</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Pagamento</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {loading ? (
-                  <tr><td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">Carregando...</td></tr>
-                ) : filteredServicos.length === 0 ? (
-                  <tr><td colSpan={8} className="px-6 py-4 text-center text-[#7f7c7a]">{caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}</td></tr>
-                ) : (
-                  filteredServicos.map((servico) => (
-                    <tr key={servico.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">{servico.cliente}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{servico.barbeiro}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{servico.servico}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">R$ {servico.valor.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">R$ {servico.comissao.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">{getPaymentText(servico.formaPagamento)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(servico.status)}`}>{getStatusText(servico.status)}</span></td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button onClick={() => handleOpenModal(servico)} className="text-[#9c7f64] hover:text-[#544941] transition mr-2" disabled={!caixa?.isOpen}><Eye size={18} /></button>
-                        <button onClick={() => window.print()} className="text-[#9c7f64] hover:text-[#544941] transition mr-2"><Printer size={18} /></button>
-                        <button onClick={() => handleDelete(servico.id)} className="text-red-500 hover:text-red-700 transition" disabled={!caixa?.isOpen}><X size={18} /></button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="min-w-[700px] sm:min-w-full">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-[#f5f0e8]">
+                  <tr>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Serviço</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Valor</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Pagto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">Carregando...</td></tr>
+                  ) : filteredServicos.length === 0 ? (
+                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">{caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}</td></tr>
+                  ) : (
+                    filteredServicos.map((servico) => (
+                      <tr key={servico.id} className="hover:bg-gray-50">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">{servico.cliente}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.barbeiro}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.servico}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">R$ {servico.valor.toFixed(2)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">R$ {servico.comissao.toFixed(2)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{getPaymentText(servico.formaPagamento)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${getStatusColor(servico.status)}`}>
+                            {getStatusText(servico.status)}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right">
+                          <button 
+                            onClick={() => handleOpenModal(servico)} 
+                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2" 
+                            disabled={!caixa?.isOpen}
+                          >
+                            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button 
+                            onClick={() => window.print()} 
+                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2"
+                          >
+                            <Printer size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(servico.id)} 
+                            className="text-red-500 hover:text-red-700 transition" 
+                            disabled={!caixa?.isOpen}
+                          >
+                            <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal Abrir Caixa */}
+      {/* Modal Abrir Caixa - Responsivo */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">Abrir Caixa</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Abrir Caixa</h2>
               <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg"><p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p></div>
+              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                <p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor Inicial (R$)</label>
-                <input type="number" step="0.01" value={valorInicial.value} onChange={valorInicial.onChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent" placeholder="0,00" min="0" required />
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={valorInicial.value} 
+                  onChange={valorInicial.onChange} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base" 
+                  placeholder="0,00" 
+                  min="0" 
+                  required 
+                />
               </div>
-              <button onClick={handleAbrirCaixa} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Unlock size={18} /> Abrir Caixa</button>
+              <button 
+                onClick={handleAbrirCaixa} 
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
+              >
+                <Unlock size={18} /> Abrir Caixa
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Fechar Caixa */}
+      {/* Modal Fechar Caixa - Responsivo */}
       {showModalFecharCaixa && caixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">Fechar Caixa</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Fechar Caixa</h2>
               <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
-              <div className="bg-yellow-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between"><span className="text-sm text-yellow-800">Valor Inicial</span><span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span></div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm text-yellow-800">Vendas do Dia</span><span className="font-medium">R$ {totalVendas.toFixed(2)}</span></div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm font-bold text-yellow-800">Total em Caixa</span><span className="font-bold text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span></div>
+              <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm"><span className="text-yellow-800">Valor Inicial</span><span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2 text-sm"><span className="text-yellow-800">Vendas do Dia</span><span className="font-medium">R$ {totalVendas.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm font-bold text-yellow-800">Total em Caixa</span><span className="font-bold text-base sm:text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span></div>
               </div>
-              <button onClick={handleFecharCaixa} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Lock size={18} /> Fechar Caixa</button>
+              <button 
+                onClick={handleFecharCaixa} 
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
+              >
+                <Lock size={18} /> Fechar Caixa
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Novo Serviço */}
+      {/* Modal Novo Serviço - Responsivo */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
                 {editingServico ? 'Editar Serviço' : '📝 Novo Serviço'}
               </h2>
               <button onClick={() => setShowModal(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
@@ -781,9 +797,7 @@ const BarberCaixa = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* SELECT DE BARBEIROS */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  <User size={16} className="inline mr-1" /> Barbeiro
-                </label>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro</label>
                 <select
                   value={formData.barbeiroId || currentBarber?.id || ''}
                   onChange={(e) => {
@@ -798,7 +812,7 @@ const BarberCaixa = () => {
                       }));
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base"
                   required
                 >
                   <option value="">Selecione um barbeiro</option>
@@ -808,29 +822,23 @@ const BarberCaixa = () => {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-[#7f7c7a] mt-1">Comissão do barbeiro sobre serviços</p>
               </div>
 
               {/* Data e Horário */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#060606] mb-1">
-                    <CalendarIcon size={14} className="inline mr-1" /> Data
-                  </label>
+                  <label className="block text-sm font-medium text-[#060606] mb-1">Data</label>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
                     required
                   />
                 </div>
 
-                {/* SELETOR DE HORÁRIO (COM BLOQUEIO) */}
                 <div>
-                  <label className="block text-sm font-medium text-[#060606] mb-1">
-                    <ClockIcon size={14} className="inline mr-1" /> Horário
-                  </label>
+                  <label className="block text-sm font-medium text-[#060606] mb-1">Horário</label>
                   {loadingTimes ? (
                     <div className="flex justify-center py-4">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#9c7f64]"></div>
@@ -849,7 +857,7 @@ const BarberCaixa = () => {
                             type="button"
                             onClick={() => !isBooked && setSelectedTime(time)}
                             disabled={isBooked}
-                            className={`py-1.5 rounded-lg border-2 text-xs transition ${
+                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
                               isBooked
                                 ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
                                 : selectedTime === time
@@ -865,22 +873,22 @@ const BarberCaixa = () => {
                     </div>
                   )}
                   {selectedTime && !isTimeOccupied(selectedTime) && (
-                    <p className="text-xs text-green-600 mt-1">✅ Horário selecionado: {selectedTime}</p>
+                    <p className="text-[10px] sm:text-xs text-green-600 mt-1">✅ {selectedTime}</p>
                   )}
                   {selectedTime && isTimeOccupied(selectedTime) && (
-                    <p className="text-xs text-red-600 mt-1">❌ Este horário já está ocupado!</p>
+                    <p className="text-[10px] sm:text-xs text-red-600 mt-1">❌ Ocupado!</p>
                   )}
                 </div>
               </div>
 
-              {/* Cliente com Auto-Complete */}
+              {/* Cliente */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
                 <ClientAutocomplete
                   value={clientName}
                   onChange={setClientName}
                   onSelectClient={handleSelectClient}
-                  placeholder="Digite o nome ou telefone do cliente..."
+                  placeholder="Digite o nome ou telefone..."
                   disabled={isGuest}
                   required={!isGuest}
                 />
@@ -888,19 +896,18 @@ const BarberCaixa = () => {
 
               {/* Telefone */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Telefone do Cliente</label>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
                 <div className="relative">
-                  <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <input
                     type="text"
                     value={formData.clienteTelefone}
                     onChange={(e) => setFormData({ ...formData, clienteTelefone: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
                     placeholder="(00) 00000-0000"
                     disabled={isGuest}
                   />
                 </div>
-                <p className="text-xs text-[#7f7c7a] mt-1">Opcional, mas recomendado para contato</p>
               </div>
 
               {/* Opção sem cadastro */}
@@ -919,16 +926,13 @@ const BarberCaixa = () => {
                   className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
                 />
                 <label htmlFor="isGuest" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
-                  <UserX size={16} />
-                  Cliente sem cadastro
+                  <UserX size={16} /> Cliente sem cadastro
                 </label>
               </div>
 
               {/* Multi Serviços */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  <Scissors size={16} className="inline mr-1" /> Serviços
-                </label>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Serviços</label>
                 <MultiServiceSelector
                   selectedServices={selectedServices}
                   onChange={setSelectedServices}
@@ -936,7 +940,7 @@ const BarberCaixa = () => {
                 />
               </div>
 
-              {/* 🔥 MOSTRAR TOTAL E COMISSÃO */}
+              {/* Total e Comissão */}
               {selectedServices.length > 0 && (
                 <div className="bg-[#f5f0e8] rounded-lg p-3">
                   <div className="flex justify-between text-sm">
@@ -944,7 +948,7 @@ const BarberCaixa = () => {
                     <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#7f7c7a]">Comissão do barbeiro ({Math.round((currentBarber?.serviceCommissionRate || 0.50) * 100)}%):</span>
+                    <span className="text-[#7f7c7a]">Comissão:</span>
                     <span className="font-medium text-[#9c7f64]">R$ {(getTotalServices() * (currentBarber?.serviceCommissionRate || 0.50)).toFixed(2)}</span>
                   </div>
                 </div>
@@ -956,7 +960,7 @@ const BarberCaixa = () => {
                 <select
                   value={formData.formaPagamento}
                   onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
                   required
                 >
                   <option value="dinheiro">Dinheiro</option>
@@ -972,24 +976,23 @@ const BarberCaixa = () => {
                 <textarea
                   value={formData.observacao}
                   onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  rows={3}
-                  placeholder="Observações sobre o serviço..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  rows={2}
+                  placeholder="Observações..."
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-1"
                 >
-                  <Check size={18} />
-                  Salvar
+                  <Check size={18} /> Salvar
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition"
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-2"
                 >
                   Cancelar
                 </button>
