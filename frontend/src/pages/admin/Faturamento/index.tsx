@@ -94,8 +94,11 @@ const AdminFaturamento = () => {
         endOfWeek.setHours(23, 59, 59, 999);
         params.startDate = startOfWeek.toISOString().split('T')[0];
         params.endDate = endOfWeek.toISOString().split('T')[0];
+        
+        console.log('📅 Semana selecionada:', params.startDate, 'até', params.endDate); // 🔥 DEBUG
       } else {
         params.month = selectedMonth;
+        console.log('📅 Mês selecionado:', selectedMonth); // 🔥 DEBUG
       }
       
       const response = await api.get('/revenues/dashboard', { params });

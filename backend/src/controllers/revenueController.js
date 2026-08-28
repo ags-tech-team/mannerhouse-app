@@ -9,27 +9,30 @@ const getFinancialDashboard = async (req, res) => {
     let mes = hoje.getMonth() + 1;
     let startDate, endDate, monthString;
     
-    // 🔥 SE FOR PERÍODO "week", CALCULAR A SEMANA
+    console.log('📊 Parâmetros recebidos:', { month, period, queryStart, queryEnd }); // 🔥 DEBUG
+    
+    // 🔥 SE FOR PERÍODO "week", USAR AS DATAS ENVIADAS OU CALCULAR
     if (period === 'week') {
-      // 🔥 PEGAR A SEMANA ATUAL (DOMINGO A SÁBADO)
-      const today = new Date();
-      const dayOfWeek = today.getDay(); // 0 = Domingo, 1 = Segunda, etc.
-      
-      // 🔥 CALCULAR O INÍCIO DA SEMANA (DOMINGO)
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - dayOfWeek);
-      startOfWeek.setHours(0, 0, 0, 0);
-      
-      // 🔥 CALCULAR O FIM DA SEMANA (SÁBADO)
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      
-      startDate = startOfWeek.toISOString().split('T')[0];
-      endDate = endOfWeek.toISOString().split('T')[0];
+      if (queryStart && queryEnd) {
+        // 🔥 USAR DATAS ENVIADAS PELO FRONTEND
+        startDate = queryStart;
+        endDate = queryEnd;
+        console.log('📅 Usando datas enviadas:', startDate, 'até', endDate);
+      } else {
+        // 🔥 CALCULAR A SEMANA ATUAL
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - dayOfWeek);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        startDate = startOfWeek.toISOString().split('T')[0];
+        endDate = endOfWeek.toISOString().split('T')[0];
+        console.log('📅 Calculando semana atual:', startDate, 'até', endDate);
+      }
       monthString = startDate.substring(0, 7);
-      
-      console.log('📊 Gerando dashboard SEMANAL:', { startDate, endDate });
     } 
     // 🔥 SE FOR PERÍODO "month" OU NÃO ESPECIFICADO
     else {
@@ -279,15 +282,20 @@ const getSummary = async (req, res) => {
       startDate = hoje.toISOString().split('T')[0];
       endDate = hoje.toISOString().split('T')[0];
     } else if (period === 'week') {
-      const dayOfWeek = hoje.getDay();
-      const startOfWeek = new Date(hoje);
-      startOfWeek.setDate(hoje.getDate() - dayOfWeek);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      startDate = startOfWeek.toISOString().split('T')[0];
-      endDate = endOfWeek.toISOString().split('T')[0];
+      if (queryStart && queryEnd) {
+        startDate = queryStart;
+        endDate = queryEnd;
+      } else {
+        const dayOfWeek = hoje.getDay();
+        const startOfWeek = new Date(hoje);
+        startOfWeek.setDate(hoje.getDate() - dayOfWeek);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        startDate = startOfWeek.toISOString().split('T')[0];
+        endDate = endOfWeek.toISOString().split('T')[0];
+      }
     } else if (period === 'month') {
       const monthStart = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       startDate = monthStart.toISOString().split('T')[0];
