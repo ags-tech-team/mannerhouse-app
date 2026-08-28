@@ -117,7 +117,7 @@ const create = async (req, res) => {
       });
     }
     
-    // 🔥 BUSCAR OU CRIAR CLIENTE USANDO O SERVIÇO
+    // BUSCAR OU CRIAR CLIENTE
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
@@ -140,12 +140,21 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
+    // 🔥 CORRIGIDO: CALCULAR PROFIT E COMISSÃO
     const profit = (product.price - product.costPrice) * quantity;
     let commission = 0;
     
-    if (product.hasCommission) {
+    // 🔥 SÓ CALCULA COMISSÃO SE O PRODUTO TIVER COMISSÃO ATIVA
+    if (product.hasCommission !== false) {
+      // 🔥 USA A TAXA DE COMISSÃO DO BARBEIRO (productCommissionRate)
       commission = profit * barber.productCommissionRate;
     }
+    
+    console.log(`📊 Produto: ${product.name}`);
+    console.log(`   hasCommission: ${product.hasCommission}`);
+    console.log(`   Profit: R$ ${profit.toFixed(2)}`);
+    console.log(`   Taxa comissão: ${barber.productCommissionRate * 100}%`);
+    console.log(`   Comissão: R$ ${commission.toFixed(2)}`);
     
     const sale = await Sale.create({
       barberId,
@@ -181,6 +190,7 @@ const create = async (req, res) => {
         hasCommission: product.hasCommission,
         paymentMethod: paymentMethod || 'dinheiro',
         time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        commissionRate: barber.productCommissionRate,
       });
       
       await cashRegister.update({

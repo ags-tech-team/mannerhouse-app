@@ -137,7 +137,19 @@ const BarberLoja = () => {
   };
 
   const getTotalCommission = () => {
-    return getTotalProfit() * 0.50;
+    let totalCommission = 0;
+    
+    for (const item of cart) {
+      // Verifica se o produto tem comissão ativa
+      if (item.product.hasCommission !== false) {
+        const profit = (item.product.price - item.product.costPrice) * item.quantity;
+        // 🔥 TAXA PADRÃO DE 50% (OU PEGAR DO BARBEIRO SELECIONADO)
+        const rate = barbers.find(b => b.id === selectedBarberId)?.productCommissionRate || 0.50;
+        totalCommission += profit * rate;
+      }
+    }
+    
+    return totalCommission;
   };
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -391,8 +403,8 @@ const BarberLoja = () => {
                     R$ {getTotal().toFixed(2)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm text-[#7f7c7a]">
-                  <span>Comissão do barbeiro (50% do lucro):</span>
+               <div className="flex justify-between text-sm text-[#7f7c7a]">
+                  <span>Comissão do barbeiro:</span>
                   <span className="font-medium text-[#060606]">
                     R$ {getTotalCommission().toFixed(2)}
                   </span>
