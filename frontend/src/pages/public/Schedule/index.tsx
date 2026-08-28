@@ -19,7 +19,9 @@ import {
   Users,
   CalendarDays,
   UserPlus,
-  UserX
+  UserX,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 
 interface Barber {
@@ -100,19 +102,12 @@ const PublicSchedule = () => {
     }
   };
 
-  // 🔥 FUNÇÃO PARA VERIFICAR SE O DIA É PERMITIDO PARA AGENDAMENTO
   const isDayAllowedForBooking = (date: Date) => {
-    const dayOfWeek = date.getDay(); // 0 = Domingo, 5 = Sexta, 6 = Sábado
-    
-    // 🔥 DOMINGO: Fechado (não permite)
+    const dayOfWeek = date.getDay();
     if (dayOfWeek === 0) return { allowed: false, reason: 'Fechado' };
-    
-    // 🔥 SEXTA (5) e SÁBADO (6): Apenas ordem de chegada
     if (dayOfWeek === 5 || dayOfWeek === 6) {
       return { allowed: false, reason: 'Apenas ordem de chegada' };
     }
-    
-    // 🔥 SEGUNDA A QUINTA: Normal (permite)
     return { allowed: true, reason: '' };
   };
 
@@ -142,9 +137,6 @@ const PublicSchedule = () => {
         date: dateStr,
         isPast,
         isToday: date.toDateString() === today.toDateString(),
-        isSunday: date.getDay() === 0,
-        isFriday: date.getDay() === 5,
-        isSaturday: date.getDay() === 6,
         allowed: dayInfo.allowed,
         reason: dayInfo.reason,
       });
@@ -253,25 +245,25 @@ const PublicSchedule = () => {
   if (success) {
     return (
       <div className="min-h-screen bg-[#f5f0e8] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Check size={40} className="text-green-600" />
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 sm:p-8 text-center">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check size={32} className="text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-[#060606] mb-2">✅ Agendamento Confirmado!</h2>
-          <p className="text-[#7f7c7a] mb-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#060606] mb-2">✅ Agendamento Confirmado!</h2>
+          <p className="text-[#7f7c7a] mb-4 text-sm sm:text-base">
             Seu agendamento foi realizado com sucesso!
           </p>
-          <div className="bg-[#f5f0e8] rounded-lg p-4 mb-6 text-left">
-            <p className="text-sm text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
-            <p className="text-sm text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
-            <p className="text-sm text-[#7f7c7a]">👤 Cliente: {clientName}</p>
-            <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
-            <p className="text-sm text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
-            <p className="text-sm text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
+          <div className="bg-[#f5f0e8] rounded-lg p-4 mb-6 text-left text-sm sm:text-base">
+            <p className="text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+            <p className="text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
+            <p className="text-[#7f7c7a]">👤 Cliente: {clientName}</p>
+            <p className="text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
+            <p className="text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
+            <p className="text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
           </div>
           <button
             onClick={resetForm}
-            className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition"
+            className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition text-sm sm:text-base"
           >
             Novo Agendamento
           </button>
@@ -281,47 +273,47 @@ const PublicSchedule = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f0e8] py-8 px-4">
+    <div className="min-h-screen bg-[#f5f0e8] py-4 sm:py-8 px-3 sm:px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-4xl font-bold tracking-wider text-[#060606]">
+        {/* Header - Responsivo */}
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-wider text-[#060606]">
             M<span className="text-[#9c7f64]">Ä</span>NNER HAUS
           </h1>
-          <p className="text-sm tracking-[0.3em] text-[#9c7f64] uppercase mt-1">
+          <p className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.3em] text-[#9c7f64] uppercase mt-1">
             Barber Club
           </p>
-          <p className="text-[#7f7c7a] mt-4">Agende seu horário online</p>
+          <p className="text-sm sm:text-base text-[#7f7c7a] mt-2 sm:mt-4">Agende seu horário online</p>
         </div>
 
-        {/* Progresso */}
-        <div className="flex justify-center items-center gap-2 mb-8">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+        {/* Progresso - Responsivo */}
+        <div className="flex justify-center items-center gap-1 sm:gap-2 mb-6 sm:mb-8">
+          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold ${
             step >= 1 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'
           }`}>1</div>
-          <div className={`w-16 h-1 ${step >= 2 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+          <div className={`w-10 sm:w-16 h-1 ${step >= 2 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
+          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold ${
             step >= 2 ? 'bg-[#9c7f64]' : 'bg-gray-200 text-gray-500'
           }`}>2</div>
-          <div className={`w-16 h-1 ${step >= 3 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+          <div className={`w-10 sm:w-16 h-1 ${step >= 3 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
+          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold ${
             step >= 3 ? 'bg-[#9c7f64]' : 'bg-gray-200 text-gray-500'
           }`}>3</div>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3 text-red-700">
-            <AlertCircle size={20} />
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3 text-red-700 text-sm sm:text-base">
+            <AlertCircle size={18} className="flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 md:p-8">
           <form onSubmit={handleSubmit}>
             {/* Step 1: Escolher Barbeiro e Data */}
             {step === 1 && (
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold text-[#060606]">1. Escolha o barbeiro e a data</h2>
+              <div className="space-y-4 sm:space-y-6">
+                <h2 className="text-lg sm:text-xl font-bold text-[#060606]">1. Escolha o barbeiro e a data</h2>
                 
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
@@ -333,14 +325,14 @@ const PublicSchedule = () => {
                         key={barber.id}
                         type="button"
                         onClick={() => setSelectedBarber(barber.id)}
-                        className={`p-3 rounded-lg border-2 transition ${
+                        className={`p-2 sm:p-3 rounded-lg border-2 transition text-sm sm:text-base ${
                           selectedBarber === barber.id
                             ? 'border-[#9c7f64] bg-[#9c7f64]/10'
                             : 'border-gray-200 hover:border-[#9c7f64]'
                         }`}
                       >
-                        <Scissors size={20} className="mx-auto mb-1 text-[#9c7f64]" />
-                        <p className="text-sm font-medium text-[#060606]">{barber.name}</p>
+                        <Scissors size={18} className="mx-auto mb-1 text-[#9c7f64]" />
+                        <p className="text-xs sm:text-sm font-medium text-[#060606]">{barber.name}</p>
                       </button>
                     ))}
                   </div>
@@ -350,37 +342,35 @@ const PublicSchedule = () => {
                   <label className="block text-sm font-medium text-[#060606] mb-2">
                     <CalendarDays size={16} className="inline mr-1" /> Data
                   </label>
-                  <div className="bg-[#f5f0e8] rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-4">
+                  <div className="bg-[#f5f0e8] rounded-lg p-3 sm:p-4">
+                    <div className="flex justify-between items-center mb-3 sm:mb-4">
                       <button
                         type="button"
                         onClick={() => changeMonth(-1)}
-                        className="p-2 hover:bg-gray-200 rounded-lg transition"
+                        className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition"
                       >
-                        <ChevronLeft size={20} />
+                        <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
                       </button>
-                      <span className="font-semibold text-[#060606]">
+                      <span className="font-semibold text-[#060606] text-sm sm:text-base">
                         {currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                       </span>
                       <button
                         type="button"
                         onClick={() => changeMonth(1)}
-                        className="p-2 hover:bg-gray-200 rounded-lg transition"
+                        className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition"
                       >
-                        <ChevronRight size={20} />
+                        <ChevronRight size={18} className="sm:w-5 sm:h-5" />
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-7 gap-1">
+                    <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                       {weekdays.map((day) => (
-                        <div key={day} className="text-center text-xs font-medium text-[#7f7c7a] py-1">
+                        <div key={day} className="text-center text-[10px] sm:text-xs font-medium text-[#7f7c7a] py-1">
                           {day}
                         </div>
                       ))}
                       {days.map((day, index) => {
-                        // 🔥 VERIFICAR SE O DIA É PERMITIDO
                         const isDisabled = !day || day.isPast || !day.allowed;
-                        const dayLabel = day?.reason || '';
                         
                         return (
                           <button
@@ -392,7 +382,7 @@ const PublicSchedule = () => {
                                 setSelectedDate(day.date);
                               }
                             }}
-                            className={`py-2 rounded-lg text-sm transition relative ${
+                            className={`py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition relative ${
                               !day ? 'invisible' :
                               day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
                               !day.allowed ? 'text-gray-400 cursor-not-allowed bg-gray-100' :
@@ -401,32 +391,28 @@ const PublicSchedule = () => {
                             }`}
                           >
                             {day?.day}
-                            {/* 🔥 LEGENDA PARA DIAS NÃO PERMITIDOS */}
                             {day && !day.allowed && (
-                              <span className="block text-[8px] leading-tight">
+                              <span className="block text-[6px] sm:text-[8px] leading-tight">
                                 {day.reason === 'Fechado' ? '🔴' : '🚶'}
                               </span>
-                            )}
-                            {day && day.isPast && (
-                              <span className="block text-[8px] leading-tight text-gray-400">Passado</span>
                             )}
                           </button>
                         );
                       })}
                     </div>
                     
-                    {/* 🔥 LEGENDA */}
-                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#7f7c7a] justify-center border-t pt-3">
+                    {/* Legenda - Responsiva */}
+                    <div className="mt-2 sm:mt-3 flex flex-wrap gap-2 sm:gap-3 text-[10px] sm:text-xs text-[#7f7c7a] justify-center border-t pt-2 sm:pt-3">
                       <span className="flex items-center gap-1">
-                        <span className="w-3 h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
                         Disponível
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className="w-3 h-3 bg-gray-100 border border-gray-300 rounded inline-block"></span>
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-300 rounded inline-block"></span>
                         🚶 Ordem de chegada
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className="w-3 h-3 bg-red-100 border border-red-300 rounded inline-block"></span>
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-red-100 border border-red-300 rounded inline-block"></span>
                         🔴 Fechado
                       </span>
                     </div>
@@ -447,46 +433,46 @@ const PublicSchedule = () => {
                     setError('');
                     setStep(2);
                   }}
-                  className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition font-medium"
+                  className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition font-medium text-sm sm:text-base flex items-center justify-center gap-2"
                 >
-                  Próximo →
+                  Próximo <ArrowRight size={18} />
                 </button>
               </div>
             )}
 
             {/* Step 2: Escolher Horário e Serviços */}
             {step === 2 && (
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold text-[#060606]">2. Escolha o horário e serviços</h2>
+              <div className="space-y-4 sm:space-y-6">
+                <h2 className="text-lg sm:text-xl font-bold text-[#060606]">2. Escolha o horário e serviços</h2>
                 
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-2">
                     <Clock size={16} className="inline mr-1" /> Horário disponível
                   </label>
                   {loading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader size={32} className="animate-spin text-[#9c7f64]" />
+                    <div className="flex justify-center py-6 sm:py-8">
+                      <Loader size={28} className="animate-spin text-[#9c7f64]" />
                     </div>
                   ) : availableTimes.length === 0 ? (
-                    <div className="text-center py-8 text-[#7f7c7a]">
-                      <Calendar size={32} className="mx-auto mb-2 opacity-50" />
-                      <p>Nenhum horário disponível nesta data</p>
+                    <div className="text-center py-6 sm:py-8 text-[#7f7c7a]">
+                      <Calendar size={28} className="mx-auto mb-2 opacity-50" />
+                      <p className="text-sm sm:text-base">Nenhum horário disponível nesta data</p>
                       <button
                         type="button"
                         onClick={() => { setStep(1); setSelectedDate(''); }}
-                        className="text-[#9c7f64] hover:underline mt-2"
+                        className="text-[#9c7f64] hover:underline mt-2 text-sm"
                       >
                         Voltar e escolher outra data
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2">
                       {availableTimes.map((time) => (
                         <button
                           key={time}
                           type="button"
                           onClick={() => setSelectedTime(time)}
-                          className={`py-2 rounded-lg border-2 transition ${
+                          className={`py-2 rounded-lg border-2 transition text-sm ${
                             selectedTime === time
                               ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64]'
                               : 'border-gray-200 hover:border-[#9c7f64]'
@@ -521,13 +507,13 @@ const PublicSchedule = () => {
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-3 rounded-lg transition font-medium"
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-3 rounded-lg transition font-medium text-sm sm:text-base flex items-center justify-center gap-2 order-2 sm:order-1"
                   >
-                    ← Voltar
+                    <ArrowLeft size={18} /> Voltar
                   </button>
                   <button
                     type="button"
@@ -543,9 +529,9 @@ const PublicSchedule = () => {
                       setError('');
                       setStep(3);
                     }}
-                    className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition font-medium"
+                    className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition font-medium text-sm sm:text-base flex items-center justify-center gap-2 order-1 sm:order-2"
                   >
-                    Próximo →
+                    Próximo <ArrowRight size={18} />
                   </button>
                 </div>
               </div>
@@ -553,15 +539,15 @@ const PublicSchedule = () => {
 
             {/* Step 3: Dados do Cliente */}
             {step === 3 && (
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold text-[#060606]">3. Seus dados</h2>
+              <div className="space-y-4 sm:space-y-6">
+                <h2 className="text-lg sm:text-xl font-bold text-[#060606]">3. Seus dados</h2>
                 
-                <div className="bg-[#f5f0e8] rounded-lg p-4 mb-4">
-                  <p className="text-sm text-[#7f7c7a]">📅 {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
-                  <p className="text-sm text-[#7f7c7a]">⏰ {selectedTime}</p>
-                  <p className="text-sm text-[#7f7c7a]">💈 {barbers.find(b => b.id === selectedBarber)?.name}</p>
-                  <p className="text-sm text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
-                  <p className="text-sm text-[#7f7c7a] font-bold text-[#9c7f64]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
+                <div className="bg-[#f5f0e8] rounded-lg p-3 sm:p-4 mb-3 sm:mb-4 text-sm sm:text-base">
+                  <p className="text-[#7f7c7a]">📅 {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[#7f7c7a]">⏰ {selectedTime}</p>
+                  <p className="text-[#7f7c7a]">💈 {barbers.find(b => b.id === selectedBarber)?.name}</p>
+                  <p className="text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
+                  <p className="text-[#7f7c7a] font-bold text-[#9c7f64]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
                 </div>
 
                 <div>
@@ -588,39 +574,39 @@ const PublicSchedule = () => {
                       type="text"
                       value={formData.clientPhone}
                       onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base"
                       placeholder="(00) 00000-0000"
                       required
                     />
                   </div>
-                  <p className="text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
+                  <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs sm:text-sm text-blue-700">
                   💡 Você receberá um lembrete 1 hora antes do horário agendado.
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-3 rounded-lg transition font-medium"
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-3 rounded-lg transition font-medium text-sm sm:text-base flex items-center justify-center gap-2 order-2 sm:order-1"
                   >
-                    ← Voltar
+                    <ArrowLeft size={18} /> Voltar
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-[#9c7f64] hover:bg-[#544941] disabled:opacity-50 text-white py-3 rounded-lg transition font-medium flex items-center justify-center gap-2"
+                    className="flex-1 bg-[#9c7f64] hover:bg-[#544941] disabled:opacity-50 text-white py-3 rounded-lg transition font-medium text-sm sm:text-base flex items-center justify-center gap-2 order-1 sm:order-2"
                   >
                     {submitting ? (
                       <>
-                        <Loader size={20} className="animate-spin" />
+                        <Loader size={18} className="animate-spin" />
                         Agendando...
                       </>
                     ) : (
                       <>
-                        <Check size={20} />
+                        <Check size={18} />
                         Confirmar Agendamento
                       </>
                     )}
@@ -631,7 +617,7 @@ const PublicSchedule = () => {
           </form>
         </div>
 
-        <div className="text-center mt-8 text-xs text-[#7f7c7a]/40">
+        <div className="text-center mt-6 sm:mt-8 text-[10px] sm:text-xs text-[#7f7c7a]/40">
           © 2026 Manner Haus Barber Club
         </div>
       </div>
