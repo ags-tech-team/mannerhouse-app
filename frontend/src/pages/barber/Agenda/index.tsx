@@ -390,22 +390,34 @@ const BarberAgenda = () => {
         </div>
       </div>
 
-      {/* Calendário */}
+     {/* Calendário - Responsivo */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b">
-          <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronLeft size={20} /></button>
-          <h2 className="text-xl font-semibold text-[#060606]">{currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-          <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronRight size={20} /></button>
+        <div className="flex justify-between items-center p-3 sm:p-4 border-b">
+          <button onClick={() => changeMonth(-1)} className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition">
+            <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
+          </button>
+          <h2 className="text-base sm:text-xl font-semibold text-[#060606]">
+            {currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          </h2>
+          <button onClick={() => changeMonth(1)} className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition">
+            <ChevronRight size={18} className="sm:w-5 sm:h-5" />
+          </button>
         </div>
-        <div className="grid grid-cols-7 gap-1 p-4 bg-[#f5f0e8]">
-          {weekdays.map((day) => <div key={day} className="text-center text-sm font-medium text-[#544941]">{day}</div>)}
+        
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-2 sm:p-4 bg-[#f5f0e8]">
+          {weekdays.map((day) => (
+            <div key={day} className="text-center text-[10px] sm:text-sm font-medium text-[#544941]">
+              {day}
+            </div>
+          ))}
         </div>
-        <div className="grid grid-cols-7 gap-1 p-4">
+        
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-2 sm:p-4">
           {days.map((day, index) => (
             <div
               key={index}
               className={`
-                relative min-h-[100px] p-2 rounded-lg border transition cursor-pointer
+                relative min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 rounded-lg border transition cursor-pointer
                 ${day === null ? 'bg-gray-50' : 'hover:shadow-md hover:border-[#9c7f64]'}
                 ${day?.isToday ? 'border-[#9c7f64] bg-[#9c7f64]/5' : 'border-gray-200'}
                 ${day?.appointments && day.appointments.length > 0 ? 'bg-[#9c7f64]/5' : ''}
@@ -415,11 +427,17 @@ const BarberAgenda = () => {
               {day !== null && (
                 <>
                   <div className="flex justify-between items-start">
-                    <span className={`text-sm font-medium ${day.isToday ? 'text-[#9c7f64]' : 'text-[#060606]'}`}>{day.day}</span>
-                    {day.appointments.length > 0 && <span className="text-xs bg-[#9c7f64] text-white rounded-full px-2 py-0.5">{day.appointments.length}</span>}
+                    <span className={`text-[10px] sm:text-sm font-medium ${day.isToday ? 'text-[#9c7f64]' : 'text-[#060606]'}`}>
+                      {day.day}
+                    </span>
+                    {day.appointments.length > 0 && (
+                      <span className="text-[8px] sm:text-xs bg-[#9c7f64] text-white rounded-full px-1.5 sm:px-2 py-0.5">
+                        {day.appointments.length}
+                      </span>
+                    )}
                   </div>
-                  <div className="mt-1 space-y-0.5 max-h-[60px] overflow-y-auto">
-                    {day.appointments.slice(0, 3).map((app) => {
+                  <div className="mt-0.5 sm:mt-1 space-y-0.5 max-h-[40px] sm:max-h-[60px] overflow-y-auto">
+                    {day.appointments.slice(0, 2).map((app) => {
                       const statusInfo = getStatusLabel(app.status);
                       const isCompleted = app.status === 'completed';
                       const isCancelled = app.status === 'cancelled';
@@ -427,14 +445,25 @@ const BarberAgenda = () => {
                         <div
                           key={app.id}
                           onClick={(e) => { e.stopPropagation(); openDetailModal(app); }}
-                          className={`text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${isCompleted ? 'bg-green-100 text-green-800' : ''} ${isCancelled ? 'bg-red-100 text-red-800 line-through' : ''} ${!isCompleted && !isCancelled ? 'bg-[#f5f0e8] text-[#060606]' : ''}`}
-                          title={`${app.time} - ${app.Client?.name || 'Cliente'} (${statusInfo.label})`}
+                          className={`text-[8px] sm:text-[10px] px-0.5 sm:px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${
+                            isCompleted ? 'bg-green-100 text-green-800' : ''
+                          } ${isCancelled ? 'bg-red-100 text-red-800 line-through' : ''} ${
+                            !isCompleted && !isCancelled ? 'bg-[#f5f0e8] text-[#060606]' : ''
+                          }`}
+                          title={`${app.time} - ${app.Client?.name || 'Cliente'}`}
                         >
-                          {app.time} {app.Client?.name || 'Cliente'} {isCompleted && ' ✅'} {isCancelled && ' ❌'}
+                          <span className="hidden sm:inline">{app.time} </span>
+                          {app.Client?.name || 'Cliente'}
+                          {isCompleted && ' ✅'}
+                          {isCancelled && ' ❌'}
                         </div>
                       );
                     })}
-                    {day.appointments.length > 3 && <div className="text-[10px] text-[#7f7c7a] text-center">+{day.appointments.length - 3} mais...</div>}
+                    {day.appointments.length > 2 && (
+                      <div className="text-[6px] sm:text-[10px] text-[#7f7c7a] text-center">
+                        +{day.appointments.length - 2} mais...
+                      </div>
+                    )}
                   </div>
                 </>
               )}
