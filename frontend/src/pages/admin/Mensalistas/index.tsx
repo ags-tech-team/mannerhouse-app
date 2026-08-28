@@ -377,14 +377,14 @@ const AdminMensalistas = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#060606]">📋 Mensalistas</h1>
-          <p className="text-[#7f7c7a]">Gerencie clientes com assinatura mensal</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">📋 Mensalistas</h1>
+          <p className="text-sm sm:text-base text-[#7f7c7a]">Gerencie clientes com assinatura mensal</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <button
             onClick={() => {
               setClientName('');
@@ -399,29 +399,27 @@ const AdminMensalistas = () => {
               });
               setShowNewClientModal(true);
             }}
-            className="bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
           >
-            <UserPlus size={20} />
+            <UserPlus size={18} />
             Nova Assinatura
           </button>
           
-          <div className="flex items-center gap-2 bg-white rounded-lg shadow px-3 py-2">
+          <div className="flex items-center gap-1 sm:gap-2 bg-white rounded-lg shadow px-2 sm:px-3 py-1.5 sm:py-2">
             <button
               onClick={() => changeMonth(-1)}
               className="p-1 hover:bg-gray-100 rounded transition"
-              title="Mês anterior"
             >
-              <ChevronLeft size={16} className="text-[#7f7c7a]" />
+              <ChevronLeft size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
-            <span className="text-sm font-medium min-w-[120px] text-center">
-             {formatMonthDisplay(selectedMonth)}
+            <span className="text-[10px] sm:text-sm font-medium min-w-[80px] sm:min-w-[120px] text-center truncate">
+              {formatMonthDisplay(selectedMonth)}
             </span>
             <button
               onClick={() => changeMonth(1)}
               className="p-1 hover:bg-gray-100 rounded transition"
-              title="Próximo mês"
             >
-              <ChevronRight size={16} className="text-[#7f7c7a]" />
+              <ChevronRight size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
             {!isCurrentMonth() && (
               <button
@@ -429,7 +427,7 @@ const AdminMensalistas = () => {
                   const now = new Date();
                   setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
                 }}
-                className="ml-2 text-xs text-[#9c7f64] hover:underline"
+                className="ml-1 text-[8px] sm:text-xs text-[#9c7f64] hover:underline"
               >
                 Voltar
               </button>
@@ -439,65 +437,65 @@ const AdminMensalistas = () => {
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Total Mensalidades</p>
-              <p className="text-2xl font-bold text-[#060606]">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Total Mensalidades</p>
+              <p className="text-base sm:text-2xl font-bold text-[#060606]">
                 {formatCurrency(getTotalMonthlyRevenue())}
               </p>
             </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Users size={20} className="text-purple-600" />
+            <div className="p-2 sm:p-3 bg-purple-100 rounded-full">
+              <Users size={16} className="sm:w-5 sm:h-5 text-purple-600" />
             </div>
           </div>
-          <p className="text-sm text-[#7f7c7a] mt-1">
-            {clients.filter(c => c.isMonthly).length} clientes mensalistas
+          <p className="text-[10px] sm:text-sm text-[#7f7c7a] mt-1">
+            {clients.filter(c => c.isMonthly).length} clientes
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Pago este mês</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Pago este mês</p>
+              <p className="text-base sm:text-2xl font-bold text-green-600">
                 {formatCurrency(getPaidThisMonth())}
               </p>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <CheckCircle size={20} className="text-green-600" />
+            <div className="p-2 sm:p-3 bg-green-100 rounded-full">
+              <CheckCircle size={16} className="sm:w-5 sm:h-5 text-green-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Pendente este mês</p>
-              <p className="text-2xl font-bold text-yellow-600">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Pendente</p>
+              <p className="text-base sm:text-2xl font-bold text-yellow-600">
                 {formatCurrency(getPendingThisMonth())}
               </p>
             </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
-              <Clock size={20} className="text-yellow-600" />
+            <div className="p-2 sm:p-3 bg-yellow-100 rounded-full">
+              <Clock size={16} className="sm:w-5 sm:h-5 text-yellow-600" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Busca */}
-      <div className="bg-white p-4 rounded-lg shadow">
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
         <div className="flex items-center gap-2">
-          <Search size={18} className="text-[#7f7c7a]" />
+          <Search size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
           <input
             type="text"
             placeholder="Buscar cliente por nome ou telefone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
           />
-          <span className="text-sm text-[#7f7c7a]">
+          <span className="text-[10px] sm:text-sm text-[#7f7c7a] whitespace-nowrap">
             {filteredClients.length} clientes
           </span>
         </div>
@@ -505,168 +503,170 @@ const AdminMensalistas = () => {
 
       {/* Lista de Clientes */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
+        <div className="flex justify-center items-center py-8 sm:py-12">
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#9c7f64]"></div>
         </div>
       ) : filteredClients.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Users size={48} className="mx-auto text-[#7f7c7a] mb-4" />
-          <h3 className="text-lg font-medium text-[#060606]">Nenhum mensalista encontrado</h3>
-          <p className="text-[#7f7c7a] mt-2">
-            Clique em "Nova Assinatura" para criar o primeiro cliente mensalista
-          </p>
+        <div className="bg-white rounded-lg shadow p-8 sm:p-12 text-center">
+          <Users size={32} className="sm:w-12 sm:h-12 mx-auto text-[#7f7c7a] mb-4" />
+          <h3 className="text-base sm:text-lg font-medium text-[#060606]">Nenhum mensalista encontrado</h3>
+          <p className="text-sm text-[#7f7c7a] mt-2">Clique em "Nova Assinatura" para criar</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-[#f5f0e8]">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mensalidade</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Mês Atual</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Último Pagamento</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredClients.map((client) => {
-                  const paid = hasPaidThisMonth(client);
-                  const lastPayment = getLastPayment(client);
-                  
-                  return (
-                    <tr key={client.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-sm">
-                            {client.name.charAt(0).toUpperCase()}
+            <div className="min-w-[900px] sm:min-w-full">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-[#f5f0e8]">
+                  <tr>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Cliente</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Telefone</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mensalidade</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Status</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mês Atual</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Último Pgto</th>
+                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredClients.map((client) => {
+                    const paid = hasPaidThisMonth(client);
+                    const lastPayment = getLastPayment(client);
+                    
+                    return (
+                      <tr key={client.id} className="hover:bg-gray-50">
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-[10px] sm:text-sm flex-shrink-0">
+                              {client.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-[#060606] text-xs sm:text-sm truncate max-w-[60px] sm:max-w-none">
+                              {client.name}
+                            </span>
                           </div>
-                          <span className="font-medium text-[#060606]">{client.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {client.phone}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {client.barber ? (
-                          <span className="text-sm text-[#9c7f64] font-medium">
-                            {client.barber.name}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-red-500">
-                            <AlertCircle size={16} className="inline mr-1" />
-                            Sem barbeiro
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {client.isMonthly ? (
-                          <span className="font-medium text-[#9c7f64]">
-                            {formatCurrency(client.monthlyFee || 0)}
-                          </span>
-                        ) : (
-                          <span className="text-[#7f7c7a]">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {client.isMonthly ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                            Mensalista
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                            Normal
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {client.isMonthly ? (
-                          paid ? (
-                            <span className="flex items-center gap-1 text-green-600">
-                              <CheckCircle size={16} /> Pago
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                          {client.phone}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          {client.barber ? (
+                            <span className="text-xs sm:text-sm text-[#9c7f64] font-medium">
+                              {client.barber.name}
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1 text-yellow-600">
-                              <Clock size={16} /> Pendente
+                            <span className="text-xs sm:text-sm text-red-500">
+                              <AlertCircle size={12} className="sm:w-[14px] sm:h-[14px] inline mr-1" />
+                              Sem barbeiro
                             </span>
-                          )
-                        ) : (
-                          <span className="text-[#7f7c7a]">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {client.isMonthly ? (
-                          lastPayment ? (
-                            <span className="text-sm text-[#060606]">
-                              {formatPaymentDate(lastPayment)}
+                          )}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          {client.isMonthly ? (
+                            <span className="font-medium text-[#9c7f64] text-xs sm:text-sm">
+                              {formatCurrency(client.monthlyFee || 0)}
                             </span>
                           ) : (
-                            <span className="text-sm text-[#7f7c7a]">Nunca</span>
-                          )
-                        ) : (
-                          <span className="text-[#7f7c7a]">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                        {!client.isMonthly ? (
-                          <button
-                            onClick={() => {
-                              setSelectedClient(client);
-                              setEditingBarberId(client.barberId || '');
-                              monthlyFee.setValue(String(client.monthlyFee || 0));
-                              setShowModal(true);
-                            }}
-                            className="text-[#9c7f64] hover:text-[#544941] transition text-sm"
-                          >
-                            Tornar Mensalista
-                          </button>
-                        ) : (
-                          <>
+                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          {client.isMonthly ? (
+                            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-green-100 text-green-800">
+                              Mensalista
+                            </span>
+                          ) : (
+                            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-gray-100 text-gray-800">
+                              Normal
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          {client.isMonthly ? (
+                            paid ? (
+                              <span className="flex items-center gap-0.5 sm:gap-1 text-green-600 text-xs sm:text-sm">
+                                <CheckCircle size={12} className="sm:w-[14px] sm:h-[14px]" /> Pago
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-0.5 sm:gap-1 text-yellow-600 text-xs sm:text-sm">
+                                <Clock size={12} className="sm:w-[14px] sm:h-[14px]" /> Pendente
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          {client.isMonthly ? (
+                            lastPayment ? (
+                              <span className="text-[10px] sm:text-sm text-[#060606]">
+                                {formatPaymentDate(lastPayment)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] sm:text-sm text-[#7f7c7a]">Nunca</span>
+                            )
+                          ) : (
+                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right space-x-1 sm:space-x-2">
+                          {!client.isMonthly ? (
                             <button
-                              onClick={() => handleEditClient(client)}
-                              className="text-blue-600 hover:text-blue-800 transition"
-                              title="Editar"
+                              onClick={() => {
+                                setSelectedClient(client);
+                                setEditingBarberId(client.barberId || '');
+                                monthlyFee.setValue(String(client.monthlyFee || 0));
+                                setShowModal(true);
+                              }}
+                              className="text-[#9c7f64] hover:text-[#544941] transition text-[10px] sm:text-sm"
                             >
-                              <Edit size={18} />
+                              Tornar Mensalista
                             </button>
-                            {!paid && (
+                          ) : (
+                            <>
                               <button
-                                onClick={() => handleConfirmPayment(client.id)}
-                                className="text-green-600 hover:text-green-800 transition"
-                                title="Confirmar pagamento"
+                                onClick={() => handleEditClient(client)}
+                                className="text-blue-600 hover:text-blue-800 transition p-1"
+                                title="Editar"
                               >
-                                <Check size={18} />
+                                <Edit size={14} className="sm:w-[18px] sm:h-[18px]" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleToggleMonthly(client)}
-                              className="text-red-500 hover:text-red-700 transition"
-                              title="Remover mensalista"
-                            >
-                              <X size={18} />
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                              {!paid && (
+                                <button
+                                  onClick={() => handleConfirmPayment(client.id)}
+                                  className="text-green-600 hover:text-green-800 transition p-1"
+                                  title="Confirmar pagamento"
+                                >
+                                  <Check size={14} className="sm:w-[18px] sm:h-[18px]" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleToggleMonthly(client)}
+                                className="text-red-500 hover:text-red-700 transition p-1"
+                                title="Remover"
+                              >
+                                <X size={14} className="sm:w-[18px] sm:h-[18px]" />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
-      {/* MODAL NOVA ASSINATURA */}
+      {/* MODAL NOVA ASSINATURA - Responsivo */}
       {showNewClientModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606] flex items-center gap-2">
-                <UserPlus size={24} className="text-[#9c7f64]" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606] flex items-center gap-2">
+                <UserPlus size={20} className="sm:w-6 sm:h-6 text-[#9c7f64]" />
                 Nova Assinatura
               </h2>
               <button
@@ -685,30 +685,26 @@ const AdminMensalistas = () => {
                 }}
                 className="text-[#7f7c7a] hover:text-[#060606]"
               >
-                <X size={24} />
+                <X size={20} className="sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateClient} className="space-y-4">
+            <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Nome do Cliente *
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Nome do Cliente *</label>
                 <ClientAutocomplete
                   value={clientName}
                   onChange={setClientName}
                   onSelectClient={handleSelectClient}
-                  placeholder="Digite o nome ou telefone do cliente..."
+                  placeholder="Digite o nome ou telefone..."
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Telefone *
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Telefone *</label>
                 <div className="relative">
-                  <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <Phone size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <input
                     type="tel"
                     value={newClient.phone}
@@ -716,7 +712,7 @@ const AdminMensalistas = () => {
                       setNewClient({ ...newClient, phone: e.target.value });
                       setClientPhone(e.target.value);
                     }}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -724,15 +720,13 @@ const AdminMensalistas = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Barbeiro Responsável *
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Barbeiro *</label>
                 <div className="relative">
-                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <User size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <select
                     value={newClient.barberId}
                     onChange={(e) => setNewClient({ ...newClient, barberId: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent appearance-none"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm appearance-none"
                     required
                   >
                     <option value="">Selecione um barbeiro...</option>
@@ -746,18 +740,16 @@ const AdminMensalistas = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Valor da Mensalidade (R$) *
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Valor (R$) *</label>
                 <div className="relative">
-                  <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <DollarSign size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     value={newClient.monthlyFee || ''}
                     onChange={(e) => setNewClient({ ...newClient, monthlyFee: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                     placeholder="0,00"
                     required
                   />
@@ -765,70 +757,56 @@ const AdminMensalistas = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Forma de Pagamento *
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Pagamento *</label>
                 <div className="relative">
-                  <CreditCard size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <CreditCard size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <select
                     value={newClient.paymentMethod}
                     onChange={(e) => setNewClient({ ...newClient, paymentMethod: e.target.value as any })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent appearance-none"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm appearance-none"
                     required
                   >
                     <option value="dinheiro">Dinheiro</option>
                     <option value="pix">PIX</option>
-                    <option value="cartao">Cartão de Crédito</option>
-                    <option value="debito">Cartão de Débito</option>
+                    <option value="cartao">Cartão</option>
+                    <option value="debito">Débito</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Observações
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Observações</label>
                 <div className="relative">
-                  <FileText size={18} className="absolute left-3 top-3 text-[#7f7c7a]" />
+                  <FileText size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-3 text-[#7f7c7a]" />
                   <textarea
                     value={newClient.notes}
                     onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                    placeholder="Observações sobre a assinatura..."
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    placeholder="Observações..."
                     rows={2}
                   />
                 </div>
               </div>
 
-              <div className="bg-[#f5f0e8] p-4 rounded-lg">
-                <p className="text-sm font-medium text-[#060606]">Resumo da Assinatura</p>
-                <div className="mt-2 space-y-1 text-sm">
+              <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg text-sm">
+                <p className="font-medium text-[#060606]">Resumo da Assinatura</p>
+                <div className="mt-2 space-y-1">
                   <div className="flex justify-between">
                     <span className="text-[#7f7c7a]">Mensalidade:</span>
-                    <span className="font-bold text-[#9c7f64]">
-                      {formatCurrency(newClient.monthlyFee || 0)}
-                    </span>
+                    <span className="font-bold text-[#9c7f64]">{formatCurrency(newClient.monthlyFee || 0)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#7f7c7a]">Barbeiro:</span>
-                    <span className="font-medium">
-                      {barbers.find(b => b.id === newClient.barberId)?.name || 'Não selecionado'}
-                    </span>
+                    <span>{barbers.find(b => b.id === newClient.barberId)?.name || 'Não selecionado'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#7f7c7a]">Mês de início:</span>
-                    <span className="font-medium">
-                      {formatMonthDisplay(selectedMonth)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#7f7c7a]">Pagamento:</span>
-                    <span className="font-medium capitalize">{newClient.paymentMethod}</span>
+                    <span className="text-[#7f7c7a]">Mês:</span>
+                    <span>{formatMonthDisplay(selectedMonth)}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -844,16 +822,15 @@ const AdminMensalistas = () => {
                       notes: ''
                     });
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-1"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition flex items-center justify-center gap-2"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-2"
                 >
-                  <Check size={18} />
-                  Criar Assinatura
+                  <Check size={16} /> Criar Assinatura
                 </button>
               </div>
             </form>
@@ -861,12 +838,12 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL EDITAR MENSALIDADE */}
+      {/* MODAL EDITAR - Responsivo */}
       {showModal && selectedClient && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
                 {selectedClient.isMonthly ? 'Editar Mensalista' : 'Tornar Mensalista'}
               </h2>
               <button
@@ -877,27 +854,24 @@ const AdminMensalistas = () => {
                 }}
                 className="text-[#7f7c7a] hover:text-[#060606]"
               >
-                <X size={24} />
+                <X size={20} className="sm:w-6 sm:h-6" />
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="bg-[#f5f0e8] p-4 rounded-lg">
-                <p className="font-medium text-[#060606]">{selectedClient.name}</p>
-                <p className="text-sm text-[#7f7c7a]">{selectedClient.phone}</p>
+              <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg">
+                <p className="font-medium text-[#060606] text-sm sm:text-base">{selectedClient.name}</p>
+                <p className="text-xs sm:text-sm text-[#7f7c7a]">{selectedClient.phone}</p>
               </div>
 
-              {/* 🔥 SELETOR DE BARBEIRO */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Barbeiro Responsável
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Barbeiro</label>
                 <div className="relative">
-                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <User size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
                   <select
                     value={editingBarberId}
                     onChange={(e) => setEditingBarberId(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent appearance-none"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm appearance-none"
                   >
                     <option value="">Selecione um barbeiro...</option>
                     {barbers.map(barber => (
@@ -908,45 +882,42 @@ const AdminMensalistas = () => {
                   </select>
                 </div>
                 {selectedClient.barber && (
-                  <p className="text-xs text-[#7f7c7a] mt-1">
+                  <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">
                     Atual: {selectedClient.barber.name}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">
-                  Valor da Mensalidade (R$)
-                </label>
+                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Valor (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={monthlyFee.value}
                   onChange={monthlyFee.onChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   placeholder="0,00"
                   min="0"
                   required
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
                 <button
                   onClick={() => {
                     setShowModal(false);
                     setSelectedClient(null);
                     monthlyFee.reset();
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-1"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition flex items-center justify-center gap-2"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-2"
                 >
-                  <Check size={18} />
-                  Salvar Alterações
+                  <Check size={16} /> Salvar
                 </button>
               </div>
             </div>
@@ -954,7 +925,7 @@ const AdminMensalistas = () => {
         </div>
       )}
     </div>
-  );
+  )
 };
 
 export default AdminMensalistas;

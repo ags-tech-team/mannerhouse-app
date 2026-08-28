@@ -82,7 +82,6 @@ const AdminFaturamento = () => {
       
       if (periodType === 'week') {
         params.period = 'week';
-        // Calcular a semana com offset
         const now = new Date();
         now.setDate(now.getDate() + (weekOffset * 7));
         const dayOfWeek = now.getDay();
@@ -94,11 +93,8 @@ const AdminFaturamento = () => {
         endOfWeek.setHours(23, 59, 59, 999);
         params.startDate = startOfWeek.toISOString().split('T')[0];
         params.endDate = endOfWeek.toISOString().split('T')[0];
-        
-        console.log('📅 Semana selecionada:', params.startDate, 'até', params.endDate); // 🔥 DEBUG
       } else {
         params.month = selectedMonth;
-        console.log('📅 Mês selecionado:', selectedMonth); // 🔥 DEBUG
       }
       
       const response = await api.get('/revenues/dashboard', { params });
@@ -162,33 +158,33 @@ const AdminFaturamento = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
+      <div className="flex justify-center items-center py-8 sm:py-12">
+        <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#9c7f64]"></div>
       </div>
     );
   }
 
   if (!data) {
-    return <div className="text-center py-12 text-[#7f7c7a]">Nenhum dado encontrado</div>;
+    return <div className="text-center py-8 sm:py-12 text-[#7f7c7a] text-sm sm:text-base">Nenhum dado encontrado</div>;
   }
 
   const { summary, commissions, expenses } = data;
   const isProfitable = summary.netProfit > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#060606]">📊 Faturamento</h1>
-          <p className="text-[#7f7c7a]">Visão completa das finanças da barbearia</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">📊 Faturamento</h1>
+          <p className="text-sm sm:text-base text-[#7f7c7a]">Visão completa das finanças da barbearia</p>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* 🔥 SELETOR DE PERÍODO */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
+          {/* SELETOR DE PERÍODO */}
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => { setPeriodType('month'); setWeekOffset(0); }}
-              className={`px-3 py-1 rounded-lg text-sm transition ${
+              className={`px-2 sm:px-3 py-1 rounded-lg text-[10px] sm:text-sm transition ${
                 periodType === 'month' ? 'bg-white shadow text-[#060606]' : 'text-[#7f7c7a] hover:text-[#060606]'
               }`}
             >
@@ -196,7 +192,7 @@ const AdminFaturamento = () => {
             </button>
             <button
               onClick={() => { setPeriodType('week'); setWeekOffset(0); }}
-              className={`px-3 py-1 rounded-lg text-sm transition ${
+              className={`px-2 sm:px-3 py-1 rounded-lg text-[10px] sm:text-sm transition ${
                 periodType === 'week' ? 'bg-white shadow text-[#060606]' : 'text-[#7f7c7a] hover:text-[#060606]'
               }`}
             >
@@ -204,42 +200,42 @@ const AdminFaturamento = () => {
             </button>
           </div>
           
-          {/* 🔥 NAVEGAÇÃO */}
-          <div className="flex items-center gap-2 bg-white rounded-lg shadow px-3 py-2">
+          {/* NAVEGAÇÃO */}
+          <div className="flex items-center gap-1 sm:gap-2 bg-white rounded-lg shadow px-2 sm:px-3 py-1.5 sm:py-2">
             <button
               onClick={() => periodType === 'week' ? changeWeek(-1) : changeMonth(-1)}
               className="p-1 hover:bg-gray-100 rounded transition"
             >
-              <ChevronLeft size={16} className="text-[#7f7c7a]" />
+              <ChevronLeft size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
-            <span className="text-sm font-medium min-w-[180px] text-center">
+            <span className="text-[10px] sm:text-sm font-medium min-w-[120px] sm:min-w-[180px] text-center truncate">
               {formatPeriod()}
             </span>
             <button
               onClick={() => periodType === 'week' ? changeWeek(1) : changeMonth(1)}
               className="p-1 hover:bg-gray-100 rounded transition"
             >
-              <ChevronRight size={16} className="text-[#7f7c7a]" />
+              <ChevronRight size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Receita Total</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Receita Total</p>
+              <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
                 {formatCurrency(summary.totalRevenue)}
               </p>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <TrendingUp size={20} className="text-green-600" />
+            <div className="p-2 sm:p-3 bg-green-100 rounded-full">
+              <TrendingUp size={14} className="sm:w-5 sm:h-5 text-green-600" />
             </div>
           </div>
-          <div className="mt-2 text-sm text-[#7f7c7a]">
+          <div className="mt-1 sm:mt-2 text-[9px] sm:text-sm text-[#7f7c7a]">
             <span>Serviços: {formatCurrency(summary.revenueFromServices)}</span>
             <br />
             <span>Produtos: {formatCurrency(summary.revenueFromProducts)}</span>
@@ -248,33 +244,33 @@ const AdminFaturamento = () => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Despesas</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Despesas</p>
+              <p className="text-sm sm:text-2xl font-bold text-red-600 truncate">
                 {formatCurrency(summary.totalExpenses)}
               </p>
             </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <TrendingDown size={20} className="text-red-600" />
+            <div className="p-2 sm:p-3 bg-red-100 rounded-full">
+              <TrendingDown size={14} className="sm:w-5 sm:h-5 text-red-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Comissões</p>
-              <p className="text-2xl font-bold text-orange-600">
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Comissões</p>
+              <p className="text-sm sm:text-2xl font-bold text-orange-600 truncate">
                 {formatCurrency(commissions.total)}
               </p>
             </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <Users size={20} className="text-orange-600" />
+            <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
+              <Users size={14} className="sm:w-5 sm:h-5 text-orange-600" />
             </div>
           </div>
-          <div className="mt-2 text-sm text-[#7f7c7a]">
+          <div className="mt-1 sm:mt-2 text-[9px] sm:text-sm text-[#7f7c7a]">
             <span>Serviços: {formatCurrency(commissions.service)}</span>
             <br />
             <span>Produtos: {formatCurrency(commissions.product)}</span>
@@ -283,122 +279,122 @@ const AdminFaturamento = () => {
           </div>
         </div>
 
-        <div className={`p-6 rounded-lg shadow border-2 ${
-          isProfitable 
-            ? 'bg-green-50 border-green-500' 
-            : 'bg-red-50 border-red-500'
+        <div className={`p-4 sm:p-6 rounded-lg shadow border-2 ${
+          isProfitable ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'
         }`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[#7f7c7a]">Lucro Líquido</p>
-              <p className={`text-2xl font-bold ${
+              <p className="text-[10px] sm:text-sm font-medium text-[#7f7c7a]">Lucro Líquido</p>
+              <p className={`text-sm sm:text-2xl font-bold truncate ${
                 isProfitable ? 'text-green-600' : 'text-red-600'
               }`}>
                 {formatCurrency(summary.netProfit)}
               </p>
             </div>
-            <div className={`p-3 rounded-full ${
+            <div className={`p-2 sm:p-3 rounded-full ${
               isProfitable ? 'bg-green-200' : 'bg-red-200'
             }`}>
-              <PiggyBank size={20} className={isProfitable ? 'text-green-600' : 'text-red-600'} />
+              <PiggyBank size={14} className="sm:w-5 sm:h-5" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Comissões por Barbeiro */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-[#060606] mb-4 flex items-center gap-2">
-          <Users size={20} className="text-[#9c7f64]" />
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold text-[#060606] mb-3 sm:mb-4 flex items-center gap-2">
+          <Users size={18} className="sm:w-5 sm:h-5 text-[#9c7f64]" />
           Comissões por Barbeiro
         </h2>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-[#f5f0e8]">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Serviços</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Produtos</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Mensal</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {commissions.byBarber.length === 0 ? (
+          <div className="min-w-[500px] sm:min-w-full">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-[#f5f0e8]">
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-[#7f7c7a]">
-                    Nenhuma comissão registrada neste período
-                  </td>
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Serviços</th>
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Produtos</th>
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mensal</th>
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Total</th>
                 </tr>
-              ) : (
-                commissions.byBarber.map((barber, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-[#060606]">
-                      {barber.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
-                      {formatCurrency(barber.serviceCommission)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
-                      {formatCurrency(barber.productCommission)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-[#060606]">
-                      {formatCurrency(barber.monthlyCommission || 0)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-[#9c7f64]">
-                      {formatCurrency(barber.total)}
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {commissions.byBarber.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 sm:px-6 py-4 sm:py-6 text-center text-[#7f7c7a] text-sm">
+                      Nenhuma comissão registrada neste período
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  commissions.byBarber.map((barber, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap font-medium text-[#060606] text-xs sm:text-sm">
+                        {barber.name}
+                      </td>
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right text-[#060606] text-xs sm:text-sm">
+                        {formatCurrency(barber.serviceCommission)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right text-[#060606] text-xs sm:text-sm">
+                        {formatCurrency(barber.productCommission)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right text-[#060606] text-xs sm:text-sm">
+                        {formatCurrency(barber.monthlyCommission || 0)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right font-bold text-[#9c7f64] text-xs sm:text-sm">
+                        {formatCurrency(barber.total)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       {/* Despesas por Categoria */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-[#060606] mb-4 flex items-center gap-2">
-            <TrendingDown size={20} className="text-red-500" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-[#060606] mb-3 sm:mb-4 flex items-center gap-2">
+            <TrendingDown size={18} className="sm:w-5 sm:h-5 text-red-500" />
             Despesas por Categoria
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2">
             {Object.entries(expenses.byCategory).map(([category, total]) => (
-              <div key={category} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+              <div key={category} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded text-sm sm:text-base">
                 <span className="text-[#060606]">{getCategoryLabel(category)}</span>
                 <span className="font-medium text-red-600">{formatCurrency(total)}</span>
               </div>
             ))}
             {Object.keys(expenses.byCategory).length === 0 && (
-              <p className="text-[#7f7c7a] text-center py-4">Nenhuma despesa registrada</p>
+              <p className="text-[#7f7c7a] text-center py-4 sm:py-6 text-sm">Nenhuma despesa registrada</p>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-[#060606] mb-4 flex items-center gap-2">
-            <Package size={20} className="text-[#9c7f64]" />
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-[#060606] mb-3 sm:mb-4 flex items-center gap-2">
+            <Package size={18} className="sm:w-5 sm:h-5 text-[#9c7f64]" />
             Resumo Financeiro
           </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between p-2 border-b border-gray-100">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex justify-between p-2 border-b border-gray-100 text-sm sm:text-base">
               <span className="text-[#7f7c7a]">Receita Total</span>
               <span className="font-medium text-green-600">{formatCurrency(summary.totalRevenue)}</span>
             </div>
-            <div className="flex justify-between p-2 border-b border-gray-100">
+            <div className="flex justify-between p-2 border-b border-gray-100 text-sm sm:text-base">
               <span className="text-[#7f7c7a]">(-) Despesas</span>
               <span className="font-medium text-red-600">-{formatCurrency(summary.totalExpenses)}</span>
             </div>
-            <div className="flex justify-between p-2 border-b border-gray-100">
+            <div className="flex justify-between p-2 border-b border-gray-100 text-sm sm:text-base">
               <span className="text-[#7f7c7a]">(-) Comissões</span>
               <span className="font-medium text-orange-600">-{formatCurrency(commissions.total)}</span>
             </div>
-            <div className={`flex justify-between p-2 rounded-lg ${
+            <div className={`flex justify-between p-2 sm:p-3 rounded-lg text-sm sm:text-base ${
               isProfitable ? 'bg-green-50' : 'bg-red-50'
             }`}>
               <span className="font-bold text-[#060606]">Lucro Líquido</span>
-              <span className={`font-bold text-lg ${
+              <span className={`font-bold text-base sm:text-lg ${
                 isProfitable ? 'text-green-600' : 'text-red-600'
               }`}>
                 {formatCurrency(summary.netProfit)}

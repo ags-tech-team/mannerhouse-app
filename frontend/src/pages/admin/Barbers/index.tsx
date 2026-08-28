@@ -195,531 +195,483 @@ const AdminBarbers = () => {
     return `${months[Number(monthNum) - 1]} ${year}`;
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-[#060606]">Barbeiros</h1>
-          <p className="text-[#7f7c7a]">Gerencie os barbeiros da barbearia</p>
-        </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition"
-        >
-          <Plus size={18} />
-          Adicionar Barbeiro
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
-        </div>
-      ) : barbers.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center text-[#7f7c7a]">
-          Nenhum barbeiro cadastrado. Clique em "Adicionar Barbeiro" para começar.
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-[#f5f0e8]">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Nome</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Usuário</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Comissão</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {barbers.map((barber) => (
-                  <tr key={barber.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
-                      {barber.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                      {barber.username}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                      {barber.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                      {barber.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                      <div className="text-sm">
-                        <span>Serviços: {(barber.serviceCommissionRate * 100).toFixed(0)}%</span>
-                        <br />
-                        <span>Produtos: {(barber.productCommissionRate * 100).toFixed(0)}%</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        barber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {barber.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                      <button
-                        onClick={() => handleViewDetails(barber)}
-                        className="text-blue-600 hover:text-blue-800 transition"
-                        title="Ver detalhes e comissões"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleOpenModal(barber)}
-                        className="text-[#9c7f64] hover:text-[#544941] transition"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(barber.id)}
-                        className="text-red-500 hover:text-red-700 transition"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">✂️ Barbeiros</h1>
+            <p className="text-sm sm:text-base text-[#7f7c7a]">Gerencie os barbeiros da barbearia</p>
           </div>
+          <button
+            onClick={() => handleOpenModal()}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Adicionar Barbeiro
+          </button>
         </div>
-      )}
 
-      {/* 🔥 MODAL DE DETALHES DO BARBEIRO */}
-      {showDetailModal && selectedBarber && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex justify-between items-center p-6 border-b bg-[#f5f0e8]">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-[#9c7f64] flex items-center justify-center text-white text-2xl font-bold">
-                  {selectedBarber.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-[#060606]">{selectedBarber.name}</h2>
-                  <div className="flex items-center gap-4 text-sm text-[#7f7c7a]">
-                    <span className="flex items-center gap-1">
-                      <Mail size={14} /> {selectedBarber.email}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Phone size={14} /> {selectedBarber.phone}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                      selectedBarber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {selectedBarber.isActive ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Calendar size={18} className="text-[#7f7c7a]" />
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={handleMonthChange}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    setBarberDetail(null);
-                  }}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition text-[#7f7c7a] hover:text-[#060606]"
-                >
-                  <X size={20} />
-                </button>
+        {loading ? (
+          <div className="flex justify-center items-center py-8 sm:py-12">
+            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#9c7f64]"></div>
+          </div>
+        ) : barbers.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-6 sm:p-8 text-center text-[#7f7c7a] text-sm sm:text-base">
+            Nenhum barbeiro cadastrado. Clique em "Adicionar Barbeiro" para começar.
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="min-w-[700px] sm:min-w-full">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-[#f5f0e8]">
+                    <tr>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Nome</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Usuário</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Email</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Telefone</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Status</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {barbers.map((barber) => (
+                      <tr key={barber.id} className="hover:bg-gray-50">
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm truncate max-w-[80px] sm:max-w-none">
+                          {barber.name}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                          {barber.username}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">
+                          {barber.email}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                          {barber.phone}
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                          <div>
+                            <span>Serviços: {(barber.serviceCommissionRate * 100).toFixed(0)}%</span>
+                            <br />
+                            <span>Produtos: {(barber.productCommissionRate * 100).toFixed(0)}%</span>
+                          </div>
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full ${
+                            barber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {barber.isActive ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right space-x-1 sm:space-x-2">
+                          <button
+                            onClick={() => handleViewDetails(barber)}
+                            className="text-blue-600 hover:text-blue-800 transition p-1"
+                            title="Ver detalhes"
+                          >
+                            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenModal(barber)}
+                            className="text-[#9c7f64] hover:text-[#544941] transition p-1"
+                            title="Editar"
+                          >
+                            <Pencil size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(barber.id)}
+                            className="text-red-500 hover:text-red-700 transition p-1"
+                            title="Excluir"
+                          >
+                            <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
+          </div>
+        )}
 
-            {showDetailModal && selectedBarber && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b bg-[#f5f0e8]">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-[#9c7f64] flex items-center justify-center text-white text-2xl font-bold">
-                      {selectedBarber.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-[#060606]">{selectedBarber.name}</h2>
-                      <div className="flex items-center gap-4 text-sm text-[#7f7c7a]">
-                        <span className="flex items-center gap-1">
-                          <Mail size={14} /> {selectedBarber.email}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Phone size={14} /> {selectedBarber.phone}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${
-                          selectedBarber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {selectedBarber.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </div>
-                    </div>
+        {/* Modal de Detalhes - Responsivo */}
+        {showDetailModal && selectedBarber && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 sm:p-6 border-b bg-[#f5f0e8]">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-[#9c7f64] flex items-center justify-center text-white text-lg sm:text-2xl font-bold flex-shrink-0">
+                    {selectedBarber.name.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={18} className="text-[#7f7c7a]" />
-                      <input
-                        type="month"
-                        value={selectedMonth}
-                        onChange={handleMonthChange}
-                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                      />
+                  <div className="min-w-0">
+                    <h2 className="text-lg sm:text-2xl font-bold text-[#060606] truncate">{selectedBarber.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f7c7a]">
+                      <span className="flex items-center gap-1">
+                        <Mail size={12} className="sm:w-[14px] sm:h-[14px]" /> {selectedBarber.email}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Phone size={12} className="sm:w-[14px] sm:h-[14px]" /> {selectedBarber.phone}
+                      </span>
+                      <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs ${
+                        selectedBarber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedBarber.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setShowDetailModal(false);
-                        setBarberDetail(null);
-                      }}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition text-[#7f7c7a] hover:text-[#060606]"
-                    >
-                      <X size={20} />
-                    </button>
                   </div>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Calendar size={14} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a]" />
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={handleMonthChange}
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setBarberDetail(null);
+                    }}
+                    className="p-1 sm:p-2 hover:bg-gray-200 rounded-lg transition text-[#7f7c7a] hover:text-[#060606]"
+                  >
+                    <X size={18} className="sm:w-[20px] sm:h-[20px]" />
+                  </button>
+                </div>
+              </div>
 
-                {/* 🔥 CONTEÚDO DO MODAL - AQUI ESTÁ O PROBLEMA */}
-                <div className="flex-1 overflow-y-auto p-6">
-                  {detailLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#9c7f64]"></div>
-                      <p className="ml-4 text-[#7f7c7a]">Carregando dados...</p>
-                    </div>
-                  ) : barberDetail ? (
-                    <div className="space-y-6">
-                      {/* Resumo - Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-[#f5f0e8] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 text-[#7f7c7a] text-sm">
-                            <Scissors size={16} />
-                            Serviços
-                          </div>
-                          <p className="text-2xl font-bold text-[#060606]">
-                            {barberDetail.summary.totalServices}
-                          </p>
-                          <p className="text-sm text-[#7f7c7a]">
-                            R$ {barberDetail.summary.totalServiceRevenue.toFixed(2)}
-                          </p>
+              {/* Conteúdo */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                {detailLoading ? (
+                  <div className="flex justify-center items-center py-8 sm:py-12">
+                    <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#9c7f64]"></div>
+                    <p className="ml-3 sm:ml-4 text-[#7f7c7a] text-sm">Carregando dados...</p>
+                  </div>
+                ) : barberDetail ? (
+                  <div className="space-y-4 sm:space-y-6">
+                    {/* Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                      <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg">
+                        <div className="flex items-center gap-1 sm:gap-2 text-[#7f7c7a] text-[10px] sm:text-sm">
+                          <Scissors size={14} className="sm:w-4 sm:h-4" />
+                          Serviços
                         </div>
-
-                        <div className="bg-[#f5f0e8] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 text-[#7f7c7a] text-sm">
-                            <Package size={16} />
-                            Produtos
-                          </div>
-                          <p className="text-2xl font-bold text-[#060606]">
-                            {barberDetail.summary.totalProducts}
-                          </p>
-                          <p className="text-sm text-[#7f7c7a]">
-                            R$ {barberDetail.summary.totalProductRevenue.toFixed(2)}
-                          </p>
-                        </div>
-
-                        <div className="bg-[#f5f0e8] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 text-[#7f7c7a] text-sm">
-                            <DollarSign size={16} />
-                            Total Faturamento
-                          </div>
-                          <p className="text-2xl font-bold text-[#060606]">
-                            R$ {barberDetail.summary.totalRevenue.toFixed(2)}
-                          </p>
-                          <p className="text-sm text-[#7f7c7a]">
-                            {barberDetail.period.startDate} até {barberDetail.period.endDate}
-                          </p>
-                        </div>
-
-                        <div className="bg-[#9c7f64]/10 p-4 rounded-lg border-2 border-[#9c7f64]">
-                          <div className="flex items-center gap-2 text-[#9c7f64] text-sm font-medium">
-                            <DollarSign size={16} />
-                            Comissão Total
-                          </div>
-                          <p className="text-2xl font-bold text-[#9c7f64]">
-                            R$ {barberDetail.summary.totalCommission.toFixed(2)}
-                          </p>
-                          <p className="text-xs text-[#9c7f64]/70">
-                            Serviços: {barberDetail.barber.serviceCommissionRate}% • Produtos: {barberDetail.barber.productCommissionRate}%
-                          </p>
-                        </div>
+                        <p className="text-lg sm:text-2xl font-bold text-[#060606]">
+                          {barberDetail.summary.totalServices}
+                        </p>
+                        <p className="text-[10px] sm:text-sm text-[#7f7c7a]">
+                          R$ {barberDetail.summary.totalServiceRevenue.toFixed(2)}
+                        </p>
                       </div>
 
-                      {/* 🔥 DETALHES DOS SERVIÇOS */}
-                      {barberDetail.details.services.length > 0 && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-[#060606] mb-3 flex items-center gap-2">
-                            <Scissors size={18} className="text-[#9c7f64]" />
-                            Serviços Realizados ({barberDetail.details.services.length})
-                          </h3>
-                          <div className="overflow-x-auto border rounded-lg">
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg">
+                        <div className="flex items-center gap-1 sm:gap-2 text-[#7f7c7a] text-[10px] sm:text-sm">
+                          <Package size={14} className="sm:w-4 sm:h-4" />
+                          Produtos
+                        </div>
+                        <p className="text-lg sm:text-2xl font-bold text-[#060606]">
+                          {barberDetail.summary.totalProducts}
+                        </p>
+                        <p className="text-[10px] sm:text-sm text-[#7f7c7a]">
+                          R$ {barberDetail.summary.totalProductRevenue.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg">
+                        <div className="flex items-center gap-1 sm:gap-2 text-[#7f7c7a] text-[10px] sm:text-sm">
+                          <DollarSign size={14} className="sm:w-4 sm:h-4" />
+                          Total
+                        </div>
+                        <p className="text-lg sm:text-2xl font-bold text-[#060606]">
+                          R$ {barberDetail.summary.totalRevenue.toFixed(2)}
+                        </p>
+                        <p className="text-[10px] sm:text-sm text-[#7f7c7a]">
+                          {barberDetail.period.startDate} a {barberDetail.period.endDate}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#9c7f64]/10 p-3 sm:p-4 rounded-lg border-2 border-[#9c7f64]">
+                        <div className="flex items-center gap-1 sm:gap-2 text-[#9c7f64] text-[10px] sm:text-sm font-medium">
+                          <DollarSign size={14} className="sm:w-4 sm:h-4" />
+                          Comissão
+                        </div>
+                        <p className="text-lg sm:text-2xl font-bold text-[#9c7f64]">
+                          R$ {barberDetail.summary.totalCommission.toFixed(2)}
+                        </p>
+                        <p className="text-[8px] sm:text-xs text-[#9c7f64]/70">
+                          Serv: {barberDetail.barber.serviceCommissionRate}% • Prod: {barberDetail.barber.productCommissionRate}%
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Serviços */}
+                    {barberDetail.details.services.length > 0 && (
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold text-[#060606] mb-2 sm:mb-3 flex items-center gap-2">
+                          <Scissors size={16} className="sm:w-[18px] sm:h-[18px] text-[#9c7f64]" />
+                          Serviços ({barberDetail.details.services.length})
+                        </h3>
+                        <div className="overflow-x-auto border rounded-lg">
+                          <div className="min-w-[500px]">
+                            <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                               <thead className="bg-[#f5f0e8]">
                                 <tr>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-[#544941] uppercase">Data</th>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-[#544941] uppercase">Serviço</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Valor</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Data</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Cliente</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Serviço</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Valor</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Comissão</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
                                 {barberDetail.details.services.map((service: any) => (
                                   <tr key={service.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2 whitespace-nowrap">{formatDate(service.date)}</td>
-                                    <td className="px-4 py-2 whitespace-nowrap">{service.client}</td>
-                                    <td className="px-4 py-2">{service.service}</td>
-                                    <td className="px-4 py-2 text-right font-medium">R$ {service.price.toFixed(2)}</td>
-                                    <td className="px-4 py-2 text-right text-green-600 font-medium">R$ {service.commission.toFixed(2)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">{formatDate(service.date)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap truncate max-w-[60px] sm:max-w-none">{service.client}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 truncate max-w-[80px] sm:max-w-none">{service.service}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right font-medium">R$ {service.price.toFixed(2)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600 font-medium">R$ {service.commission.toFixed(2)}</td>
                                   </tr>
                                 ))}
                                 <tr className="bg-[#f5f0e8] font-bold">
-                                  <td colSpan={3} className="px-4 py-2 text-right">Total</td>
-                                  <td className="px-4 py-2 text-right">R$ {barberDetail.summary.totalServiceRevenue.toFixed(2)}</td>
-                                  <td className="px-4 py-2 text-right text-green-600">R$ {barberDetail.summary.serviceCommission.toFixed(2)}</td>
+                                  <td colSpan={3} className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">Total</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">R$ {barberDetail.summary.totalServiceRevenue.toFixed(2)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600">R$ {barberDetail.summary.serviceCommission.toFixed(2)}</td>
                                 </tr>
                               </tbody>
                             </table>
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* 🔥 DETALHES DOS PRODUTOS */}
-                      {barberDetail.details.products.length > 0 && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-[#060606] mb-3 flex items-center gap-2">
-                            <Package size={18} className="text-[#9c7f64]" />
-                            Produtos Vendidos ({barberDetail.details.products.length})
-                          </h3>
-                          <div className="overflow-x-auto border rounded-lg">
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    {/* Produtos */}
+                    {barberDetail.details.products.length > 0 && (
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold text-[#060606] mb-2 sm:mb-3 flex items-center gap-2">
+                          <Package size={16} className="sm:w-[18px] sm:h-[18px] text-[#9c7f64]" />
+                          Produtos ({barberDetail.details.products.length})
+                        </h3>
+                        <div className="overflow-x-auto border rounded-lg">
+                          <div className="min-w-[600px]">
+                            <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                               <thead className="bg-[#f5f0e8]">
                                 <tr>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-[#544941] uppercase">Data</th>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-[#544941] uppercase">Produto</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-[#544941] uppercase">Qtd</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Venda</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Custo</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Lucro</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Data</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Produto</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Qtd</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Venda</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Lucro</th>
+                                  <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Comissão</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
                                 {barberDetail.details.products.map((product: any) => (
                                   <tr key={product.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2 whitespace-nowrap">{formatDate(product.date)}</td>
-                                    <td className="px-4 py-2">{product.product}</td>
-                                    <td className="px-4 py-2 text-center">{product.quantity}</td>
-                                    <td className="px-4 py-2 text-right">R$ {product.salePrice.toFixed(2)}</td>
-                                    <td className="px-4 py-2 text-right text-[#7f7c7a]">R$ {product.costPrice.toFixed(2)}</td>
-                                    <td className="px-4 py-2 text-right text-blue-600">R$ {product.profit.toFixed(2)}</td>
-                                    <td className="px-4 py-2 text-right text-green-600 font-medium">R$ {product.commission.toFixed(2)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">{formatDate(product.date)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 truncate max-w-[80px] sm:max-w-none">{product.product}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-center">{product.quantity}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">R$ {product.salePrice.toFixed(2)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-blue-600">R$ {product.profit.toFixed(2)}</td>
+                                    <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600 font-medium">R$ {product.commission.toFixed(2)}</td>
                                   </tr>
                                 ))}
                                 <tr className="bg-[#f5f0e8] font-bold">
-                                  <td colSpan={4} className="px-4 py-2 text-right">Total</td>
-                                  <td className="px-4 py-2 text-right">R$ {barberDetail.summary.totalProductRevenue.toFixed(2)}</td>
-                                  <td className="px-4 py-2 text-right text-blue-600">R$ {(barberDetail.summary.totalProductRevenue * 0.5).toFixed(2)}</td>
-                                  <td className="px-4 py-2 text-right text-green-600">R$ {barberDetail.summary.productCommission.toFixed(2)}</td>
+                                  <td colSpan={3} className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">Total</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">R$ {barberDetail.summary.totalProductRevenue.toFixed(2)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-blue-600">R$ {barberDetail.summary.totalProductRevenue.toFixed(2)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600">R$ {barberDetail.summary.productCommission.toFixed(2)}</td>
                                 </tr>
                               </tbody>
                             </table>
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Mensagem quando não tem dados */}
-                      {barberDetail.details.services.length === 0 && barberDetail.details.products.length === 0 && (
-                        <div className="text-center py-12 text-[#7f7c7a] bg-gray-50 rounded-lg">
-                          <p className="text-lg">Nenhum serviço ou venda registrado neste período</p>
-                          <p className="text-sm mt-1">{formatMonth(selectedMonth)}</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-[#7f7c7a]">
-                      <p className="text-lg">Nenhum dado encontrado</p>
-                      <p className="text-sm mt-1">Tente selecionar outro mês</p>
-                    </div>
-                  )}
-                </div>
+                    {barberDetail.details.services.length === 0 && barberDetail.details.products.length === 0 && (
+                      <div className="text-center py-8 sm:py-12 text-[#7f7c7a] bg-gray-50 rounded-lg">
+                        <p className="text-base sm:text-lg">Nenhum serviço ou venda registrado neste período</p>
+                        <p className="text-xs sm:text-sm mt-1">{formatMonth(selectedMonth)}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 sm:py-12 text-[#7f7c7a]">
+                    <p className="text-base sm:text-lg">Nenhum dado encontrado</p>
+                    <p className="text-xs sm:text-sm mt-1">Tente selecionar outro mês</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Modal de Criação/Edição */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#060606]">
-                {editingBarber ? 'Editar Barbeiro' : 'Novo Barbeiro'}
-              </h2>
-              <button onClick={handleCloseModal} className="text-[#7f7c7a] hover:text-[#060606]">
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#060606]">Nome</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                />
+        {/* Modal de Criação/Edição - Responsivo */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
+                  {editingBarber ? 'Editar Barbeiro' : 'Novo Barbeiro'}
+                </h2>
+                <button onClick={handleCloseModal} className="text-[#7f7c7a] hover:text-[#060606] p-1">
+                  <X size={20} className="sm:w-6 sm:h-6" />
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#060606]">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606]">Telefone</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606]">Usuário (login)</label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#060606]">
-                  {editingBarber ? 'Nova senha (opcional)' : 'Senha'}
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                  placeholder={editingBarber ? 'Deixe em branco para manter' : 'Digite a senha'}
-                  required={!editingBarber}
-                />
-              </div>
-
-              {formData.password && (
+              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#060606]">Confirmar senha</label>
+                  <label className="block text-xs sm:text-sm font-medium text-[#060606]">Nome</label>
                   <input
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                    placeholder="Confirme a senha"
-                    required={!editingBarber && !!formData.password}
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    required
                   />
                 </div>
-              )}
 
-              <div className="border-t border-gray-200 pt-4 mt-4">
-                <h3 className="text-sm font-semibold text-[#060606] mb-3">Comissões</h3>
-                
-                <div className="space-y-3">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-[#060606]">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-[#060606]">Telefone</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-[#060606]">Usuário</label>
+                  <input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-[#060606]">
+                    {editingBarber ? 'Nova senha (opcional)' : 'Senha'}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                    placeholder={editingBarber ? 'Deixe em branco para manter' : 'Digite a senha'}
+                    required={!editingBarber}
+                  />
+                </div>
+
+                {formData.password && (
                   <div>
-                    <label className="block text-sm font-medium text-[#060606]">
-                      Comissão sobre Serviços (%)
-                    </label>
+                    <label className="block text-xs sm:text-sm font-medium text-[#060606]">Confirmar senha</label>
                     <input
-                      type="number"
-                      step="1"
-                      value={serviceCommissionRate.value}
-                      onChange={serviceCommissionRate.onChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                      min="0"
-                      max="100"
-                      placeholder="0"
-                      required
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                      placeholder="Confirme a senha"
+                      required={!editingBarber && !!formData.password}
                     />
-                    <p className="text-xs text-[#7f7c7a] mt-1">Ex: 50% sobre o valor do serviço</p>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-[#060606]">
-                      Comissão sobre Produtos (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      value={productCommissionRate.value}
-                      onChange={productCommissionRate.onChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent"
-                      min="0"
-                      max="100"
-                      placeholder="0"
-                      required
-                    />
-                    <p className="text-xs text-[#7f7c7a] mt-1">Ex: 50% sobre o lucro do produto</p>
+                <div className="border-t border-gray-200 pt-3 sm:pt-4 mt-3 sm:mt-4">
+                  <h3 className="text-xs sm:text-sm font-semibold text-[#060606] mb-2 sm:mb-3">Comissões</h3>
+                  
+                  <div className="space-y-2 sm:space-y-3">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-[#060606]">
+                        Comissão sobre Serviços (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={serviceCommissionRate.value}
+                        onChange={serviceCommissionRate.onChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        required
+                      />
+                      <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">Ex: 50% sobre o valor do serviço</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-[#060606]">
+                        Comissão sobre Produtos (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={productCommissionRate.value}
+                        onChange={productCommissionRate.onChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        required
+                      />
+                      <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">Ex: 50% sobre o lucro do produto</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="h-4 w-4 text-[#9c7f64] focus:ring-[#9c7f64]"
-                />
-                <label className="text-sm font-medium text-[#060606]">Ativo</label>
-              </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="h-4 w-4 text-[#9c7f64] focus:ring-[#9c7f64]"
+                  />
+                  <label className="text-xs sm:text-sm font-medium text-[#060606]">Ativo</label>
+                </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <Check size={18} />
-                    Salvar
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-1"
+                  >
+                    <Check size={16} /> Salvar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-2"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
 };
 
 export default AdminBarbers;
