@@ -515,101 +515,101 @@ const AdminMensalistas = () => {
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[900px] sm:min-w-full">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-[#f5f0e8]">
-                  <tr>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Cliente</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Telefone</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mensalidade</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Status</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mês Atual</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Último Pgto</th>
-                    <th className="px-2 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredClients.map((client) => {
-                    const paid = hasPaidThisMonth(client);
-                    const lastPayment = getLastPayment(client);
-                    
-                    return (
-                      <tr key={client.id} className="hover:bg-gray-50">
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-[10px] sm:text-sm flex-shrink-0">
-                              {client.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="font-medium text-[#060606] text-xs sm:text-sm truncate max-w-[60px] sm:max-w-none">
-                              {client.name}
-                            </span>
+            <table className="w-full divide-y divide-gray-200">
+              <thead className="bg-[#f5f0e8]">
+                <tr>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Cliente</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Telefone</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Barbeiro</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mensalidade</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Status</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mês Atual</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Último Pgto</th>
+                  <th className="px-2 sm:px-3 py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredClients.map((client) => {
+                  const paid = hasPaidThisMonth(client);
+                  const lastPayment = getLastPayment(client);
+                  
+                  return (
+                    <tr key={client.id} className="hover:bg-gray-50">
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-[10px] sm:text-xs flex-shrink-0">
+                            {client.name.charAt(0).toUpperCase()}
                           </div>
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
-                          {client.phone}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          {client.barber ? (
-                            <span className="text-xs sm:text-sm text-[#9c7f64] font-medium">
-                              {client.barber.name}
+                          <span className="font-medium text-[#060606] text-xs sm:text-sm truncate max-w-[80px] sm:max-w-none">
+                            {client.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-[10px] sm:text-sm">
+                        {client.phone}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {client.barber ? (
+                          <span className="text-[10px] sm:text-sm text-[#9c7f64] font-medium">
+                            {client.barber.name}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] sm:text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle size={12} className="sm:w-[14px] sm:h-[14px]" />
+                            Sem barbeiro
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {client.isMonthly ? (
+                          <span className="font-medium text-[#9c7f64] text-[10px] sm:text-sm">
+                            {formatCurrency(client.monthlyFee || 0)}
+                          </span>
+                        ) : (
+                          <span className="text-[#7f7c7a] text-[10px] sm:text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {client.isMonthly ? (
+                          <span className="px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] rounded-full bg-green-100 text-green-800 whitespace-nowrap">
+                            Mensalista
+                          </span>
+                        ) : (
+                          <span className="px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] rounded-full bg-gray-100 text-gray-800 whitespace-nowrap">
+                            Normal
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {client.isMonthly ? (
+                          paid ? (
+                            <span className="flex items-center gap-0.5 sm:gap-1 text-green-600 text-[10px] sm:text-sm whitespace-nowrap">
+                              <CheckCircle size={12} className="sm:w-[14px] sm:h-[14px]" /> Pago
                             </span>
                           ) : (
-                            <span className="text-xs sm:text-sm text-red-500">
-                              <AlertCircle size={12} className="sm:w-[14px] sm:h-[14px] inline mr-1" />
-                              Sem barbeiro
+                            <span className="flex items-center gap-0.5 sm:gap-1 text-yellow-600 text-[10px] sm:text-sm whitespace-nowrap">
+                              <Clock size={12} className="sm:w-[14px] sm:h-[14px]" /> Pendente
                             </span>
-                          )}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          {client.isMonthly ? (
-                            <span className="font-medium text-[#9c7f64] text-xs sm:text-sm">
-                              {formatCurrency(client.monthlyFee || 0)}
-                            </span>
-                          ) : (
-                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          {client.isMonthly ? (
-                            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-green-100 text-green-800">
-                              Mensalista
+                          )
+                        ) : (
+                          <span className="text-[#7f7c7a] text-[10px] sm:text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {client.isMonthly ? (
+                          lastPayment ? (
+                            <span className="text-[9px] sm:text-xs text-[#060606] whitespace-nowrap">
+                              {formatPaymentDate(lastPayment)}
                             </span>
                           ) : (
-                            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-gray-100 text-gray-800">
-                              Normal
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          {client.isMonthly ? (
-                            paid ? (
-                              <span className="flex items-center gap-0.5 sm:gap-1 text-green-600 text-xs sm:text-sm">
-                                <CheckCircle size={12} className="sm:w-[14px] sm:h-[14px]" /> Pago
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-0.5 sm:gap-1 text-yellow-600 text-xs sm:text-sm">
-                                <Clock size={12} className="sm:w-[14px] sm:h-[14px]" /> Pendente
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          {client.isMonthly ? (
-                            lastPayment ? (
-                              <span className="text-[10px] sm:text-sm text-[#060606]">
-                                {formatPaymentDate(lastPayment)}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] sm:text-sm text-[#7f7c7a]">Nunca</span>
-                            )
-                          ) : (
-                            <span className="text-[#7f7c7a] text-xs sm:text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right space-x-1 sm:space-x-2">
+                            <span className="text-[9px] sm:text-xs text-[#7f7c7a] whitespace-nowrap">Nunca</span>
+                          )
+                        ) : (
+                          <span className="text-[#7f7c7a] text-[10px] sm:text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-0.5 sm:gap-1">
                           {!client.isMonthly ? (
                             <button
                               onClick={() => {
@@ -618,7 +618,7 @@ const AdminMensalistas = () => {
                                 monthlyFee.setValue(String(client.monthlyFee || 0));
                                 setShowModal(true);
                               }}
-                              className="text-[#9c7f64] hover:text-[#544941] transition text-[10px] sm:text-sm"
+                              className="text-[#9c7f64] hover:text-[#544941] transition text-[9px] sm:text-xs whitespace-nowrap px-1"
                             >
                               Tornar Mensalista
                             </button>
@@ -629,7 +629,7 @@ const AdminMensalistas = () => {
                                 className="text-blue-600 hover:text-blue-800 transition p-1"
                                 title="Editar"
                               >
-                                <Edit size={14} className="sm:w-[18px] sm:h-[18px]" />
+                                <Edit size={14} className="sm:w-[16px] sm:h-[16px]" />
                               </button>
                               {!paid && (
                                 <button
@@ -637,7 +637,7 @@ const AdminMensalistas = () => {
                                   className="text-green-600 hover:text-green-800 transition p-1"
                                   title="Confirmar pagamento"
                                 >
-                                  <Check size={14} className="sm:w-[18px] sm:h-[18px]" />
+                                  <Check size={14} className="sm:w-[16px] sm:h-[16px]" />
                                 </button>
                               )}
                               <button
@@ -645,17 +645,17 @@ const AdminMensalistas = () => {
                                 className="text-red-500 hover:text-red-700 transition p-1"
                                 title="Remover"
                               >
-                                <X size={14} className="sm:w-[18px] sm:h-[18px]" />
+                                <X size={14} className="sm:w-[16px] sm:h-[16px]" />
                               </button>
                             </>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

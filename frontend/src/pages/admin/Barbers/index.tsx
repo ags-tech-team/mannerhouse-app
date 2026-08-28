@@ -223,49 +223,49 @@ const AdminBarbers = () => {
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <div className="min-w-[700px] sm:min-w-full">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#f5f0e8]">
-                    <tr>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Nome</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Usuário</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Email</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Telefone</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Comissão</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Status</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {barbers.map((barber) => (
-                      <tr key={barber.id} className="hover:bg-gray-50">
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm truncate max-w-[80px] sm:max-w-none">
-                          {barber.name}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
-                          {barber.username}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">
-                          {barber.email}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
-                          {barber.phone}
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
-                          <div>
-                            <span>Serviços: {(barber.serviceCommissionRate * 100).toFixed(0)}%</span>
-                            <br />
-                            <span>Produtos: {(barber.productCommissionRate * 100).toFixed(0)}%</span>
-                          </div>
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full ${
-                            barber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {barber.isActive ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </td>
-                        <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right space-x-1 sm:space-x-2">
+              <table className="w-full divide-y divide-gray-200">
+                <thead className="bg-[#f5f0e8]">
+                  <tr>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Nome</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Usuário</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Email</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Telefone</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Comissão</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Status</th>
+                    <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {barbers.map((barber) => (
+                    <tr key={barber.id} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">
+                        {barber.name}
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                        {barber.username}
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                        {barber.email}
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                        {barber.phone}
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                        <div className="space-y-0.5">
+                          <span>Serviços: {(barber.serviceCommissionRate * 100).toFixed(0)}%</span>
+                          <br />
+                          <span>Produtos: {(barber.productCommissionRate * 100).toFixed(0)}%</span>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${
+                          barber.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {barber.isActive ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1 sm:gap-2">
                           <button
                             onClick={() => handleViewDetails(barber)}
                             className="text-blue-600 hover:text-blue-800 transition p-1"
@@ -287,12 +287,12 @@ const AdminBarbers = () => {
                           >
                             <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

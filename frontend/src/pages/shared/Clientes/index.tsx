@@ -289,62 +289,66 @@ const Clientes = () => {
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full divide-y divide-gray-200">
               <thead className="bg-[#f5f0e8]">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Nome</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Telefone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Nome</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Telefone</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Status</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mensalista</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredClients.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-4 text-center text-[#7f7c7a]">
-                      Nenhum cliente encontrado
-                    </td>
-                  </tr>
-                ) : (
-                  filteredClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-sm">
-                            {client.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-medium text-[#060606]">{client.name}</span>
+                {clients.map((client) => (
+                  <tr key={client.id} className="hover:bg-gray-50">
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-[10px] sm:text-sm flex-shrink-0">
+                          {client.name.charAt(0).toUpperCase()}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                        {client.phone}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          client.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {client.isActive ? 'Ativo' : 'Inativo'}
+                        <span className="truncate max-w-[100px] sm:max-w-none">{client.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                      {client.phone}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${
+                        client.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {client.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
+                      {client.isMonthly ? (
+                        <span className="px-2 py-1 text-[10px] sm:text-xs rounded-full bg-purple-100 text-purple-800">
+                          Mensalista
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                      ) : (
+                        <span className="text-[#7f7c7a] text-xs">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-1 sm:gap-2">
                         <button
-                          onClick={() => handleOpenModal(client)}
-                          className="text-[#9c7f64] hover:text-[#544941] transition"
+                          onClick={() => handleEditClient(client)}
+                          className="text-[#9c7f64] hover:text-[#544941] transition p-1"
                           title="Editar"
                         >
-                          <Edit size={18} />
+                          <Edit size={16} className="sm:w-[18px] sm:h-[18px]" />
                         </button>
                         <button
-                          onClick={() => handleDelete(client.id)}
-                          className="text-red-500 hover:text-red-700 transition"
+                          onClick={() => handleDeleteClient(client.id)}
+                          className="text-red-500 hover:text-red-700 transition p-1"
                           title="Excluir"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                         </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
