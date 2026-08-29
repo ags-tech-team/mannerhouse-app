@@ -101,12 +101,12 @@ const BarberHistorico = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 🔥 CORRIGIR O CÁLCULO DAS DATAS
       const [year, month] = selectedMonth.split('-').map(Number);
       
       // 🔥 VALIDAR SE O MÊS É VÁLIDO
       if (!year || !month || month < 1 || month > 12) {
         console.error('❌ Mês inválido:', selectedMonth);
+        setLoading(false);
         return;
       }
       
@@ -114,7 +114,14 @@ const BarberHistorico = () => {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       
-      console.log('📅 Buscando histórico:', { startDate, endDate, selectedMonth });
+      console.log('📅 DATAS CALCULADAS:', { startDate, endDate, selectedMonth }); // 🔥 LOG
+      
+      // 🔥 VERIFICAR SE AS DATAS SÃO VÁLIDAS
+      if (startDate === 'Invalid date' || endDate === 'Invalid date') {
+        console.error('❌ Datas inválidas:', { startDate, endDate });
+        setLoading(false);
+        return;
+      }
 
       // Carregar pagamentos
       const paymentsRes = await api.get('/monthly/payments', {
@@ -122,13 +129,17 @@ const BarberHistorico = () => {
       });
       setPayments(paymentsRes.data.payments || []);
 
-      // 🔥 CARREGAR SERVIÇOS FATURADOS (COM VALIDAÇÃO)
+      // 🔥 CARREGAR SERVIÇOS FATURADOS
+      console.log('📤 Enviando requisição para /revenues/services com:', { startDate, endDate });
+      
       const servicesRes = await api.get('/revenues/services', {
         params: { 
           startDate, 
           endDate 
         }
       });
+      
+      console.log('📦 Resposta recebida:', servicesRes.data.length);
       
       // 🔥 FORMATAR OS DADOS
       const formattedServices = (servicesRes.data || []).map((r: any) => ({
