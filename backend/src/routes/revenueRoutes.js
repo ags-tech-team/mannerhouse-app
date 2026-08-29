@@ -4,6 +4,7 @@ const {
   getSummary,
   getAll,
   getByDate,
+  getServices,
 } = require('../controllers/revenueController');
 const { authMiddleware } = require('../middlewares/auth');
 
@@ -15,5 +16,6 @@ router.get('/dashboard', getFinancialDashboard);
 router.get('/summary', getSummary);
 router.get('/', getAll);
 router.get('/:date', getByDate);
+router.get('/services', getServices)
 
 module.exports = router;

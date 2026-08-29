@@ -70,7 +70,6 @@ const BarberHistorico = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'payments' | 'services' | 'products'>('payments');
   
-  
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -106,23 +105,35 @@ const BarberHistorico = () => {
       const startDate = `${year}-${month}-01`;
       const endDate = `${year}-${month}-${new Date(Number(year), Number(month), 0).getDate()}`;
 
-      // Carregar pagamentos
+      // 🔥 1. CARREGAR PAGAMENTOS (MENSALIDADES)
       const paymentsRes = await api.get('/monthly/payments', {
         params: { month: selectedMonth }
       });
       setPayments(paymentsRes.data.payments || []);
 
-      // Carregar serviços concluídos
-      const servicesRes = await api.get('/appointments', {
-        params: { 
-          startDate, 
-          endDate, 
-          status: 'completed' 
-        }
+      // 🔥 2. CARREGAR SERVIÇOS FATURADOS (ROTA NOVA /revenues/services)
+      const servicesRes = await api.get('/revenues/services', {
+        params: { startDate, endDate }
       });
-      setServices(servicesRes.data || []);
+      
+      // 🔥 FORMATAR OS REVENUES COMO SERVIÇOS
+      const formattedServices = servicesRes.data.map((r: any) => ({
+        id: r.id,
+        date: r.date,
+        time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        client: { name: 'Cliente', phone: '' },
+        barber: { name: r.barber?.name || 'Desconhecido' },
+        service: 'Serviço',
+        serviceDescription: 'Serviço concluído',
+        price: r.total,
+        commission: r.commissions,
+        status: 'completed',
+        notes: '',
+        createdAt: r.createdAt,
+      }));
+      setServices(formattedServices);
 
-      // Carregar produtos vendidos
+      // 🔥 3. CARREGAR PRODUTOS VENDIDOS
       const productsRes = await api.get('/sales', {
         params: { startDate, endDate }
       });
@@ -206,7 +217,8 @@ const BarberHistorico = () => {
       if (selectedItemType === 'payment') {
         await api.delete(`/monthly/payment/${selectedItem.id}`);
       } else if (selectedItemType === 'service') {
-        await api.delete(`/appointments/${selectedItem.id}`);
+        // 🔥 DELETAR REVENUE (SERVIÇO FATURADO)
+        await api.delete(`/revenues/${selectedItem.id}`);
       } else if (selectedItemType === 'product') {
         await api.delete(`/sales/${selectedItem.id}`);
       }
@@ -230,10 +242,10 @@ const BarberHistorico = () => {
           notes: editData.notes,
         });
       } else if (selectedItemType === 'service') {
-        await api.put(`/appointments/${selectedItem.id}`, {
-          price: editData.price,
-          serviceDescription: editData.serviceDescription,
-          notes: editData.notes,
+        // 🔥 EDITAR REVENUE (SERVIÇO FATURADO)
+        await api.put(`/revenues/${selectedItem.id}`, {
+          total: editData.price,
+          commissions: editData.price * 0.5, // Recalcular comissão
         });
       } else if (selectedItemType === 'product') {
         await api.put(`/sales/${selectedItem.id}`, {
@@ -489,10 +501,10 @@ const BarberHistorico = () => {
                             {formatDate(service.date)} {service.time}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
-                            {service.client?.name || 'Cliente removido'}
+                            {service.client?.name || 'Cliente'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                            {service.barber?.name || 'Barbeiro removido'}
+                            {service.barber?.name || 'Desconhecido'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
                             {service.serviceDescription || service.service}

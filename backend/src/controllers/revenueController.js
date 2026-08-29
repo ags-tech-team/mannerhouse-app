@@ -411,9 +411,43 @@ const getByDate = async (req, res) => {
   }
 };
 
+const getServices = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const where = {};
+    
+    if (startDate && endDate) {
+      where.date = {
+        [Op.between]: [startDate, endDate]
+      };
+    }
+    
+    // 🔥 FILTRAR APENAS REVENUES COM BARBEIRO (SERVIÇOS)
+    where.barberId = { [Op.ne]: null };
+    
+    const revenues = await Revenue.findAll({
+      where,
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber',
+          attributes: ['id', 'name'] 
+        }
+      ],
+      order: [['date', 'DESC']]
+    });
+    
+    res.json(revenues);
+  } catch (error) {
+    console.error('Erro ao buscar serviços faturados:', error);
+    res.status(500).json({ error: 'Erro ao buscar serviços faturados' });
+  }
+};
+
 module.exports = {
   getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,
+  getServices
 };
