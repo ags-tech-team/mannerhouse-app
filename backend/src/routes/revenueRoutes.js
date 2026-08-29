@@ -12,10 +12,10 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
+router.get('/services', revenueController.getServices);
 router.get('/dashboard', getFinancialDashboard);
 router.get('/summary', getSummary);
 router.get('/', getAll);
 router.get('/:date', getByDate);
-router.get('/services', getServices)
 
 module.exports = router;
