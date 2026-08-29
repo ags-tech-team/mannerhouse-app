@@ -101,9 +101,18 @@ const BarberHistorico = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // 🔥 CORRIGIR O CÁLCULO DAS DATAS
       const [year, month] = selectedMonth.split('-').map(Number);
+      
+      // 🔥 VALIDAR SE O MÊS É VÁLIDO
+      if (!year || !month || month < 1 || month > 12) {
+        console.error('❌ Mês inválido:', selectedMonth);
+        return;
+      }
+      
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-      const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       
       console.log('📅 Buscando histórico:', { startDate, endDate, selectedMonth });
 
@@ -113,7 +122,7 @@ const BarberHistorico = () => {
       });
       setPayments(paymentsRes.data.payments || []);
 
-      // 🔥 CARREGAR SERVIÇOS FATURADOS
+      // 🔥 CARREGAR SERVIÇOS FATURADOS (COM VALIDAÇÃO)
       const servicesRes = await api.get('/revenues/services', {
         params: { 
           startDate, 
@@ -122,9 +131,9 @@ const BarberHistorico = () => {
       });
       
       // 🔥 FORMATAR OS DADOS
-      const formattedServices = servicesRes.data.map((r: any) => ({
+      const formattedServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
-        date: r.date,
+        date: r.date || startDate,
         time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
         client: { name: 'Cliente', phone: '' },
         barber: { name: r.barber?.name || 'Desconhecido' },
@@ -145,7 +154,7 @@ const BarberHistorico = () => {
       setProducts(productsRes.data || []);
 
     } catch (error) {
-      console.error('Erro ao carregar histórico:', error);
+      console.error('❌ Erro ao carregar histórico:', error);
       alert('Erro ao carregar histórico');
     } finally {
       setLoading(false);
