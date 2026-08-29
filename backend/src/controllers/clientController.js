@@ -5,7 +5,7 @@ const { findOrCreateClient } = require('../services/clientService');
 const getAll = async (req, res) => {
   try {
     const clients = await Client.findAll({
-      order: [['createdAt', 'DESC']],
+      order: [['name', 'ASC']], // 🔥 ORDEM ALFABÉTICA
     });
     res.json(clients);
   } catch (error) {
@@ -160,6 +160,7 @@ const search = async (req, res) => {
         ],
         isActive: true,
       },
+      order: [['name', 'ASC']], // 🔥 ORDEM ALFABÉTICA NA BUSCA
       limit: 10,
     });
     
