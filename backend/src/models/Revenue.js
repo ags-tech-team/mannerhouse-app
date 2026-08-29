@@ -8,19 +8,11 @@ module.exports = (sequelize, DataTypes) => {
     cashRegisterId: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: 'cash_registers',
-        key: 'id',
-      },
       field: 'cash_register_id',
     },
     barberId: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: 'barbers',
-        key: 'id',
-      },
       field: 'barber_id',
     },
     date: {
@@ -30,23 +22,15 @@ module.exports = (sequelize, DataTypes) => {
     total: {
       type: DataTypes.FLOAT,
       allowNull: false,
-      validate: {
-        min: 0,
-      },
+      defaultValue: 0,
     },
     commissions: {
       type: DataTypes.FLOAT,
       defaultValue: 0,
-      validate: {
-        min: 0,
-      },
     },
     servicesCount: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
-      validate: {
-        min: 0,
-      },
       field: 'services_count',
     },
     initialCash: {
@@ -59,13 +43,22 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
       field: 'final_cash',
     },
+    // 🔥 ADICIONAR ESTE CAMPO
+    clientName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'client_name',
+    },
   }, {
     tableName: 'revenues',
     underscored: true,
+    timestamps: true,
   });
 
-  // 🔥 REMOVA ESSA LINHA DAQUI
-  // Revenue.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+  Revenue.associate = function(models) {
+    Revenue.belongsTo(models.CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
+    Revenue.belongsTo(models.Barber, { foreignKey: 'barberId', as: 'barber' });
+  };
 
   return Revenue;
 };
