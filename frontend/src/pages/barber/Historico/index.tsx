@@ -142,11 +142,11 @@ const BarberHistorico = () => {
       console.log('📦 Resposta recebida:', servicesRes.data.length);
       
       // 🔥 FORMATAR OS DADOS
-      const formattedServices = (servicesRes.data || []).map((r: any) => ({
+     const formattedServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
         date: r.date || startDate,
         time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
-        client: { name: 'Cliente', phone: '' },
+        client: { name: r.clientName || r.client?.name || 'Cliente', phone: '' }, // 🔥 USA O clientName DO BACKEND
         barber: { name: r.barber?.name || 'Desconhecido' },
         service: 'Serviço',
         serviceDescription: 'Serviço concluído',
