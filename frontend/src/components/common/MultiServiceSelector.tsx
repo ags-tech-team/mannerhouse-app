@@ -21,7 +21,7 @@ interface MultiServiceSelectorProps {
 const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   selectedServices,
   onChange,
-  maxServices = 10 // 🔥 AUMENTEI PARA 10
+  maxServices = 10
 }) => {
   const [selectedId, setSelectedId] = useState('');
 
@@ -35,20 +35,12 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
     const service = getServiceById(selectedId);
     if (!service) return;
 
-    // 🔥 REMOVIDA A VERIFICAÇÃO DE DUPLICIDADE - AGORA PERMITE REPETIR
-    // if (selectedServices.some(s => s.id === selectedId)) {
-    //   alert('Este serviço já foi adicionado');
-    //   return;
-    // }
-
-    // 🔥 GERAR ID ÚNICO PARA CADA SERVIÇO (PERMITE REPETIÇÃO)
     const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     
     onChange([...selectedServices, { id: uniqueId, service }]);
     setSelectedId('');
   };
 
-  // 🔥 REMOVER POR ÍNDICE EM VEZ DE ID
   const handleRemoveService = (index: number) => {
     const updated = selectedServices.filter((_, i) => i !== index);
     onChange(updated);
@@ -58,8 +50,27 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
-  // 🔥 MOSTRAR TODOS OS SERVIÇOS DISPONÍVEIS (INCLUINDO OS QUE JÁ FORAM ADICIONADOS)
-  const availableServices = SERVICES;
+  // 🔥 AGRUPAR SERVIÇOS PARA MOSTRAR O CONTADOR
+  const getGroupedServices = () => {
+    const groups: { [key: string]: { service: any; count: number; indices: number[] } } = {};
+    
+    selectedServices.forEach((item, index) => {
+      const key = item.service.id;
+      if (!groups[key]) {
+        groups[key] = {
+          service: item.service,
+          count: 0,
+          indices: []
+        };
+      }
+      groups[key].count++;
+      groups[key].indices.push(index);
+    });
+    
+    return groups;
+  };
+
+  const groupedServices = getGroupedServices();
 
   return (
     <div className="space-y-3">
@@ -72,7 +83,7 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
           >
             <option value="">Selecione um serviço</option>
-            {availableServices.map((service) => (
+            {SERVICES.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name} - R$ {service.price.toFixed(2)}
               </option>
@@ -98,33 +109,38 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             <span>Total: R$ {getTotal().toFixed(2)}</span>
           </div>
           <div className="space-y-1">
-            {selectedServices.map((item, index) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between bg-white p-2 rounded-lg"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Scissors size={14} className="text-[#9c7f64] flex-shrink-0" />
-                  <span className="text-sm text-[#060606] truncate">{item.service.name}</span>
-                  <span className="text-xs text-[#9c7f64] flex-shrink-0">
-                    R$ {item.service.price.toFixed(2)}
-                  </span>
-                  {/* 🔥 BADGE PARA MOSTRAR QUANTAS VEZES O SERVIÇO FOI ADICIONADO */}
-                  {selectedServices.filter(s => s.service.id === item.service.id).length > 1 && (
-                    <span className="text-[10px] bg-[#9c7f64]/20 text-[#9c7f64] px-1.5 py-0.5 rounded-full flex-shrink-0">
-                      x{selectedServices.filter(s => s.service.id === item.service.id).length}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveService(index)}
-                  className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+            {Object.entries(groupedServices).map(([key, group]) => {
+              // 🔥 PEGAR O PRIMEIRO ÍNDICE DO GRUPO PARA REMOVER
+              const firstIndex = group.indices[0];
+              
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between bg-white p-2 rounded-lg"
                 >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Scissors size={14} className="text-[#9c7f64] flex-shrink-0" />
+                    <span className="text-sm text-[#060606] truncate">{group.service.name}</span>
+                    <span className="text-xs text-[#9c7f64] flex-shrink-0">
+                      R$ {group.service.price.toFixed(2)}
+                    </span>
+                    {/* 🔥 CONTADOR MOSTRA A QUANTIDADE UMA VEZ SÓ */}
+                    {group.count > 1 && (
+                      <span className="text-xs bg-[#9c7f64] text-white px-2 py-0.5 rounded-full flex-shrink-0">
+                        x{group.count}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveService(firstIndex)}
+                    className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
