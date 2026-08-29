@@ -441,10 +441,14 @@ const getServices = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    // 🔥 FORMATAR COM O client_name
+    // 🔥 FORMATAR OS DADOS COM O client_name
     const formattedRevenues = revenues.map(r => {
       const data = r.toJSON();
-      const clientName = r.clientName || 'Cliente'; // 🔥 USA O client_name DO REVENUE
+      
+      // 🔥 PEGAR O client_name DO REVENUE
+      const clientName = r.clientName || 'Cliente';
+      
+      console.log(`📌 Revenue ${r.id}: cliente = ${clientName}`);
       
       return {
         ...data,
