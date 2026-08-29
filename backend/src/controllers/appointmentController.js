@@ -409,7 +409,6 @@ const checkAvailability = async (req, res) => {
     
     console.log('🔍 Verificando disponibilidade:', { barberId, date });
     
-    // Buscar horários ocupados nos agendamentos
     const appointments = await Appointment.findAll({
       where: {
         barberId,
@@ -419,7 +418,6 @@ const checkAvailability = async (req, res) => {
       attributes: ['time']
     });
     
-    // Buscar horários ocupados no caixa
     const cashRegister = await CashRegister.findOne({
       where: {
         date: date,
@@ -430,12 +428,11 @@ const checkAvailability = async (req, res) => {
     let bookedFromCashRegister = [];
     if (cashRegister && cashRegister.services) {
       bookedFromCashRegister = cashRegister.services
-        .filter((s: any) => s.barberId === barberId && s.date === date)
-        .map((s: any) => s.time);
+        .filter((s) => s.barberId === barberId && s.date === date)
+        .map((s) => s.time);
     }
     
-    // Combinar horários ocupados
-    const bookedFromAppointments = appointments.map(a => a.time);
+    const bookedFromAppointments = appointments.map((a) => a.time);
     const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
     
     console.log('📅 Horários ocupados:', allBooked);
