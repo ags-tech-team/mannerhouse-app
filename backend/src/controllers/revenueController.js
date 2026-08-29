@@ -429,7 +429,6 @@ const getServices = async (req, res) => {
       }
     }
     
-    // 🔥 BUSCAR REVENUES COM CASHREGISTER
     const revenues = await Revenue.findAll({
       where,
       include: [
@@ -437,32 +436,15 @@ const getServices = async (req, res) => {
           model: Barber, 
           as: 'barber',
           attributes: ['id', 'name'] 
-        },
-        { 
-          model: CashRegister, 
-          as: 'cashRegister',
-          attributes: ['id', 'date', 'services']
         }
       ],
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    // 🔥 FORMATAR OS DADOS COM O NOME DO CLIENTE
-    const formattedRevenues = revenues.map(function(r) {
+    // 🔥 FORMATAR COM O client_name
+    const formattedRevenues = revenues.map(r => {
       const data = r.toJSON();
-      
-      // 🔥 PROCURAR O CLIENTE NO CASHREGISTER
-      let clientName = 'Cliente';
-      if (r.cashRegister && r.cashRegister.services) {
-        // Procurar o serviço que corresponde a este revenue
-        const service = r.cashRegister.services.find(function(s) {
-          // Tentar匹配 pelo ID ou pelo valor
-          return s.id === r.id || (s.price === r.total && s.barberId === r.barberId);
-        });
-        if (service && service.client) {
-          clientName = service.client;
-        }
-      }
+      const clientName = r.clientName || 'Cliente'; // 🔥 USA O client_name DO REVENUE
       
       return {
         ...data,
