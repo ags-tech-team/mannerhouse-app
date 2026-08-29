@@ -37,6 +37,7 @@ interface ServicoFaturamento {
   barbeiro: string;
   barbeiroId: string;
   servico: string;
+  telefone: string;
   servicoId: string;
   valor: number;
   comissao: number;
@@ -205,6 +206,7 @@ const BarberCaixa = () => {
         const servicosFormatados = data.services.map((s: any) => ({
           id: s.id || Date.now().toString(),
           cliente: s.client || 'Cliente',
+          telefone: s.phone || '',
           barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro',
           barbeiroId: s.barberId || user?.id || '',
           servico: s.service || s.servico || 'Serviço',
@@ -287,10 +289,10 @@ const BarberCaixa = () => {
     if (servico) {
       setEditingServico(servico);
       setClientName(servico.cliente);
-      setClientPhone('');
+      setClientPhone(servico.telefone || ''); 
       setFormData({
         cliente: servico.cliente,
-        clienteTelefone: '',
+        clienteTelefone: servico.telefone || '', 
         barbeiroId: servico.barbeiroId,
         barbeiroNome: servico.barbeiro,
         formaPagamento: servico.formaPagamento,
