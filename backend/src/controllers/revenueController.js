@@ -416,7 +416,16 @@ const getServices = async (req, res) => {
     const { startDate, endDate } = req.query;
     const where = {};
     
+    // 🔥 VALIDAR DATAS
     if (startDate && endDate) {
+      // Verificar se as datas são válidas
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ error: 'Datas inválidas' });
+      }
+      
       where.date = {
         [Op.between]: [startDate, endDate]
       };
@@ -434,13 +443,13 @@ const getServices = async (req, res) => {
           attributes: ['id', 'name'] 
         }
       ],
-      order: [['date', 'DESC']]
+      order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
     res.json(revenues);
   } catch (error) {
-    console.error('Erro ao buscar serviços faturados:', error);
-    res.status(500).json({ error: 'Erro ao buscar serviços faturados' });
+    console.error('❌ Erro ao buscar serviços faturados:', error);
+    res.status(500).json({ error: 'Erro ao buscar faturamento' });
   }
 };
 

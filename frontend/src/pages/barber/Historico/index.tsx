@@ -101,22 +101,27 @@ const BarberHistorico = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [year, month] = selectedMonth.split('-');
-      const startDate = `${year}-${month}-01`;
-      const endDate = `${year}-${month}-${new Date(Number(year), Number(month), 0).getDate()}`;
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+      
+      console.log('📅 Buscando histórico:', { startDate, endDate, selectedMonth });
 
-      // 🔥 1. CARREGAR PAGAMENTOS (MENSALIDADES)
+      // Carregar pagamentos
       const paymentsRes = await api.get('/monthly/payments', {
         params: { month: selectedMonth }
       });
       setPayments(paymentsRes.data.payments || []);
 
-      // 🔥 2. CARREGAR SERVIÇOS FATURADOS (ROTA NOVA /revenues/services)
+      // 🔥 CARREGAR SERVIÇOS FATURADOS
       const servicesRes = await api.get('/revenues/services', {
-        params: { startDate, endDate }
+        params: { 
+          startDate, 
+          endDate 
+        }
       });
       
-      // 🔥 FORMATAR OS REVENUES COMO SERVIÇOS
+      // 🔥 FORMATAR OS DADOS
       const formattedServices = servicesRes.data.map((r: any) => ({
         id: r.id,
         date: r.date,
@@ -125,15 +130,15 @@ const BarberHistorico = () => {
         barber: { name: r.barber?.name || 'Desconhecido' },
         service: 'Serviço',
         serviceDescription: 'Serviço concluído',
-        price: r.total,
-        commission: r.commissions,
+        price: r.total || 0,
+        commission: r.commissions || 0,
         status: 'completed',
         notes: '',
         createdAt: r.createdAt,
       }));
       setServices(formattedServices);
 
-      // 🔥 3. CARREGAR PRODUTOS VENDIDOS
+      // Carregar produtos vendidos
       const productsRes = await api.get('/sales', {
         params: { startDate, endDate }
       });
