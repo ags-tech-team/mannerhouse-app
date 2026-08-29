@@ -114,6 +114,10 @@ const closeCashRegister = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     
+    console.log('🔒 ===== FECHANDO CAIXA =====');
+    console.log('📌 userId:', req.userId);
+    console.log('📌 date:', today);
+    
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -123,10 +127,13 @@ const closeCashRegister = async (req, res) => {
     });
     
     if (!cashRegister) {
+      console.log('❌ Nenhum caixa aberto encontrado');
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
     const services = cashRegister.services || [];
+    console.log('📋 Serviços no caixa:', services.length);
+    
     const totalRevenue = services.reduce((sum, s) => sum + (s.price || 0), 0);
     const totalCommissions = services.reduce((sum, s) => sum + (s.commission || 0), 0);
     const servicesCount = services.length;
@@ -147,6 +154,33 @@ const closeCashRegister = async (req, res) => {
     for (const service of services) {
       const barber = await Barber.findByPk(service.barberId);
       
+      // 🔥 PEGAR O NOME DO CLIENTE
+      let clientName = 'Cliente';
+      
+      // 🔥 1. TENTAR PELO clientId
+      if (service.clientId) {
+        try {
+          const client = await Client.findByPk(service.clientId);
+          if (client) {
+            clientName = client.name;
+            console.log(`   ✅ Cliente encontrado por ID: ${clientName}`);
+          }
+        } catch (e) {
+          console.log(`   ⚠️ Erro ao buscar cliente por ID: ${e.message}`);
+        }
+      }
+      
+      // 🔥 2. SE NÃO ACHOU, TENTAR PELO NOME
+      if (clientName === 'Cliente' && service.client && service.client !== '' && service.client !== 'Cliente sem cadastro' && service.client !== 'Cliente') {
+        clientName = service.client;
+        console.log(`   ✅ Cliente encontrado por nome: ${clientName}`);
+      }
+      
+      console.log(`   Cliente final: ${clientName}`);
+      console.log(`   Service: ${service.service}`);
+      console.log(`   Price: ${service.price}`);
+      console.log(`   Barber: ${barber?.name || 'Desconhecido'}`);
+      
       const revenue = await Revenue.create({
         cashRegisterId: cashRegister.id,
         barberId: service.barberId || null,
@@ -156,13 +190,16 @@ const closeCashRegister = async (req, res) => {
         servicesCount: 1,
         initialCash: 0,
         finalCash: service.price || 0,
+        clientName: clientName, // 🔥 SALVAR O CLIENTE
       });
       
-      console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Barbeiro: ${barber?.name || 'Desconhecido'})`);
+      console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Cliente: ${clientName})`);
       revenueCount++;
     }
     
     console.log(`✅ ${revenueCount} revenues criados com sucesso!`);
+    console.log(`   Total Revenue: R$ ${totalRevenue}`);
+    console.log(`   Total Comissões: R$ ${totalCommissions}`);
     
     res.json(cashRegister);
   } catch (error) {
