@@ -413,57 +413,23 @@ const getByDate = async (req, res) => {
 
 const getServices = async (req, res) => {
   try {
-    console.log('🚀 ===== INICIANDO getServices =====');
-    console.log('📥 req.query:', req.query);
-    console.log('📥 req.params:', req.params);
-    console.log('📥 req.body:', req.body);
-    
     const { startDate, endDate } = req.query;
     
-    console.log('📅 startDate:', startDate, '| type:', typeof startDate);
-    console.log('📅 endDate:', endDate, '| type:', typeof endDate);
+    console.log('📥 Parâmetros recebidos:', { startDate, endDate });
     
-    // 🔥 CONSTRUIR WHERE
     const where = {};
     where.barberId = { [Op.ne]: null };
     
-    console.log('📍 where inicial:', JSON.stringify(where));
-    
-    // 🔥 VALIDAR E ADICIONAR DATAS
     if (startDate && endDate) {
-      console.log('✅ Datas fornecidas:', { startDate, endDate });
-      
-      // Verificar se são strings válidas
-      if (typeof startDate === 'string' && typeof endDate === 'string') {
-        console.log('✅ Datas são strings');
-        
-        // Verificar formato
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        const startValid = dateRegex.test(startDate);
-        const endValid = dateRegex.test(endDate);
-        
-        console.log('📅 startDate válida?', startValid);
-        console.log('📅 endDate válida?', endValid);
-        
-        if (startValid && endValid) {
-          where.date = {
-            [Op.between]: [startDate, endDate]
-          };
-          console.log('✅ Filtro de data adicionado:', where.date);
-        } else {
-          console.log('⚠️ Datas com formato inválido, ignorando filtro');
-        }
-      } else {
-        console.log('⚠️ Datas não são strings:', typeof startDate, typeof endDate);
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.test(startDate) && dateRegex.test(endDate)) {
+        where.date = {
+          [Op.between]: [startDate, endDate]
+        };
       }
-    } else {
-      console.log('⚠️ Nenhuma data fornecida, buscando todos os serviços');
     }
     
-    console.log('📍 where final:', JSON.stringify(where));
-    console.log('🔍 Executando query no banco...');
-    
-    // 🔥 EXECUTAR A CONSULTA
+    // 🔥 BUSCAR REVENUES COM CASHREGISTER
     const revenues = await Revenue.findAll({
       where,
       include: [
@@ -471,36 +437,45 @@ const getServices = async (req, res) => {
           model: Barber, 
           as: 'barber',
           attributes: ['id', 'name'] 
+        },
+        { 
+          model: CashRegister, 
+          as: 'cashRegister',
+          attributes: ['id', 'date', 'services']
         }
       ],
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    console.log(`✅ ${revenues.length} serviços encontrados`);
-    console.log('📦 Primeiro serviço:', revenues.length > 0 ? JSON.stringify(revenues[0].toJSON()) : 'Nenhum');
-    
-    res.json(revenues);
-  } catch (error) {
-    console.error('❌ ===== ERRO NO getServices =====');
-    console.error('❌ Mensagem:', error.message);
-    console.error('❌ Stack:', error.stack);
-    console.error('❌ Nome:', error.name);
-    console.error('❌ SQL:', error.sql || 'N/A');
-    console.error('❌ Parâmetros:', error.parameters || 'N/A');
-    
-    // 🔥 VERIFICAR SE É ERRO DE DATA
-    if (error.message && error.message.includes('date')) {
-      console.error('🔥 ERRO RELACIONADO A DATA!');
-      console.error('  startDate:', startDate);
-      console.error('  endDate:', endDate);
-      console.error('  where:', JSON.stringify(where));
-    }
-    
-    res.status(500).json({ 
-      error: 'Erro ao buscar faturamento',
-      details: error.message,
-      sql: error.sql || undefined
+    // 🔥 FORMATAR OS DADOS COM O NOME DO CLIENTE
+    const formattedRevenues = revenues.map(r => {
+      const data = r.toJSON();
+      
+      // 🔥 PROCURAR O CLIENTE NO CASHREGISTER
+      let clientName = 'Cliente';
+      if (r.cashRegister && r.cashRegister.services) {
+        // Procurar o serviço que corresponde a este revenue
+        const service = r.cashRegister.services.find((s: any) => {
+          // Tentar匹配 pelo ID ou pelo valor
+          return s.id === r.id || (s.price === r.total && s.barberId === r.barberId);
+        });
+        if (service && service.client) {
+          clientName = service.client;
+        }
+      }
+      
+      return {
+        ...data,
+        clientName: clientName,
+        client: { name: clientName, phone: '' }
+      };
     });
+    
+    console.log(`📦 ${formattedRevenues.length} serviços encontrados`);
+    res.json(formattedRevenues);
+  } catch (error) {
+    console.error('❌ Erro ao buscar serviços faturados:', error);
+    res.status(500).json({ error: 'Erro ao buscar faturamento' });
   }
 };
 
