@@ -399,11 +399,60 @@ const getById = async (req, res) => {
   }
 };
 
+const checkAvailability = async (req, res) => {
+  try {
+    const { barberId, date } = req.query;
+    
+    if (!barberId || !date) {
+      return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
+    }
+    
+    console.log('🔍 Verificando disponibilidade:', { barberId, date });
+    
+    // Buscar horários ocupados nos agendamentos
+    const appointments = await Appointment.findAll({
+      where: {
+        barberId,
+        date,
+        status: { [Op.notIn]: ['cancelled'] }
+      },
+      attributes: ['time']
+    });
+    
+    // Buscar horários ocupados no caixa
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: date,
+        isOpen: true,
+      }
+    });
+    
+    let bookedFromCashRegister = [];
+    if (cashRegister && cashRegister.services) {
+      bookedFromCashRegister = cashRegister.services
+        .filter((s: any) => s.barberId === barberId && s.date === date)
+        .map((s: any) => s.time);
+    }
+    
+    // Combinar horários ocupados
+    const bookedFromAppointments = appointments.map(a => a.time);
+    const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
+    
+    console.log('📅 Horários ocupados:', allBooked);
+    
+    res.json({ times: allBooked });
+  } catch (error) {
+    console.error('❌ Erro ao verificar disponibilidade:', error);
+    res.status(500).json({ error: 'Erro ao buscar agendamento' });
+  }
+};
+
 module.exports = {
   getAll,
-  getById, 
+  getById,
   getByBarber,
   getAvailableTimes,
+  checkAvailability, 
   create,
   updateStatus,
   remove,

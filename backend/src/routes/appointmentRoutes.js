@@ -3,6 +3,7 @@ const {
   getAll,
   getByBarber,
   getAvailableTimes,
+  checkAvailability, // 🔥 IMPORTAR
   create,
   updateStatus,
   remove,
@@ -15,13 +16,21 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get('/', getAll);
+// 🔥 ROTAS ESPECÍFICAS PRIMEIRO (ANTES DAS ROTAS COM PARÂMETROS)
+router.get('/check-availability', checkAvailability); // 🔥 NOVO - DEVE VIR ANTES DO /:id
 router.get('/clients/search', searchClients);
+
+// 🔥 ROTAS COM PARÂMETROS
 router.get('/barber/:barberId', getByBarber);
 router.get('/barber/:barberId/available', getAvailableTimes);
+
+// 🔥 ROTA GET BY ID (DEVE VIR POR ÚLTIMO)
+router.get('/:id', getById);
+
+// 🔥 DEMAIS ROTAS
+router.get('/', getAll);
 router.post('/', create);
 router.patch('/:id/status', updateStatus);
 router.delete('/:id', remove);
-router.get('/:id', getById);
 
 module.exports = router;
