@@ -413,39 +413,57 @@ const getByDate = async (req, res) => {
 
 const getServices = async (req, res) => {
   try {
+    console.log('🚀 ===== INICIANDO getServices =====');
+    console.log('📥 req.query:', req.query);
+    console.log('📥 req.params:', req.params);
+    console.log('📥 req.body:', req.body);
+    
     const { startDate, endDate } = req.query;
     
-    console.log('📥 Parâmetros recebidos no backend:', { startDate, endDate });
+    console.log('📅 startDate:', startDate, '| type:', typeof startDate);
+    console.log('📅 endDate:', endDate, '| type:', typeof endDate);
     
-    // 🔥 SE AS DATAS NÃO FOREM ENVIADAS, USAR O MÊS ATUAL
-    let start = startDate;
-    let end = endDate;
-    
-    if (!start || !end) {
-      const hoje = new Date();
-      const ano = hoje.getFullYear();
-      const mes = hoje.getMonth() + 1;
-      const ultimoDia = new Date(ano, mes, 0).getDate();
-      start = `${ano}-${String(mes).padStart(2, '0')}-01`;
-      end = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
-      console.log('📅 Usando mês atual:', { start, end });
-    }
-    
-    // 🔥 VALIDAR SE AS DATAS SÃO VÁLIDAS
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(start) || !dateRegex.test(end)) {
-      console.error('❌ Formato de data inválido:', { start, end });
-      return res.status(400).json({ error: 'Formato de data inválido. Use YYYY-MM-DD' });
-    }
-    
+    // 🔥 CONSTRUIR WHERE
     const where = {};
     where.barberId = { [Op.ne]: null };
-    where.date = {
-      [Op.between]: [start, end]
-    };
     
-    console.log('🔍 Buscando serviços:', { start, end });
+    console.log('📍 where inicial:', JSON.stringify(where));
     
+    // 🔥 VALIDAR E ADICIONAR DATAS
+    if (startDate && endDate) {
+      console.log('✅ Datas fornecidas:', { startDate, endDate });
+      
+      // Verificar se são strings válidas
+      if (typeof startDate === 'string' && typeof endDate === 'string') {
+        console.log('✅ Datas são strings');
+        
+        // Verificar formato
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        const startValid = dateRegex.test(startDate);
+        const endValid = dateRegex.test(endDate);
+        
+        console.log('📅 startDate válida?', startValid);
+        console.log('📅 endDate válida?', endValid);
+        
+        if (startValid && endValid) {
+          where.date = {
+            [Op.between]: [startDate, endDate]
+          };
+          console.log('✅ Filtro de data adicionado:', where.date);
+        } else {
+          console.log('⚠️ Datas com formato inválido, ignorando filtro');
+        }
+      } else {
+        console.log('⚠️ Datas não são strings:', typeof startDate, typeof endDate);
+      }
+    } else {
+      console.log('⚠️ Nenhuma data fornecida, buscando todos os serviços');
+    }
+    
+    console.log('📍 where final:', JSON.stringify(where));
+    console.log('🔍 Executando query no banco...');
+    
+    // 🔥 EXECUTAR A CONSULTA
     const revenues = await Revenue.findAll({
       where,
       include: [
@@ -458,11 +476,31 @@ const getServices = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    console.log(`📦 ${revenues.length} serviços encontrados`);
+    console.log(`✅ ${revenues.length} serviços encontrados`);
+    console.log('📦 Primeiro serviço:', revenues.length > 0 ? JSON.stringify(revenues[0].toJSON()) : 'Nenhum');
+    
     res.json(revenues);
   } catch (error) {
-    console.error('❌ Erro ao buscar serviços faturados:', error);
-    res.status(500).json({ error: 'Erro ao buscar faturamento' });
+    console.error('❌ ===== ERRO NO getServices =====');
+    console.error('❌ Mensagem:', error.message);
+    console.error('❌ Stack:', error.stack);
+    console.error('❌ Nome:', error.name);
+    console.error('❌ SQL:', error.sql || 'N/A');
+    console.error('❌ Parâmetros:', error.parameters || 'N/A');
+    
+    // 🔥 VERIFICAR SE É ERRO DE DATA
+    if (error.message && error.message.includes('date')) {
+      console.error('🔥 ERRO RELACIONADO A DATA!');
+      console.error('  startDate:', startDate);
+      console.error('  endDate:', endDate);
+      console.error('  where:', JSON.stringify(where));
+    }
+    
+    res.status(500).json({ 
+      error: 'Erro ao buscar faturamento',
+      details: error.message,
+      sql: error.sql || undefined
+    });
   }
 };
 
