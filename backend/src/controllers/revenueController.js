@@ -448,14 +448,14 @@ const getServices = async (req, res) => {
     });
     
     // 🔥 FORMATAR OS DADOS COM O NOME DO CLIENTE
-    const formattedRevenues = revenues.map(r => {
+    const formattedRevenues = revenues.map(function(r) {
       const data = r.toJSON();
       
       // 🔥 PROCURAR O CLIENTE NO CASHREGISTER
       let clientName = 'Cliente';
       if (r.cashRegister && r.cashRegister.services) {
         // Procurar o serviço que corresponde a este revenue
-        const service = r.cashRegister.services.find((s: any) => {
+        const service = r.cashRegister.services.find(function(s) {
           // Tentar匹配 pelo ID ou pelo valor
           return s.id === r.id || (s.price === r.total && s.barberId === r.barberId);
         });
