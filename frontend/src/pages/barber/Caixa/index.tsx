@@ -100,6 +100,7 @@ const BarberCaixa = () => {
   const valorInicial = useNumberInput();
 
   const handleSelectClient = (client: any) => {
+    console.log('🔍 Cliente selecionado:', client);
     setClientName(client.name);
     setClientPhone(client.phone);
     setFormData(prev => ({
@@ -198,6 +199,7 @@ const BarberCaixa = () => {
     setLoading(true);
     try {
       const data = await cashRegisterService.getToday();
+      console.log('📦 Dados do caixa:', data);
       setCaixa(data);
       if (data.services && data.services.length > 0) {
         const servicosFormatados = data.services.map((s: any) => ({
@@ -274,7 +276,6 @@ const BarberCaixa = () => {
       await loadData();
       setShowModalFecharCaixa(false);
       alert('✅ Caixa fechado com sucesso!');
-      // 🔥 RECARREGAR A PÁGINA APÓS FECHAR O CAIXA
       window.location.reload();
     } catch (error: any) {
       console.error('Erro ao fechar caixa:', error);
@@ -344,10 +345,15 @@ const BarberCaixa = () => {
       alert('Selecione pelo menos um serviço');
       return;
     }
-    if (!isGuest && !clientName.trim()) {
+    
+    // 🔥 CORRIGIDO: VALIDAÇÃO DO NOME DO CLIENTE
+    const clientNameFinal = isGuest ? 'Cliente sem cadastro' : clientName.trim() || formData.cliente.trim();
+    
+    if (!clientNameFinal || clientNameFinal === '') {
       alert('Digite o nome do cliente');
       return;
     }
+    
     if (!selectedDate) {
       alert('Selecione uma data');
       return;
@@ -362,7 +368,6 @@ const BarberCaixa = () => {
     }
 
     try {
-      const clientNameFinal = isGuest ? 'Cliente sem cadastro' : formData.cliente.trim();
       const clientPhoneFinal = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
       const total = getTotalServices();
       const serviceNames = getServiceNames();
@@ -381,6 +386,13 @@ const BarberCaixa = () => {
       }
 
       const comissaoTotal = comissaoServico + comissaoProduto;
+
+      console.log('📤 ENVIANDO SERVIÇO:');
+      console.log('  client:', clientNameFinal);
+      console.log('  phone:', clientPhoneFinal);
+      console.log('  barberId:', barberId);
+      console.log('  service:', serviceNames);
+      console.log('  price:', total);
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
@@ -551,7 +563,7 @@ const BarberCaixa = () => {
         </div>
       </div>
 
-      {/* Alertas - Responsivo */}
+      {/* Alertas */}
       {!caixa?.isOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
           <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
@@ -572,7 +584,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Cards de Resumo - Responsivo */}
+      {/* Cards de Resumo */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
@@ -620,7 +632,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Filtros - Responsivo */}
+      {/* Filtros */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -653,7 +665,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Tabela - Responsivo com scroll horizontal */}
+      {/* Tabela */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
@@ -722,7 +734,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Abrir Caixa - Responsivo */}
+      {/* Modal Abrir Caixa */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -758,7 +770,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Fechar Caixa - Responsivo */}
+      {/* Modal Fechar Caixa */}
       {showModalFecharCaixa && caixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -783,7 +795,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Novo Serviço - Responsivo */}
+      {/* Modal Novo Serviço */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
@@ -857,13 +869,7 @@ const BarberCaixa = () => {
                             type="button"
                             onClick={() => !isBooked && setSelectedTime(time)}
                             disabled={isBooked}
-                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
-                              isBooked
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
-                                : selectedTime === time
-                                ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium'
-                                : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
-                            }`}
+                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${isBooked ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' : selectedTime === time ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'}`}
                           >
                             {time}
                             {isBooked && ' 🔒'}
