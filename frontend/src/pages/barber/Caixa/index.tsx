@@ -890,14 +890,21 @@ const BarberCaixa = () => {
               {/* Cliente */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
-                <ClientAutocomplete
-                  value={clientName}
-                  onChange={setClientName}
-                  onSelectClient={handleSelectClient}
-                  placeholder="Digite o nome ou telefone..."
-                  disabled={isGuest}
-                  required={!isGuest}
-                />
+                 <ClientAutocomplete
+                    value={formData.cliente} // 🔥 USAR formData.cliente EM VEZ DE clientName
+                    onChange={(value) => {
+                      console.log('📝 onChange:', value);
+                      setClientName(value);
+                      setFormData(prev => ({
+                        ...prev,
+                        cliente: value,
+                      }));
+                    }}
+                    onSelectClient={handleSelectClient}
+                    placeholder="Digite o nome ou telefone..."
+                    disabled={isGuest}
+                    required={!isGuest}
+                  />
               </div>
 
               {/* Telefone */}
