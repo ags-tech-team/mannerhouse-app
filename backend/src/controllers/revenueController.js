@@ -414,25 +414,37 @@ const getByDate = async (req, res) => {
 const getServices = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const where = {};
     
-    // 🔥 VALIDAR DATAS
-    if (startDate && endDate) {
-      // Verificar se as datas são válidas
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return res.status(400).json({ error: 'Datas inválidas' });
-      }
-      
-      where.date = {
-        [Op.between]: [startDate, endDate]
-      };
+    console.log('📥 Parâmetros recebidos no backend:', { startDate, endDate });
+    
+    // 🔥 SE AS DATAS NÃO FOREM ENVIADAS, USAR O MÊS ATUAL
+    let start = startDate;
+    let end = endDate;
+    
+    if (!start || !end) {
+      const hoje = new Date();
+      const ano = hoje.getFullYear();
+      const mes = hoje.getMonth() + 1;
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      start = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      end = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+      console.log('📅 Usando mês atual:', { start, end });
     }
     
-    // 🔥 FILTRAR APENAS REVENUES COM BARBEIRO (SERVIÇOS)
+    // 🔥 VALIDAR SE AS DATAS SÃO VÁLIDAS
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(start) || !dateRegex.test(end)) {
+      console.error('❌ Formato de data inválido:', { start, end });
+      return res.status(400).json({ error: 'Formato de data inválido. Use YYYY-MM-DD' });
+    }
+    
+    const where = {};
     where.barberId = { [Op.ne]: null };
+    where.date = {
+      [Op.between]: [start, end]
+    };
+    
+    console.log('🔍 Buscando serviços:', { start, end });
     
     const revenues = await Revenue.findAll({
       where,
@@ -446,6 +458,7 @@ const getServices = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
+    console.log(`📦 ${revenues.length} serviços encontrados`);
     res.json(revenues);
   } catch (error) {
     console.error('❌ Erro ao buscar serviços faturados:', error);
