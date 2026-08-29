@@ -461,10 +461,33 @@ const getServices = async (req, res) => {
   }
 };
 
+const deleteRevenue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🗑️ Tentando excluir revenue:', id);
+    
+    const revenue = await Revenue.findByPk(id);
+    if (!revenue) {
+      console.log('❌ Revenue não encontrado');
+      return res.status(404).json({ error: 'Revenue não encontrado' });
+    }
+    
+    await revenue.destroy();
+    console.log('✅ Revenue excluído com sucesso:', id);
+    
+    res.json({ message: 'Revenue excluído com sucesso!', id });
+  } catch (error) {
+    console.error('❌ Erro ao excluir revenue:', error);
+    res.status(500).json({ error: 'Erro ao excluir revenue' });
+  }
+};
+
 module.exports = {
   getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,
-  getServices
+  getServices,
+  deleteRevenue
 };
