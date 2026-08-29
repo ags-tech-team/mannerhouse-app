@@ -441,7 +441,7 @@ const getServices = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    // 🔥 FORMATAR OS DADOS COM client_name
+    // 🔥 FORMATAR OS DADOS NO FORMATO QUE O FRONTEND ESPERA
     const formattedRevenues = revenues.map(r => {
       const data = r.toJSON();
       const clientName = r.clientName || 'Cliente';
@@ -449,7 +449,8 @@ const getServices = async (req, res) => {
       return {
         ...data,
         clientName: clientName,
-        client: { name: clientName, phone: '' }
+        client: { name: clientName, phone: '' }, // 🔥 FRONTEND ESPERA client.name
+        barber: { name: r.barber?.name || 'Desconhecido' }
       };
     });
     
