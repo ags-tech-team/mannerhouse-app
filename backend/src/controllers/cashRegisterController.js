@@ -1,5 +1,6 @@
-const { CashRegister, User, Revenue, Barber } = require('../models');
+const { CashRegister, User, Revenue, Barber, Client } = require('../models'); // 🔥 ADICIONAR Client
 const { Op } = require('sequelize');
+const { findOrCreateClient } = require('../services/clientService');
 
 const getToday = async (req, res) => {
   try {
@@ -176,7 +177,6 @@ const closeCashRegister = async (req, res) => {
   }
 };
 
-// 🔥 FUNÇÃO addService - PARA ADICIONAR SERVIÇO AO CAIXA
 const addService = async (req, res) => {
   try {
     const { 
@@ -195,9 +195,30 @@ const addService = async (req, res) => {
     
     console.log('📦 Adicionando serviço ao caixa:');
     console.log('  client:', client);
+    console.log('  phone:', phone);
     console.log('  barberId:', barberId);
     console.log('  service:', service);
     console.log('  price:', price);
+    
+    // 🔥 BUSCAR OU CRIAR O CLIENTE NO BANCO
+    let clientRecord = null;
+    let clientId = null;
+    
+    if (client && client !== 'Cliente sem cadastro' && client !== '') {
+      try {
+        const result = await findOrCreateClient({
+          name: client,
+          phone: phone || '(00) 00000-0000',
+          isActive: true,
+        });
+        clientRecord = result.client;
+        clientId = clientRecord.id;
+        console.log(`✅ Cliente ${result.created ? 'criado' : 'encontrado'}: ${clientRecord.name} (${clientRecord.phone})`);
+      } catch (error) {
+        console.error('❌ Erro ao buscar/criar cliente:', error);
+        // Continua mesmo se falhar, mas loga o erro
+      }
+    }
     
     // Buscar o barbeiro
     let barber = null;
@@ -227,10 +248,11 @@ const addService = async (req, res) => {
     const commissionRate = barber ? barber.serviceCommissionRate : 0.20;
     const commission = price * commissionRate;
     
-    // Criar o serviço
+    // 🔥 CRIAR O SERVIÇO COM O CLIENTE ID
     const newService = {
       id: Date.now().toString(),
-      client,
+      client: client || 'Cliente',
+      clientId: clientId, // 🔥 SALVAR O ID DO CLIENTE
       barberId: barber ? barber.id : barberId,
       barberName: barberName,
       service: service || 'Serviço',
@@ -251,6 +273,10 @@ const addService = async (req, res) => {
       totalCommissions: (cashRegister.totalCommissions || 0) + commission,
       servicesCount: services.length,
     });
+    
+    console.log('✅ Serviço adicionado com sucesso!');
+    console.log(`   Cliente: ${newService.client} (ID: ${newService.clientId || 'N/A'})`);
+    console.log(`   Telefone: ${newService.phone}`);
     
     res.status(201).json(newService);
   } catch (error) {
