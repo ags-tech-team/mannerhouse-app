@@ -1,4 +1,4 @@
-const { CashRegister, User, Revenue, Barber, Client } = require('../models'); // 🔥 ADICIONAR Client
+const { CashRegister, User, Revenue, Barber, Client } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 
@@ -49,7 +49,6 @@ const openCashRegister = async (req, res) => {
     console.log('📌 date:', today);
     console.log('📌 initialCash:', initialCash);
     
-    // Verificar se já existe caixa aberto hoje
     const existingOpen = await CashRegister.findOne({
       where: {
         date: today,
@@ -63,7 +62,6 @@ const openCashRegister = async (req, res) => {
       return res.status(400).json({ error: 'Já existe um caixa aberto hoje' });
     }
     
-    // Verificar se já existe um caixa fechado hoje (para reabrir)
     const existingClosed = await CashRegister.findOne({
       where: {
         date: today,
@@ -92,7 +90,6 @@ const openCashRegister = async (req, res) => {
       return res.json(existingClosed);
     }
     
-    // Criar novo caixa
     const cashRegister = await CashRegister.create({
       userId: req.userId,
       date: today,
@@ -113,7 +110,6 @@ const openCashRegister = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO: CRIA 1 REVENUE POR SERVIÇO
 const closeCashRegister = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -145,12 +141,10 @@ const closeCashRegister = async (req, res) => {
       servicesCount,
     });
     
-    // 🔥 CRIAR 1 REVENUE PARA CADA SERVIÇO DO CAIXA
     console.log(`📝 Criando ${services.length} revenues...`);
     
     let revenueCount = 0;
     for (const service of services) {
-      // Buscar o barbeiro para cada serviço
       const barber = await Barber.findByPk(service.barberId);
       
       const revenue = await Revenue.create({
@@ -203,8 +197,10 @@ const addService = async (req, res) => {
     // 🔥 BUSCAR OU CRIAR O CLIENTE NO BANCO
     let clientRecord = null;
     let clientId = null;
+    let clientName = client || 'Cliente';
     
-    if (client && client !== 'Cliente sem cadastro' && client !== '') {
+    // 🔥 SÓ TENTA CRIAR SE TIVER NOME E NÃO FOR "Cliente sem cadastro"
+    if (client && client !== 'Cliente sem cadastro' && client !== '' && client !== 'Cliente') {
       try {
         const result = await findOrCreateClient({
           name: client,
@@ -213,11 +209,13 @@ const addService = async (req, res) => {
         });
         clientRecord = result.client;
         clientId = clientRecord.id;
-        console.log(`✅ Cliente ${result.created ? 'criado' : 'encontrado'}: ${clientRecord.name} (${clientRecord.phone})`);
+        clientName = clientRecord.name;
+        console.log(`✅ Cliente ${result.created ? 'criado' : 'encontrado'}: ${clientName} (${clientRecord.phone})`);
       } catch (error) {
         console.error('❌ Erro ao buscar/criar cliente:', error);
-        // Continua mesmo se falhar, mas loga o erro
       }
+    } else {
+      console.log('⚠️ Cliente não será criado (nome inválido ou "Cliente sem cadastro")');
     }
     
     // Buscar o barbeiro
@@ -241,6 +239,7 @@ const addService = async (req, res) => {
     });
     
     if (!cashRegister) {
+      console.log('❌ Nenhum caixa aberto encontrado');
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
@@ -251,8 +250,8 @@ const addService = async (req, res) => {
     // 🔥 CRIAR O SERVIÇO COM O CLIENTE ID
     const newService = {
       id: Date.now().toString(),
-      client: client || 'Cliente',
-      clientId: clientId, // 🔥 SALVAR O ID DO CLIENTE
+      client: clientName,
+      clientId: clientId,
       barberId: barber ? barber.id : barberId,
       barberName: barberName,
       service: service || 'Serviço',
@@ -285,7 +284,6 @@ const addService = async (req, res) => {
   }
 };
 
-// 🔥 FUNÇÃO removeService - PARA REMOVER SERVIÇO DO CAIXA
 const removeService = async (req, res) => {
   try {
     const { serviceId } = req.params;
@@ -313,7 +311,6 @@ const removeService = async (req, res) => {
   }
 };
 
-// 🔥 FUNÇÃO updateServices - PARA ATUALIZAR LISTA COMPLETA DE SERVIÇOS
 const updateServices = async (req, res) => {
   try {
     const { services } = req.body;
@@ -331,7 +328,6 @@ const updateServices = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    // Calcular totais
     const totalRevenue = services.reduce((sum, s) => sum + (s.valor || 0), 0);
     const totalCommissions = services.reduce((sum, s) => sum + (s.comissao || 0), 0);
     const servicesCount = services.length;
