@@ -629,12 +629,6 @@ const BarberAgenda = () => {
                     const barber = barbers.find(b => b.id === selectedBarberId);
                     const taxa = barber?.serviceCommissionRate || 0.50;
                     const comissao = total * taxa;
-                    return (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#7f7c7a]">Comissão ({Math.round(taxa * 100)}%):</span>
-                        <span className="font-medium text-[#9c7f64]">R$ {comissao.toFixed(2)}</span>
-                      </div>
-                    );
                   })()}
                 </div>
               )}
