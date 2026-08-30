@@ -285,14 +285,15 @@ const BarberCaixa = () => {
     }
   };
 
+  // 🔥 CORRIGIDO: handleOpenModal com carregamento dos serviços
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
       setEditingServico(servico);
       setClientName(servico.cliente);
-      setClientPhone(servico.telefone || ''); 
+      setClientPhone(servico.telefone || '');
       setFormData({
         cliente: servico.cliente,
-        clienteTelefone: servico.telefone || '', 
+        clienteTelefone: servico.telefone || '',
         barbeiroId: servico.barbeiroId,
         barbeiroNome: servico.barbeiro,
         formaPagamento: servico.formaPagamento,
@@ -302,7 +303,27 @@ const BarberCaixa = () => {
       setSelectedTime(servico.hora || '');
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
-      setSelectedServices([]);
+      
+      // 🔥 CARREGAR OS SERVIÇOS SALVOS
+      if (servico.servicoId) {
+        const serviceIds = servico.servicoId.split(',');
+        const loadedServices = serviceIds
+          .map((id: string) => {
+            const service = getServiceById(id.trim());
+            if (service) {
+              return {
+                id: id.trim(),
+                service: service
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as SelectedService[];
+        setSelectedServices(loadedServices);
+        console.log('📋 Serviços carregados:', loadedServices);
+      } else {
+        setSelectedServices([]);
+      }
     } else {
       setEditingServico(null);
       setClientName('');
@@ -348,7 +369,6 @@ const BarberCaixa = () => {
       return;
     }
     
-    // 🔥 CORRIGIDO: VALIDAÇÃO DO NOME DO CLIENTE
     const clientNameFinal = isGuest ? 'Cliente sem cadastro' : clientName.trim() || formData.cliente.trim();
     
     if (!clientNameFinal || clientNameFinal === '') {
@@ -412,6 +432,7 @@ const BarberCaixa = () => {
                 barbeiroId: barberId,
                 data: selectedDate,
                 hora: selectedTime,
+                telefone: clientPhoneFinal,
               }
             : s
         );
@@ -892,21 +913,21 @@ const BarberCaixa = () => {
               {/* Cliente */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
-                 <ClientAutocomplete
-                    value={formData.cliente} // 🔥 USAR formData.cliente EM VEZ DE clientName
-                    onChange={(value) => {
-                      console.log('📝 onChange:', value);
-                      setClientName(value);
-                      setFormData(prev => ({
-                        ...prev,
-                        cliente: value,
-                      }));
-                    }}
-                    onSelectClient={handleSelectClient}
-                    placeholder="Digite o nome ou telefone..."
-                    disabled={isGuest}
-                    required={!isGuest}
-                  />
+                <ClientAutocomplete
+                  value={formData.cliente}
+                  onChange={(value) => {
+                    console.log('📝 onChange:', value);
+                    setClientName(value);
+                    setFormData(prev => ({
+                      ...prev,
+                      cliente: value,
+                    }));
+                  }}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone..."
+                  disabled={isGuest}
+                  required={!isGuest}
+                />
               </div>
 
               {/* Telefone */}
