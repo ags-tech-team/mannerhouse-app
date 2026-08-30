@@ -10,6 +10,7 @@ export const SERVICES: Service[] = [
   { id: 'corte-navalhado', name: 'Corte Navalhado', price: 40.00, category: 'corte' },
   { id: 'barba-terapia', name: 'Barba Terapia', price: 40.00, category: 'barba' },
   { id: 'barba-maquina', name: 'Barba só Máquina', price: 25.00, category: 'barba' },
+  { id: 'bigode', name: 'Bigode', price: 5.00, category: 'barba' }, // 🔥 NOVO
   { id: 'cabelo-barba', name: 'Cabelo e Barba', price: 70.00, category: 'corte' },
   { id: 'platinado-corte', name: 'Platinado com Corte', price: 160.00, category: 'cabelo' },
   { id: 'luzes-corte', name: 'Luzes com Corte', price: 140.00, category: 'cabelo' },
