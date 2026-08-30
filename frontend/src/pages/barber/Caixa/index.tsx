@@ -962,10 +962,6 @@ const BarberCaixa = () => {
                     <span className="text-[#7f7c7a]">Total:</span>
                     <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#7f7c7a]">Comissão:</span>
-                    <span className="font-medium text-[#9c7f64]">R$ {(getTotalServices() * (currentBarber?.serviceCommissionRate || 0.50)).toFixed(2)}</span>
-                  </div>
                 </div>
               )}
 
