@@ -311,12 +311,12 @@ const BarberCaixa = () => {
     }
   };
 
-  // 🔥 CORRIGIDO: handleOpenModal com carregamento dos serviços
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
       console.log('🔍 EDITANDO SERVIÇO:');
       console.log('  servicoId:', servico.servicoId);
       console.log('  servico completo:', servico);
+      
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -333,23 +333,45 @@ const BarberCaixa = () => {
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
       
-      // 🔥 CARREGAR OS SERVIÇOS SALVOS
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
+        console.log('🔍 Service IDs extraídos:', serviceIds);
+        
         const loadedServices = serviceIds
           .map((id: string) => {
-            const service = getServiceById(id.trim());
+            const trimmedId = id.trim();
+            
+            let baseId = trimmedId;
+            
+            const parts = trimmedId.split('-');
+            if (parts.length > 2) {
+              const possibleBaseId = parts.slice(0, -2).join('-');
+              const service = getServiceById(possibleBaseId);
+              if (service) {
+                baseId = possibleBaseId;
+              } else {
+                baseId = trimmedId;
+              }
+            }
+            
+            console.log(`  ID original: ${trimmedId} -> ID base: ${baseId}`);
+            
+            const service = getServiceById(baseId);
             if (service) {
+              console.log(`    ✅ Serviço encontrado:`, service);
               return {
-                id: id.trim(),
+                id: trimmedId, 
                 service: service
               };
+            } else {
+              console.log(`    ❌ Serviço NÃO encontrado para ID: ${baseId}`);
+              return null;
             }
-            return null;
           })
           .filter(Boolean) as SelectedService[];
-        setSelectedServices(loadedServices);
+        
         console.log('📋 Serviços carregados:', loadedServices);
+        setSelectedServices(loadedServices);
       } else {
         setSelectedServices([]);
       }
