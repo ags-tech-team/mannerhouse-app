@@ -200,36 +200,60 @@ const BarberCaixa = () => {
     setLoading(true);
     try {
       const data = await cashRegisterService.getToday();
-      console.log('📦 Dados do caixa:', data);
+      console.log('📦 Dados do caixa (RAW):', data);
+      console.log('📦 Services:', data.services);
+      
       setCaixa(data);
+      
       if (data.services && data.services.length > 0) {
-        const servicosFormatados = data.services.map((s: any) => ({
-          id: s.id || Date.now().toString(),
-          cliente: s.client || 'Cliente',
-          telefone: s.phone || '',
-          barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro',
-          barbeiroId: s.barberId || user?.id || '',
-          servico: s.service || s.servico || 'Serviço',
-          servicoId: s.serviceId || '',
-          valor: s.price || s.valor || 0,
-          comissao: s.commission || s.comissao || 0,
-          data: s.date || new Date().toISOString().split('T')[0],
-          hora: s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          status: 'concluido',
-          formaPagamento: s.paymentMethod || 'dinheiro',
-          observacao: s.observacao || '',
-        }));
+        console.log(`📋 ${data.services.length} serviços encontrados`);
+        
+        const servicosFormatados = data.services.map((s: any, index: number) => {
+          console.log(`🔍 Serviço ${index + 1}:`, s);
+          console.log(`   serviceId:`, s.serviceId);
+          console.log(`   service:`, s.service);
+          console.log(`   client:`, s.client);
+          
+          const formatted = {
+            id: s.id || Date.now().toString(),
+            cliente: s.client || 'Cliente',
+            telefone: s.phone || '',
+            barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro',
+            barbeiroId: s.barberId || user?.id || '',
+            servico: s.service || s.servico || 'Serviço',
+            servicoId: s.serviceId || '',
+            valor: s.price || s.valor || 0,
+            comissao: s.commission || s.comissao || 0,
+            data: s.date || new Date().toISOString().split('T')[0],
+            hora: s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            status: 'concluido',
+            formaPagamento: s.paymentMethod || 'dinheiro',
+            observacao: s.observacao || '',
+          };
+          
+          console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
+          console.log(`   servicoId formatado:`, formatted.servicoId);
+          
+          return formatted;
+        });
+        
+        console.log('📋 Todos os serviços formatados:', servicosFormatados);
         setServicos(servicosFormatados);
       } else {
+        console.log('⚠️ Nenhum serviço encontrado no caixa');
         setServicos([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      console.error('❌ Erro ao carregar dados:', error);
+      // Fallback para localStorage
       try {
         const hoje = new Date().toISOString().split('T')[0];
         const caixaSalvo = localStorage.getItem(`@caixa_${hoje}`);
         if (caixaSalvo) {
+          console.log('📦 Carregando fallback do localStorage');
           const caixaData = JSON.parse(caixaSalvo);
+          console.log('📦 Dados do fallback:', caixaData);
+          
           setCaixa({
             id: 'local',
             userId: user?.id || '',
@@ -245,12 +269,14 @@ const BarberCaixa = () => {
             servicesCount: caixaData.quantidadeServicos || 0,
           });
           setServicos(caixaData.servicos || []);
+          console.log('✅ Fallback carregado com', caixaData.servicos?.length || 0, 'serviços');
         }
       } catch (e) {
-        console.error('Erro ao carregar fallback:', e);
+        console.error('❌ Erro ao carregar fallback:', e);
       }
     } finally {
       setLoading(false);
+      console.log('✅ loadData finalizado');
     }
   };
 
@@ -288,6 +314,9 @@ const BarberCaixa = () => {
   // 🔥 CORRIGIDO: handleOpenModal com carregamento dos serviços
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
+      console.log('🔍 EDITANDO SERVIÇO:');
+      console.log('  servicoId:', servico.servicoId);
+      console.log('  servico completo:', servico);
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
