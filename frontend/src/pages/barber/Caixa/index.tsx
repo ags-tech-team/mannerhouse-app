@@ -513,7 +513,7 @@ const BarberCaixa = () => {
         await loadData();
       }
 
-      setShowModal(false);
+      closeModal()
       setClientName('');
       setClientPhone('');
       setEditingServico(null);
@@ -595,6 +595,27 @@ const BarberCaixa = () => {
       case 'debito': return 'Débito';
       default: return payment;
     }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingServico(null);
+    setClientName('');
+    setClientPhone('');
+    setSelectedDate('');
+    setSelectedTime('');
+    setOccupiedTimes([]);
+    setSelectedServices([]);
+    setIsGuest(false);
+    valor.reset();
+    setFormData({
+      cliente: '',
+      clienteTelefone: '',
+      barbeiroId: '',
+      barbeiroNome: '',
+      formaPagamento: 'dinheiro',
+      observacao: '',
+    });
   };
 
   return (
@@ -885,7 +906,7 @@ const BarberCaixa = () => {
               <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
                 {editingServico ? 'Editar Serviço' : '📝 Novo Serviço'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -1082,7 +1103,7 @@ const BarberCaixa = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={closeModal}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-2"
                 >
                   Cancelar

@@ -285,7 +285,7 @@ const BarberAgenda = () => {
         notes: formData.notes + (valorDigitado > 0 ? ` (Valor personalizado: R$ ${valorDigitado.toFixed(2)})` : '') + (hasMensalista ? ' [MENSALISTA]' : ''),
       });
 
-      setShowModal(false);
+      closeModal();
       setClientName('');
       setClientPhone('');
       setSelectedServices([]);
@@ -381,6 +381,23 @@ const BarberAgenda = () => {
   const getStatusLabel = (status: string) => {
     const option = statusOptions.find(s => s.value === status);
     return option || { label: status, color: 'bg-gray-100 text-gray-800' };
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedDate('');
+    setSelectedTime('');
+    setAvailableTimes([]);
+    setClientName('');
+    setClientPhone('');
+    setFormData({
+      clientName: '',
+      clientPhone: '',
+      notes: '',
+    });
+    setSelectedServices([]);
+    price.reset();
+    valorPersonalizado.reset();
   };
 
   return (
@@ -498,7 +515,7 @@ const BarberAgenda = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#060606]">📋 Detalhes do Agendamento</h2>
-              <button onClick={() => setShowDetailModal(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
               <div className="bg-[#f5f0e8] p-4 rounded-lg">
@@ -660,7 +677,7 @@ const BarberAgenda = () => {
 
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCreateAppointment} className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 rounded-lg transition flex items-center justify-center gap-2"><Check size={18} /> Criar Agendamento</button>
-                <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition">Cancelar</button>
+                <button onClick={closeModal} className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 rounded-lg transition">Cancelar</button>
               </div>
             </div>
           </div>
