@@ -64,6 +64,13 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: true,
       field: 'is_active',
     },
+    // 🔥 CAMPO DE HORÁRIOS
+    schedule: {
+      type: DataTypes.JSONB,
+      defaultValue: {},
+      allowNull: true,
+      field: 'schedule',
+    },
   }, {
     tableName: 'barbers',
     underscored: true,
