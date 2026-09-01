@@ -20,7 +20,6 @@ const getAll = async (req, res) => {
       order: [['date', 'ASC'], ['time', 'ASC']],
     });
     
-    // 🔥 BUSCAR CLIENTES E BARBEIROS MANUALMENTE
     const result = await Promise.all(appointments.map(async (app) => {
       const appData = app.toJSON();
       
@@ -61,7 +60,6 @@ const getByBarber = async (req, res) => {
       order: [['time', 'ASC']],
     });
     
-    // 🔥 BUSCAR CLIENTES MANUALMENTE
     const result = await Promise.all(appointments.map(async (app) => {
       const appData = app.toJSON();
       
@@ -82,18 +80,38 @@ const getByBarber = async (req, res) => {
   }
 };
 
-// Buscar horários disponíveis de um barbeiro em um dia
+// 🔥 CORRIGIDO: Buscar horários disponíveis com base no SCHEDULE do barbeiro
 const getAvailableTimes = async (req, res) => {
   try {
     const { barberId } = req.params;
     const { date } = req.query;
     
-    const allTimes = [
-      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-    ];
+    if (!barberId || !date) {
+      return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
+    }
     
+    // 🔥 BUSCAR O BARBEIRO COM O SCHEDULE
+    const barber = await Barber.findByPk(barberId);
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+    
+    // 🔥 PEGAR O DIA DA SEMANA (em inglês)
+    const dayOfWeek = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    
+    // 🔥 VERIFICAR SE O BARBEIRO TRABALHA NESSE DIA
+    const schedule = barber.schedule || {};
+    const daySchedule = schedule[dayOfWeek];
+    
+    if (!daySchedule || !daySchedule.enabled) {
+      console.log(`📅 ${barber.name} não trabalha em ${dayOfWeek} (${date})`);
+      return res.json([]); // 🔥 NENHUM HORÁRIO DISPONÍVEL
+    }
+    
+    // 🔥 HORÁRIOS QUE O BARBEIRO TRABALHA
+    const barberTimes = daySchedule.times || [];
+    
+    // 🔥 HORÁRIOS JÁ OCUPADOS (AGENDAMENTOS)
     const appointments = await Appointment.findAll({
       where: {
         barberId,
@@ -104,7 +122,11 @@ const getAvailableTimes = async (req, res) => {
     });
     
     const bookedTimes = appointments.map(app => app.time);
-    const availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
+    
+    // 🔥 HORÁRIOS DISPONÍVEIS = HORÁRIOS DO BARBEIRO - HORÁRIOS OCUPADOS
+    const availableTimes = barberTimes.filter(time => !bookedTimes.includes(time));
+    
+    console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
     
     res.json(availableTimes);
   } catch (error) {
@@ -182,7 +204,6 @@ const create = async (req, res) => {
     
     console.log('✅ Agendamento criado:', appointment.id);
     
-    // 🔥 BUSCAR DADOS COMPLETOS MANUALMENTE
     const created = await Appointment.findByPk(appointment.id);
     const result = created.toJSON();
     
@@ -245,7 +266,6 @@ const updateStatus = async (req, res) => {
       
       cashRegisterStatus = 'open';
       
-      // 🔥 BUSCAR BARBEIRO PARA CALCULAR COMISSÃO
       const barber = await Barber.findByPk(appointment.barberId);
       const commission = (appointment.price || 0) * (barber?.serviceCommissionRate || 0.50);
       
@@ -253,7 +273,6 @@ const updateStatus = async (req, res) => {
       const totalRevenue = cashRegister.totalRevenue || 0;
       const totalCommissions = cashRegister.totalCommissions || 0;
       
-      // 🔥 BUSCAR CLIENTE PARA O NOME
       const client = await Client.findByPk(appointment.clientId);
       
       services.push({
@@ -279,7 +298,6 @@ const updateStatus = async (req, res) => {
       console.log(`✅ Serviço ${id} concluído e adicionado ao caixa.`);
     }
     
-    // 🔥 BUSCAR DADOS COMPLETOS MANUALMENTE
     const updated = await Appointment.findByPk(id);
     const result = updated.toJSON();
     
@@ -312,7 +330,6 @@ const updateStatus = async (req, res) => {
   }
 };
 
-// Deletar agendamento
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
@@ -368,7 +385,6 @@ const getById = async (req, res) => {
       return res.status(404).json({ error: 'Agendamento não encontrado' });
     }
     
-    // 🔥 BUSCAR MANUALMENTE O CLIENTE
     let client = null;
     let barber = null;
     
