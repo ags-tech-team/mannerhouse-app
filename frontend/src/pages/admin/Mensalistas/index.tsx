@@ -732,7 +732,7 @@ const AdminMensalistas = () => {
                     <option value="">Selecione um barbeiro...</option>
                     {barbers.map(barber => (
                       <option key={barber.id} value={barber.id}>
-                        {barber.name} ({barber.serviceCommissionRate * 100})
+                        {barber.name}
                       </option>
                     ))}
                   </select>
