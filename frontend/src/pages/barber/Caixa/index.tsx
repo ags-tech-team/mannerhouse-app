@@ -312,11 +312,7 @@ const BarberCaixa = () => {
   };
 
   const handleOpenModal = (servico?: ServicoFaturamento) => {
-    if (servico) {
-      console.log('🔍 EDITANDO SERVIÇO:');
-      console.log('  servicoId:', servico.servicoId);
-      console.log('  servico completo:', servico);
-      
+    if (servico) {   
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -335,7 +331,6 @@ const BarberCaixa = () => {
       
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
-        console.log('🔍 Service IDs extraídos:', serviceIds);
         
         const loadedServices = serviceIds
           .map((id: string) => {
@@ -459,13 +454,6 @@ const BarberCaixa = () => {
       }
 
       const comissaoTotal = comissaoServico + comissaoProduto;
-
-      console.log('📤 ENVIANDO SERVIÇO:');
-      console.log('  client:', clientNameFinal);
-      console.log('  phone:', clientPhoneFinal);
-      console.log('  barberId:', barberId);
-      console.log('  service:', serviceNames);
-      console.log('  price:', total);
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 
