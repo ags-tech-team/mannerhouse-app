@@ -26,31 +26,14 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   const [selectedId, setSelectedId] = useState('');
 
   const handleAddService = () => {
-    if (!selectedId) return;
-    if (selectedServices.length >= maxServices) {
-      alert(`Máximo de ${maxServices} serviços por agendamento`);
-      return;
-    }
+  if (!selectedId) return;
+  if (selectedServices.length >= maxServices) {
+    alert(`Máximo de ${maxServices} serviços por agendamento`);
+    return;
+  }
 
-    const service = getServiceById(selectedId);
+  const service = getServiceById(selectedId);
     if (!service) return;
-
-    // 🔥 SE FOR MENSALISTA, LIMPAR OS SERVIÇOS E ADICIONAR SÓ ELE
-    if (selectedId === 'mensalista') {
-      const uniqueId = `mensalista-${Date.now()}`;
-      onChange([{ id: uniqueId, service }]);
-      setSelectedId('');
-      return;
-    }
-
-    // 🔥 SE JÁ TIVER MENSALISTA, REMOVER ELE E ADICIONAR O NOVO
-    if (selectedServices.some(s => s.service.id === 'mensalista')) {
-      const withoutMensalista = selectedServices.filter(s => s.service.id !== 'mensalista');
-      const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-      onChange([...withoutMensalista, { id: uniqueId, service }]);
-      setSelectedId('');
-      return;
-    }
 
     const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     onChange([...selectedServices, { id: uniqueId, service }]);
