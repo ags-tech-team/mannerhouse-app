@@ -1,6 +1,9 @@
 const { Sequelize } = require('sequelize');
 const path = require('path');
 
+// 🔥 CONFIGURAÇÃO DO TIMEZONE (DEVE SER A PRIMEIRA COISA)
+process.env.TZ = 'America/Sao_Paulo';
+
 // 🔥 CONFIGURAÇÃO PARA O SEQUELIZE CLI (MIGRATIONS)
 const config = {
   development: {
@@ -11,6 +14,8 @@ const config = {
       timestamps: true,
       underscored: true,
     },
+    // 🔥 ADICIONAR TIMEZONE
+    timezone: 'America/Sao_Paulo',
   },
   production: {
     dialect: 'postgres',
@@ -20,11 +25,15 @@ const config = {
       timestamps: true,
       underscored: true,
     },
+    // 🔥 ADICIONAR TIMEZONE NA PRODUÇÃO
+    timezone: 'America/Sao_Paulo',
     dialectOptions: {
       ssl: {
         require: true,
         rejectUnauthorized: false,
       },
+      // 🔥 IMPORTANTE: Desabilitar UTC
+      useUTC: false,
     },
   },
   test: {
@@ -35,6 +44,7 @@ const config = {
       timestamps: true,
       underscored: true,
     },
+    timezone: 'America/Sao_Paulo',
   },
 };
 
@@ -43,8 +53,8 @@ const getSequelizeInstance = () => {
   
   console.log('🔍 DEBUG:');
   console.log('  NODE_ENV:', env);
+  console.log('  TIMEZONE:', process.env.TZ);
   console.log('  DATABASE_URL:', process.env.DATABASE_URL ? '✅ EXISTE' : '❌ NÃO EXISTE');
-  console.log('  DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 30) + '...' : 'undefined');
   
   // Se estiver em produção e tiver DATABASE_URL, usa PostgreSQL
   if (env === 'production' && process.env.DATABASE_URL) {
@@ -52,6 +62,8 @@ const getSequelizeInstance = () => {
     return new Sequelize(process.env.DATABASE_URL, {
       dialect: 'postgres',
       logging: false,
+      // 🔥 TIMEZONE CONFIGURADO
+      timezone: 'America/Sao_Paulo',
       define: {
         timestamps: true,
         underscored: true,
@@ -61,7 +73,17 @@ const getSequelizeInstance = () => {
           require: true,
           rejectUnauthorized: false,
         },
+        // 🔥 CRUCIAL: Desabilitar UTC para usar timezone local
+        useUTC: false,
+        // 🔥 FORÇAR O TIMEZONE DO POSTGRES
+        typeCast: true,
       },
+      // 🔥 HOOKS PARA GARANTIR TIMEZONE
+      hooks: {
+        beforeConnect: (config) => {
+          console.log('🔧 Configurando timezone para America/Sao_Paulo');
+        }
+      }
     });
   }
   
@@ -71,6 +93,8 @@ const getSequelizeInstance = () => {
     dialect: 'sqlite',
     storage: path.join(__dirname, '../../database.sqlite'),
     logging: false,
+    // 🔥 TIMEZONE NO SQLITE
+    timezone: 'America/Sao_Paulo',
     define: {
       timestamps: true,
       underscored: true,
@@ -80,10 +104,29 @@ const getSequelizeInstance = () => {
 
 const sequelize = getSequelizeInstance();
 
+// 🔥 FUNÇÃO PARA TESTAR TIMEZONE
+const testTimezone = async () => {
+  try {
+    const [results] = await sequelize.query('SELECT NOW() as current_time');
+    console.log('🕐 Timezone do banco:', results[0]?.current_time || 'N/A');
+    
+    // Testar conversão de data
+    const testDate = new Date('2026-09-01T12:00:00');
+    console.log('📅 Teste de conversão:');
+    console.log('  Data original:', testDate.toISOString());
+    console.log('  Data local:', testDate.toLocaleString('pt-BR'));
+    console.log('  Data no banco:', testDate.toISOString().split('T')[0]);
+  } catch (error) {
+    console.warn('⚠️ Não foi possível testar timezone:', error.message);
+  }
+};
+
+// 🔥 EXPORTAR TUDO
 module.exports = {
   sequelize,
   config,
-  // 🔥 EXPORTAR O SEQUELIZE E O CONFIG PARA O CLI
+  testTimezone,
+  // 🔥 EXPORTAR O CONFIG PARA O CLI
   development: config.development,
   production: config.production,
   test: config.test,

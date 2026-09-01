@@ -1,7 +1,15 @@
 const { sequelize } = require('../config/database');
 const { DataTypes } = require('sequelize');
 
-// Carregar modelos
+// 🔥 CONFIGURAR TIMEZONE GLOBAL NOS MODELOS
+const modelOptions = {
+  timestamps: true,
+  underscored: true,
+  // 🔥 Timezone padrão para todos os modelos
+  timezone: 'America/Sao_Paulo',
+};
+
+// Carregar modelos com as opções configuradas
 const User = require('./User')(sequelize, DataTypes);
 const Barber = require('./Barber')(sequelize, DataTypes);
 const Client = require('./Client')(sequelize, DataTypes);
@@ -19,7 +27,7 @@ const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
 Barber.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasOne(Barber, { foreignKey: 'userId', as: 'barber' });
 
-// 🔥 NOVA ASSOCIAÇÃO: Client -> Barber
+// Client -> Barber
 Client.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
 Barber.hasMany(Client, { foreignKey: 'barberId', as: 'clients' });
 
@@ -51,6 +59,7 @@ Barber.hasMany(Revenue, { foreignKey: 'barberId', as: 'revenues' });
 MonthlyPayment.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 Client.hasMany(MonthlyPayment, { foreignKey: 'clientId', as: 'MonthlyPayments' });
 
+// 🔥 EXPOSER MODELOS INDIVIDUALMENTE
 const models = {
   User,
   Barber,
@@ -64,10 +73,21 @@ const models = {
   MonthlyPayment,
 };
 
+// 🔥 FUNÇÃO PARA SYNC (SE NECESSÁRIO)
 const syncDatabase = async () => {
   try {
     await sequelize.authenticate();
     console.log('📊 Conexão com banco estabelecida');
+    console.log('🕐 Timezone configurado para: America/Sao_Paulo');
+    
+    // 🔥 TESTAR TIMEZONE
+    try {
+      const [results] = await sequelize.query('SELECT NOW() as current_time');
+      console.log('🕐 Hora do banco:', results[0]?.current_time || 'N/A');
+    } catch (error) {
+      console.warn('⚠️ Não foi possível testar timezone do banco:', error.message);
+    }
+    
     console.log('📦 Banco de dados pronto (migrations gerenciam a estrutura)');
   } catch (error) {
     console.error('❌ Erro ao conectar banco:', error);
@@ -75,6 +95,7 @@ const syncDatabase = async () => {
   }
 };
 
+// 🔥 EXPORTAR TUDO
 module.exports = {
   ...models,
   sequelize,
