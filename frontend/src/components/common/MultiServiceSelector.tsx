@@ -16,23 +16,30 @@ interface MultiServiceSelectorProps {
   selectedServices: SelectedService[];
   onChange: (services: SelectedService[]) => void;
   maxServices?: number;
+  hideMensalista?: boolean; // 🔥 NOVA PROP PARA ESCONDER O MENSALISTA
 }
 
 const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   selectedServices,
   onChange,
-  maxServices = 10
+  maxServices = 10,
+  hideMensalista = false, // 🔥 PADRÃO: false
 }) => {
   const [selectedId, setSelectedId] = useState('');
 
-  const handleAddService = () => {
-  if (!selectedId) return;
-  if (selectedServices.length >= maxServices) {
-    alert(`Máximo de ${maxServices} serviços por agendamento`);
-    return;
-  }
+  // 🔥 FILTRAR SERVIÇOS - REMOVER MENSALISTA SE hideMensalista = true
+  const availableServices = hideMensalista
+    ? SERVICES.filter(s => s.id !== 'mensalista')
+    : SERVICES;
 
-  const service = getServiceById(selectedId);
+  const handleAddService = () => {
+    if (!selectedId) return;
+    if (selectedServices.length >= maxServices) {
+      alert(`Máximo de ${maxServices} serviços por agendamento`);
+      return;
+    }
+
+    const service = getServiceById(selectedId);
     if (!service) return;
 
     const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -86,7 +93,7 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
           >
             <option value="">Selecione um serviço</option>
-            {SERVICES.map((service) => (
+            {availableServices.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name} - R$ {service.price.toFixed(2)}
               </option>
