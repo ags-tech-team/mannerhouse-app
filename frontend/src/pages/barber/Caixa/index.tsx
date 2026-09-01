@@ -112,6 +112,9 @@ const BarberCaixa = () => {
   };
 
   const getTotalServices = () => {
+    if (selectedServices.some(s => s.service.id === 'mensalista')) {
+      return 0;
+    }
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
@@ -437,13 +440,21 @@ const BarberCaixa = () => {
 
     try {
       const clientPhoneFinal = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
-      const total = getTotalServices();
+      
+      // 🔥 VERIFICAR SE TEM MENSALISTA
+      const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
+      
+      // 🔥 CALCULAR TOTAL - SE TIVER MENSALISTA, TOTAL = 0
+      const total = hasMensalista ? 0 : getTotalServices();
+      
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
 
       const barber = barbersList.find(b => b.id === barberId);
       const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
-      const comissaoServico = total * taxaComissaoServico;
+      
+      // 🔥 COMISSÃO SÓ É CALCULADA SE NÃO TIVER MENSALISTA
+      const comissaoServico = hasMensalista ? 0 : (total * taxaComissaoServico);
 
       let comissaoProduto = 0;
       for (const service of selectedServices) {
@@ -453,7 +464,16 @@ const BarberCaixa = () => {
         }
       }
 
-      const comissaoTotal = comissaoServico + comissaoProduto;
+      const comissaoTotal = hasMensalista ? 0 : (comissaoServico + comissaoProduto);
+
+      console.log('📤 ENVIANDO SERVIÇO:');
+      console.log('  client:', clientNameFinal);
+      console.log('  phone:', clientPhoneFinal);
+      console.log('  barberId:', barberId);
+      console.log('  service:', serviceNames);
+      console.log('  price:', total);
+      console.log('  hasMensalista:', hasMensalista);
+      console.log('  commission:', comissaoTotal);
 
       if (editingServico) {
         const updatedServicos = servicos.map(s => 

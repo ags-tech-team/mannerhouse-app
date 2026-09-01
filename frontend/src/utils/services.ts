@@ -6,6 +6,7 @@ export interface Service {
 }
 
 export const SERVICES: Service[] = [
+  { id: 'mensalista', name: '📋 Mensalista', price: 0.00, category: 'outro' },
   { id: 'corte-masculino', name: 'Corte Masculino', price: 35.00, category: 'corte' },
   { id: 'corte-navalhado', name: 'Corte Navalhado', price: 40.00, category: 'corte' },
   { id: 'barba-terapia', name: 'Barba Terapia', price: 40.00, category: 'barba' },

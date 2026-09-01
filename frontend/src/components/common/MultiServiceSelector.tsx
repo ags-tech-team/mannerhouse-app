@@ -35,8 +35,24 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
     const service = getServiceById(selectedId);
     if (!service) return;
 
+    // 🔥 SE FOR MENSALISTA, LIMPAR OS SERVIÇOS E ADICIONAR SÓ ELE
+    if (selectedId === 'mensalista') {
+      const uniqueId = `mensalista-${Date.now()}`;
+      onChange([{ id: uniqueId, service }]);
+      setSelectedId('');
+      return;
+    }
+
+    // 🔥 SE JÁ TIVER MENSALISTA, REMOVER ELE E ADICIONAR O NOVO
+    if (selectedServices.some(s => s.service.id === 'mensalista')) {
+      const withoutMensalista = selectedServices.filter(s => s.service.id !== 'mensalista');
+      const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      onChange([...withoutMensalista, { id: uniqueId, service }]);
+      setSelectedId('');
+      return;
+    }
+
     const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    
     onChange([...selectedServices, { id: uniqueId, service }]);
     setSelectedId('');
   };
@@ -47,6 +63,10 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   };
 
   const getTotal = () => {
+    // 🔥 SE TIVER MENSALISTA, TOTAL = 0
+    if (selectedServices.some(s => s.service.id === 'mensalista')) {
+      return 0;
+    }
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
@@ -106,25 +126,33 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
         <div className="bg-[#f5f0e8] rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
           <div className="flex justify-between items-center text-sm font-medium text-[#060606]">
             <span>Serviços adicionados ({selectedServices.length})</span>
-            <span>Total: R$ {getTotal().toFixed(2)}</span>
+            <span className={selectedServices.some(s => s.service.id === 'mensalista') ? 'text-green-600 font-bold' : ''}>
+              Total: R$ {getTotal().toFixed(2)}
+            </span>
           </div>
           <div className="space-y-1">
             {Object.entries(groupedServices).map(([key, group]) => {
-              // 🔥 PEGAR O PRIMEIRO ÍNDICE DO GRUPO PARA REMOVER
               const firstIndex = group.indices[0];
+              const isMensalista = key === 'mensalista';
               
               return (
                 <div
                   key={key}
-                  className="flex items-center justify-between bg-white p-2 rounded-lg"
+                  className={`flex items-center justify-between bg-white p-2 rounded-lg ${isMensalista ? 'border-2 border-purple-300 bg-purple-50' : ''}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Scissors size={14} className="text-[#9c7f64] flex-shrink-0" />
-                    <span className="text-sm text-[#060606] truncate">{group.service.name}</span>
-                    <span className="text-xs text-[#9c7f64] flex-shrink-0">
-                      R$ {group.service.price.toFixed(2)}
+                    <Scissors size={14} className={`flex-shrink-0 ${isMensalista ? 'text-purple-600' : 'text-[#9c7f64]'}`} />
+                    <span className={`text-sm truncate ${isMensalista ? 'font-bold text-purple-700' : 'text-[#060606]'}`}>
+                      {group.service.name}
+                      {isMensalista && (
+                        <span className="ml-2 text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
+                          Zera valor
+                        </span>
+                      )}
                     </span>
-                    {/* 🔥 CONTADOR MOSTRA A QUANTIDADE UMA VEZ SÓ */}
+                    <span className={`text-xs flex-shrink-0 ${isMensalista ? 'text-purple-600 font-bold' : 'text-[#9c7f64]'}`}>
+                      R$ {isMensalista ? '0,00' : group.service.price.toFixed(2)}
+                    </span>
                     {group.count > 1 && (
                       <span className="text-xs bg-[#9c7f64] text-white px-2 py-0.5 rounded-full flex-shrink-0">
                         x{group.count}

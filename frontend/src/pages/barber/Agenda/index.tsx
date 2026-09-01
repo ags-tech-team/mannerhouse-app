@@ -159,8 +159,10 @@ const BarberAgenda = () => {
     }
   }, [selectedBarberId, selectedDate]);
 
-  // Calcular total
   const getTotalServices = () => {
+    if (selectedServices.some(s => s.service.id === 'mensalista')) {
+      return 0;
+    }
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
   
@@ -209,7 +211,6 @@ const BarberAgenda = () => {
     setShowModal(true);
   };
 
-  // 🔥 CRIAÇÃO DE AGENDAMENTO COM VALOR PERSONALIZADO
   const handleCreateAppointment = async () => {
     if (!selectedBarberId) {
       alert('Selecione um barbeiro');
@@ -233,11 +234,19 @@ const BarberAgenda = () => {
       return;
     }
 
+    // 🔥 VERIFICAR SE TEM MENSALISTA
+    const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
+    
     // 🔥 USAR VALOR PERSONALIZADO SE PREENCHIDO
     const valorDigitado = valorPersonalizado.getNumberValue();
-    const total = valorDigitado > 0 ? valorDigitado : getTotalServices();
+    let total = valorDigitado > 0 ? valorDigitado : getTotalServices();
     
-    if (total <= 0) {
+    // 🔥 SE TIVER MENSALISTA, TOTAL = 0
+    if (hasMensalista) {
+      total = 0;
+    }
+    
+    if (total <= 0 && !hasMensalista) {
       alert('Digite um valor válido ou selecione um serviço');
       return;
     }
@@ -250,7 +259,18 @@ const BarberAgenda = () => {
 
       const barber = barbers.find(b => b.id === selectedBarberId);
       const taxaComissao = barber?.serviceCommissionRate || 0.50;
-      const comissao = total * taxaComissao;
+      
+      // 🔥 COMISSÃO SÓ É CALCULADA SE NÃO TIVER MENSALISTA
+      const comissao = hasMensalista ? 0 : (total * taxaComissao);
+
+      console.log('📤 CRIANDO AGENDAMENTO:');
+      console.log('  client:', clientName.trim());
+      console.log('  phone:', formData.clientPhone.trim());
+      console.log('  barberId:', selectedBarberId);
+      console.log('  service:', serviceNames);
+      console.log('  price:', total);
+      console.log('  hasMensalista:', hasMensalista);
+      console.log('  commission:', comissao);
 
       await appointmentService.create({
         barberId: selectedBarberId,
@@ -262,7 +282,7 @@ const BarberAgenda = () => {
         serviceDescription: serviceNames || 'Serviço Personalizado',
         price: total,
         commission: comissao,
-        notes: formData.notes + (valorDigitado > 0 ? ` (Valor personalizado: R$ ${valorDigitado.toFixed(2)})` : ''),
+        notes: formData.notes + (valorDigitado > 0 ? ` (Valor personalizado: R$ ${valorDigitado.toFixed(2)})` : '') + (hasMensalista ? ' [MENSALISTA]' : ''),
       });
 
       setShowModal(false);
