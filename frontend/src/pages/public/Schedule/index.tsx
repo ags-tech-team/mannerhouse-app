@@ -485,6 +485,7 @@ const PublicSchedule = () => {
                   )}
                 </div>
 
+                {/* 🔥 MULTI SERVICE SELECTOR COM hideMensalista */}
                 <div>
                   <label className="block text-sm sm:text-base font-medium text-[#060606] mb-2">
                     <Scissors size={16} className="inline mr-1" /> Serviços
@@ -493,6 +494,7 @@ const PublicSchedule = () => {
                     selectedServices={selectedServices}
                     onChange={handleServicesChange}
                     maxServices={5}
+                    hideMensalista={true} // 🔥 ESCONDE O MENSALISTA NO AGENDAMENTO PÚBLICO
                   />
                 </div>
 

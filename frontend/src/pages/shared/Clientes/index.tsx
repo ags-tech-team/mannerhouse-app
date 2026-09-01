@@ -52,11 +52,7 @@ const AdminClientes = () => {
     setLoading(true);
     try {
       const response = await api.get('/clients');
-      // 🔥 ORDENAR CLIENTES POR NOME
-      const sortedClients = response.data.sort((a: Client, b: Client) => 
-        a.name.localeCompare(b.name)
-      );
-      setClients(sortedClients);
+      setClients(response.data);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
       alert('Erro ao carregar clientes');
