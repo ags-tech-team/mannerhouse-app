@@ -1,21 +1,26 @@
 const { Appointment, Barber, Client } = require('../models');
 const { Op } = require('sequelize');
+const dateHelper = require('../utils/dateHelper');
 
-// 🔥 LISTAR BARBEIROS ATIVOS (PÚBLICO)
+// ==========================================
+// GET BARBERS - Listar barbeiros ativos
+// ==========================================
 const getBarbers = async (req, res) => {
   try {
     const barbers = await Barber.findAll({
       where: { isActive: true },
-      attributes: ['id', 'name', 'phone', 'serviceCommissionRate']
+      attributes: ['id', 'name', 'phone', 'serviceCommissionRate', 'schedule']
     });
     res.json(barbers);
   } catch (error) {
-    console.error('Erro ao buscar barbeiros:', error);
+    console.error('❌ Erro ao buscar barbeiros:', error);
     res.status(500).json({ error: 'Erro ao buscar barbeiros' });
   }
 };
 
-// 🔥 BUSCAR HORÁRIOS DISPONÍVEIS (PÚBLICO)
+// ==========================================
+// 🔥 CORRIGIDO: Buscar horários disponíveis
+// ==========================================
 const getAvailableTimes = async (req, res) => {
   try {
     const { barberId, date } = req.query;
@@ -24,14 +29,44 @@ const getAvailableTimes = async (req, res) => {
       return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
     }
     
-    // Horários padrão (09:00 às 18:00)
-    const allTimes = [
-      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-    ];
+    // 🔥 VALIDAR DATA
+    if (!dateHelper.isValidDate(date)) {
+      return res.status(400).json({ error: 'Data inválida' });
+    }
     
-    // Buscar horários já ocupados
+    // 🔥 BUSCAR BARBEIRO COM SCHEDULE
+    const barber = await Barber.findByPk(barberId);
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+    
+    // 🔥 CORREÇÃO: Usar helper para dia da semana
+    const dayOfWeek = dateHelper.getDayOfWeekEn(date);
+    
+    if (!dayOfWeek) {
+      return res.status(400).json({ error: 'Data inválida para cálculo do dia da semana' });
+    }
+    
+    // 🔥 VERIFICAR SCHEDULE DO BARBEIRO
+    const schedule = barber.schedule || {};
+    const daySchedule = schedule[dayOfWeek];
+    
+    console.log(`📅 Buscando horários para ${barber.name} em ${date} (${dayOfWeek})`);
+    console.log(`📅 Schedule:`, JSON.stringify(daySchedule, null, 2));
+    
+    let allTimes = [];
+    
+    // 🔥 SE TIVER SCHEDULE CONFIGURADO, USA ELE
+    if (daySchedule && daySchedule.enabled) {
+      allTimes = daySchedule.times || [];
+      console.log(`✅ Usando schedule do barbeiro: ${allTimes.length} horários`);
+    } else {
+      // 🔥 SE NÃO TIVER, RETORNA VAZIO (não usa mais horários fixos!)
+      console.log(`⚠️ ${barber.name} não tem horários configurados para ${dayOfWeek}`);
+      return res.json([]);
+    }
+    
+    // 🔥 BUSCAR HORÁRIOS OCUPADOS
     const appointments = await Appointment.findAll({
       where: {
         barberId,
@@ -46,14 +81,18 @@ const getAvailableTimes = async (req, res) => {
     const bookedTimes = appointments.map(app => app.time);
     const availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
     
+    console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
+    
     res.json(availableTimes);
   } catch (error) {
-    console.error('Erro ao buscar horários disponíveis:', error);
+    console.error('❌ Erro ao buscar horários disponíveis:', error);
     res.status(500).json({ error: 'Erro ao buscar horários disponíveis' });
   }
 };
 
-// 🔥 CRIAR AGENDAMENTO PÚBLICO
+// ==========================================
+// CREATE APPOINTMENT - Criar agendamento público
+// ==========================================
 const createAppointment = async (req, res) => {
   try {
     const { 
@@ -67,13 +106,23 @@ const createAppointment = async (req, res) => {
       price
     } = req.body;
     
-    // Verificar se barbeiro existe
+    // 🔥 VALIDAR DATA
+    if (!dateHelper.isValidDate(date)) {
+      return res.status(400).json({ error: 'Data inválida' });
+    }
+    
+    // 🔥 VERIFICAR SE A DATA NÃO É PASSADA
+    if (dateHelper.isPastDate(date)) {
+      return res.status(400).json({ error: 'Não é possível agendar em datas passadas' });
+    }
+    
+    // 🔥 VERIFICAR BARBEIRO
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // Verificar se o horário já está ocupado
+    // 🔥 VERIFICAR DISPONIBILIDADE
     const existing = await Appointment.findOne({
       where: {
         barberId,
@@ -87,7 +136,7 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // Buscar ou criar cliente
+    // 🔥 BUSCAR OU CRIAR CLIENTE
     let client = await Client.findOne({
       where: { phone: clientPhone }
     });
@@ -100,10 +149,10 @@ const createAppointment = async (req, res) => {
       });
     }
     
-    // Calcular comissão
-    const commission = (price || 0) * barber.serviceCommissionRate;
+    // 🔥 CALCULAR COMISSÃO
+    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
     
-    // Criar agendamento
+    // 🔥 CRIAR AGENDAMENTO
     const appointment = await Appointment.create({
       barberId,
       clientId: client.id,
@@ -117,16 +166,18 @@ const createAppointment = async (req, res) => {
       notes: `Agendamento feito pelo site - Cliente: ${clientName}`,
     });
     
+    console.log(`✅ Agendamento público ${appointment.id} criado para ${date} às ${time}`);
+    
     const created = await Appointment.findByPk(appointment.id, {
       include: [
         { 
           model: Barber, 
-          as: 'barber',  // ✅ ADICIONADO
+          as: 'barber',
           attributes: ['id', 'name'] 
         },
         { 
           model: Client, 
-          as: 'client',  // ✅ ADICIONADO
+          as: 'client',
           attributes: ['id', 'name', 'phone'] 
         }
       ],
@@ -138,7 +189,7 @@ const createAppointment = async (req, res) => {
       appointment: created
     });
   } catch (error) {
-    console.error('Erro ao criar agendamento:', error);
+    console.error('❌ Erro ao criar agendamento:', error);
     res.status(500).json({ error: 'Erro ao criar agendamento' });
   }
 };
