@@ -135,7 +135,7 @@ const BarberDashboard = () => {
         params.barberId = barberId;
       }
       
-      const response = await api.get('/api/barber/dashboard', { params });
+      const response = await api.get('/barber/dashboard', { params });
       
       console.log('📥 Resposta recebida:', response.data);
       
