@@ -18,8 +18,15 @@ import {
   Coffee,
   Sun,
   Moon,
-  BarChart
+  BarChart,
+  ChevronDown
 } from 'lucide-react';
+
+interface Barber {
+  id: string;
+  name: string;
+  userId: string;
+}
 
 interface DashboardData {
   summary: {
@@ -74,14 +81,17 @@ interface DashboardData {
     pendingToday: number;
     cancelledToday: number;
   };
-  // 🔥 NOVOS CAMPOS PARA ALERTAS
   alerts?: {
     pendingAppointments: number;
     todayAppointments: number;
   };
+  // 🔥 NOVOS CAMPOS PARA O SELETOR
+  barbers?: Barber[];
+  selectedBarberId?: string;
+  selectedBarberName?: string;
+  isAdmin?: boolean;
 }
 
-// 🔥 DADOS PADRÃO PARA FALLBACK
 const defaultData: DashboardData = {
   summary: {
     totalBarbers: 0,
@@ -102,7 +112,11 @@ const defaultData: DashboardData = {
   upcomingAppointments: [],
   cashRegister: { isOpen: false, openingTime: null },
   stats: { completedToday: 0, pendingToday: 0, cancelledToday: 0 },
-  alerts: { pendingAppointments: 0, todayAppointments: 0 }
+  alerts: { pendingAppointments: 0, todayAppointments: 0 },
+  barbers: [],
+  selectedBarberId: '',
+  selectedBarberName: '',
+  isAdmin: false
 };
 
 const BarberDashboard = () => {
@@ -110,39 +124,92 @@ const BarberDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData>(defaultData);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedBarber, setSelectedBarber] = useState<string>('');
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (barberId?: string) => {
     setLoading(true);
     try {
-      const response = await api.get('/barber/dashboard');
+      console.log('📤 Buscando dashboard...');
+      const params: any = {};
+      if (barberId) {
+        params.barberId = barberId;
+      }
       
-      // 🔥 VERIFICAR SE A RESPOSTA TEM OS DADOS ESPERADOS
+      const response = await api.get('/barber/dashboard', { params });
+      
+      console.log('📥 Resposta recebida:', response.data);
+      
       if (response.data) {
-        setData({
-          ...defaultData,
-          ...response.data,
+        const mappedData: DashboardData = {
+          summary: {
+            totalBarbers: response.data.summary?.totalBarbers || 0,
+            totalClients: response.data.summary?.totalClients || 0,
+            today: {
+              appointments: response.data.summary?.today?.appointments || 0,
+              revenue: response.data.summary?.today?.revenue || 0,
+              commission: response.data.summary?.today?.commission || 0,
+            },
+            week: {
+              appointments: response.data.summary?.week?.appointments || 0,
+              revenue: response.data.summary?.week?.revenue || 0,
+              commission: response.data.summary?.week?.commission || 0,
+            },
+            month: {
+              appointments: response.data.summary?.month?.appointments || 0,
+              revenue: response.data.summary?.month?.revenue || 0,
+              commission: response.data.summary?.month?.commission || 0,
+              serviceRevenue: response.data.summary?.month?.serviceRevenue || 0,
+              productRevenue: response.data.summary?.month?.productRevenue || 0,
+              serviceCommission: response.data.summary?.month?.serviceCommission || 0,
+              productCommission: response.data.summary?.month?.productCommission || 0,
+            }
+          },
+          todayAppointments: response.data.todayAppointments || [],
+          upcomingAppointments: response.data.upcomingAppointments || [],
           cashRegister: response.data.cashRegister || { isOpen: false, openingTime: null },
           stats: response.data.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 },
-          alerts: response.data.alerts || { pendingAppointments: 0, todayAppointments: 0 }
-        });
+          alerts: response.data.alerts || { pendingAppointments: 0, todayAppointments: 0 },
+          barbers: response.data.barbers || [],
+          selectedBarberId: response.data.selectedBarberId || '',
+          selectedBarberName: response.data.selectedBarberName || '',
+          isAdmin: response.data.isAdmin || false
+        };
+        
+        console.log('📊 Dados mapeados:', mappedData);
+        setData(mappedData);
+        
+        // 🔥 Se não tiver um barbeiro selecionado e tiver lista, seleciona o primeiro
+        if (!selectedBarber && mappedData.barbers && mappedData.barbers.length > 0) {
+          setSelectedBarber(mappedData.selectedBarberId || mappedData.barbers[0].id);
+        }
       }
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
+      console.error('❌ Erro ao carregar dashboard:', error);
       setData(defaultData);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // 🔥 Quando o barbeiro selecionado mudar, recarregar
+  useEffect(() => {
+    if (selectedBarber) {
+      loadDashboard(selectedBarber);
+    }
+  }, [selectedBarber, loadDashboard]);
+
+  // 🔥 Carregar inicial
   useEffect(() => {
     loadDashboard();
-    
+  }, [loadDashboard]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
     
     return () => clearInterval(timer);
-  }, [loadDashboard]);
+  }, []);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -199,37 +266,64 @@ const BarberDashboard = () => {
 
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
-  
-  // 🔥 VERIFICAÇÃO DE SEGURANÇA PARA OS DADOS
   const cashRegister = data?.cashRegister || { isOpen: false, openingTime: null };
   const stats = data?.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 };
   const summary = data?.summary || defaultData.summary;
   const alerts = data?.alerts || { pendingAppointments: 0, todayAppointments: 0 };
+  const barbers = data?.barbers || [];
+  const isAdmin = data?.isAdmin || false;
+
+  // 🔥 Nome do barbeiro selecionado para exibir
+  const selectedBarberName = data?.selectedBarberName || barbers.find(b => b.id === selectedBarber)?.name || 'Selecione um barbeiro';
 
   return (
     <div className="space-y-6">
-      {/* Header com Saudação */}
+      {/* Header com Saudação e Seletor */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-[#9c7f64]/10 rounded-full">
-              <GreetingIcon size={28} className="text-[#9c7f64]" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-[#060606]">
-                {greeting.text}! 👋
-              </h1>
-              <p className="text-[#7f7c7a]">
-                {currentTime.toLocaleTimeString('pt-BR', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-[#9c7f64]/10 rounded-full">
+            <GreetingIcon size={28} className="text-[#9c7f64]" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-[#060606]">
+              {greeting.text}! 👋
+            </h1>
+            <p className="text-[#7f7c7a]">
+              {currentTime.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* STATUS DO CAIXA */}
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          {/* 🔥 SELETOR DE BARBEIRO */}
+          {isAdmin && barbers.length > 0 && (
+            <div className="relative w-full sm:w-56">
+              <select
+                value={selectedBarber}
+                onChange={(e) => setSelectedBarber(e.target.value)}
+                className="w-full appearance-none px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent bg-white text-[#060606] text-sm"
+              >
+                {barbers.map((barber) => (
+                  <option key={barber.id} value={barber.id}>
+                    ✂️ {barber.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" size={18} />
+            </div>
+          )}
+          
+          {/* 🔥 NOME DO BARBEIRO SELECIONADO */}
+          {!isAdmin && (
+            <div className="px-4 py-2 bg-[#f5f0e8] rounded-lg">
+              <span className="font-medium text-[#060606]">✂️ {selectedBarberName}</span>
+            </div>
+          )}
+          
+          {/* Status do Caixa */}
           <div className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
             cashRegister.isOpen 
               ? 'bg-green-100 text-green-800' 
@@ -238,20 +332,16 @@ const BarberDashboard = () => {
             <div className={`w-2 h-2 rounded-full ${
               cashRegister.isOpen ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
             }`} />
-            <span className="text-sm font-medium">
+            <span className="text-sm font-medium whitespace-nowrap">
               {cashRegister.isOpen 
-                ? `Caixa aberto desde ${cashRegister.openingTime || '--:--'}` 
+                ? `Caixa aberto` 
                 : 'Caixa fechado'}
             </span>
-          </div>
-          <div className="text-sm text-[#7f7c7a] flex items-center gap-1">
-            <Users size={16} className="text-[#9c7f64]" />
-            {summary.totalBarbers || 0} barbeiros
           </div>
         </div>
       </div>
 
-      {/* 🔥 NOVO: ALERTA DE AGENDAMENTOS PENDENTES */}
+      {/* 🔥 ALERTA DE AGENDAMENTOS PENDENTES */}
       {(alerts.pendingAppointments > 0) && (
         <div className="grid grid-cols-1 gap-3 sm:gap-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
@@ -363,7 +453,7 @@ const BarberDashboard = () => {
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-[#060606] flex items-center gap-2">
               <Clock size={20} className="text-[#9c7f64]" />
-              Agenda de Hoje
+              Agenda de Hoje - {selectedBarberName}
               <span className="ml-2 text-sm font-normal text-[#7f7c7a]">
                 ({data?.todayAppointments?.length || 0} agendamentos)
               </span>
@@ -378,11 +468,8 @@ const BarberDashboard = () => {
                       {app.time}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-[#060606]">{app.client}</p>
-                        <span className="text-xs text-[#7f7c7a] flex items-center gap-1">
-                          <User size={12} /> {app.barber}
-                        </span>
                         {app.isCompleted && (
                           <CheckCircle size={14} className="text-green-600" />
                         )}
@@ -431,7 +518,7 @@ const BarberDashboard = () => {
                     <div>
                       <p className="font-medium text-[#060606]">{app.client}</p>
                       <p className="text-sm text-[#7f7c7a] flex items-center gap-1">
-                        <User size={12} /> {app.barber} • {app.service}
+                        <User size={12} /> {app.service}
                       </p>
                     </div>
                     <div className="text-right">
