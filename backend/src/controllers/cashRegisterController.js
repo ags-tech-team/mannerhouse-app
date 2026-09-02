@@ -135,10 +135,34 @@ const closeCashRegister = async (req, res) => {
     const services = cashRegister.services || [];
     console.log('📋 Serviços no caixa:', services.length);
     
-    const totalRevenue = services.reduce((sum, s) => sum + (s.price || 0), 0);
-    const totalCommissions = services.reduce((sum, s) => sum + (s.commission || 0), 0);
-    const servicesCount = services.length;
-    const finalCash = cashRegister.initialCash + totalRevenue;
+    // 🔥 SEPARAR SERVIÇOS E MENSALIDADES
+    const servicosReais = [];
+    const mensalidades = [];
+    
+    for (const service of services) {
+      const isMensalidade = service.service && (
+        service.service.toLowerCase().includes('mensal') ||
+        service.service.toLowerCase().includes('mensalista') ||
+        service.type === 'monthly' ||
+        service.serviceId?.toLowerCase().includes('mensalista') ||
+        service.serviceId?.toLowerCase().includes('mensal')
+      );
+      
+      if (isMensalidade) {
+        mensalidades.push(service);
+        console.log(`📅 Mensalidade ignorada: ${service.client} - ${service.service} - R$ ${service.price}`);
+      } else {
+        servicosReais.push(service);
+        console.log(`✂️ Serviço: ${service.client} - ${service.service} - R$ ${service.price}`);
+      }
+    }
+    
+    console.log(`📊 ${servicosReais.length} serviços, ${mensalidades.length} mensalidades ignoradas`);
+    
+    const totalRevenue = servicosReais.reduce((sum, s) => sum + (s.price || 0), 0);
+    const totalCommissions = servicosReais.reduce((sum, s) => sum + (s.commission || 0), 0);
+    const servicesCount = servicosReais.length;
+    const finalCash = cashRegister.initialCash + totalRevenue + mensalidades.reduce((sum, s) => sum + (s.price || 0), 0);
     
     await cashRegister.update({
       isOpen: false,
@@ -149,10 +173,10 @@ const closeCashRegister = async (req, res) => {
       servicesCount,
     });
     
-    console.log(`📝 Criando ${services.length} revenues...`);
+    console.log(`📝 Criando ${servicosReais.length} revenues...`);
     
     let revenueCount = 0;
-    for (const service of services) {
+    for (const service of servicosReais) {
       const barber = await Barber.findByPk(service.barberId);
       
       let clientName = 'Cliente';
@@ -211,7 +235,6 @@ const closeCashRegister = async (req, res) => {
           service: service.service || 'Serviço',
           serviceDescription: service.serviceDescription || '',
           status: 'confirmed',
-          notes: `Confirmado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
         });
         console.log(`   ✅ Revenue atualizado: R$ ${revenue.total} (Cliente: ${clientName})`);
       } else {
@@ -228,7 +251,6 @@ const closeCashRegister = async (req, res) => {
           service: service.service || 'Serviço',
           serviceDescription: service.serviceDescription || '',
           status: 'confirmed',
-          notes: `Criado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
         });
         console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Cliente: ${clientName})`);
       }
@@ -251,7 +273,6 @@ const closeCashRegister = async (req, res) => {
         await pendingRevenue.update({
           cashRegisterId: cashRegister.id,
           status: 'confirmed',
-          notes: `Confirmado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
         });
         console.log(`   ✅ Revenue pendente confirmado: ${pendingRevenue.id}`);
       }
@@ -260,6 +281,7 @@ const closeCashRegister = async (req, res) => {
     console.log(`✅ ${revenueCount} revenues processados!`);
     console.log(`   Total Revenue: R$ ${totalRevenue}`);
     console.log(`   Total Comissões: R$ ${totalCommissions}`);
+    console.log(`   📅 ${mensalidades.length} mensalidades ignoradas (já estão em monthly_payments)`);
     
     res.json(cashRegister);
   } catch (error) {

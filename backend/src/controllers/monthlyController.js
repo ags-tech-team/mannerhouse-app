@@ -139,7 +139,6 @@ const updateMonthlyStatus = async (req, res) => {
   }
 };
 
-// CONFIRMAR PAGAMENTO
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -159,27 +158,15 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    // 🔥 VERIFICAR SE TEM BARBEIRO
     if (!client.barberId || !client.barber) {
       return res.status(400).json({ 
         error: '⚠️ Cliente não está vinculado a um barbeiro! Defina um barbeiro para este cliente.' 
       });
     }
     
-    const today = new Date().toISOString().split('T')[0];
-    const cashRegister = await CashRegister.findOne({
-      where: {
-        date: today,
-        isOpen: true,
-      }
-    });
+    const today = dateHelper.getTodayLocal();
     
-    if (!cashRegister) {
-      return res.status(400).json({ 
-        error: '⚠️ Caixa fechado! Abra o caixa antes de confirmar o pagamento.' 
-      });
-    }
-    
+    // 🔥 VERIFICAR SE O PAGAMENTO JÁ EXISTE
     const existing = await MonthlyPayment.findOne({
       where: {
         clientId,
@@ -197,6 +184,7 @@ const confirmMonthlyPayment = async (req, res) => {
     const commissionRate = client.barber.serviceCommissionRate || 0.5;
     const commission = paymentAmount * commissionRate;
     
+    // 🔥 CRIAR APENAS O PAGAMENTO (SEM CAIXA, SEM REVENUE)
     const payment = await MonthlyPayment.create({
       clientId,
       month,
@@ -209,50 +197,11 @@ const confirmMonthlyPayment = async (req, res) => {
     console.log('✅ Pagamento criado:', payment.toJSON());
     console.log(`   Comissão do barbeiro ${client.barber.name}: R$ ${commission.toFixed(2)} (${commissionRate * 100}%)`);
     
-    // 🔥 CRIAR REVENUE COM COMISSÃO
-    const revenue = await Revenue.create({
-      cashRegisterId: cashRegister.id,
-      barberId: client.barberId,
-      date: today,
-      total: paymentAmount,
-      commissions: commission,
-      servicesCount: 1,
-      initialCash: cashRegister.initialCash || 0,
-      finalCash: paymentAmount,
-    });
-    
-    console.log('✅ Faturamento criado:', revenue.toJSON());
-    
-    // 🔥 ADICIONAR AO CAIXA
-    const services = cashRegister.services || [];
-    const totalRevenue = cashRegister.totalRevenue || 0;
-    const totalCommissions = cashRegister.totalCommissions || 0;
-    
-    services.push({
-      id: payment.id,
-      type: 'monthly',
-      client: client.name,
-      barberId: client.barberId,
-      barberName: client.barber.name,
-      service: 'Mensalidade',
-      price: paymentAmount,
-      commission: commission,
-      commissionRate: commissionRate,
-      paymentMethod: 'pix',
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      month: month,
-    });
-    
-    await cashRegister.update({
-      services,
-      totalRevenue: totalRevenue + paymentAmount,
-      totalCommissions: totalCommissions + commission,
-      servicesCount: services.length,
-    });
+    // 🔥 O REVENUE SERÁ CRIADO QUANDO O CAIXA FOR FECHADO (OU NÃO CRIA, DEPENDE DA LÓGICA)
+    // 🔥 REMOVEMOS A CRIAÇÃO AUTOMÁTICA DE REVENUE E A ADIÇÃO AO CAIXA
     
     res.json({
       payment,
-      revenue,
       commission,
       commissionRate: commissionRate * 100,
       barberName: client.barber.name,
