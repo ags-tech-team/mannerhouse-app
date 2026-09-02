@@ -1,10 +1,11 @@
 const { CashRegister, User, Revenue, Barber, Client } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
+const dateHelper = require('../utils/dateHelper');
 
 const getToday = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     
     console.log('🔍 Buscando caixa do dia:', { userId: req.userId, date: today });
     
@@ -42,7 +43,7 @@ const getToday = async (req, res) => {
 const openCashRegister = async (req, res) => {
   try {
     const { initialCash } = req.body;
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     
     console.log('🔓 ===== ABRINDO CAIXA =====');
     console.log('📌 userId:', req.userId);
@@ -112,7 +113,7 @@ const openCashRegister = async (req, res) => {
 
 const closeCashRegister = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     
     console.log('🔒 ===== FECHANDO CAIXA =====');
     console.log('📌 userId:', req.userId);
@@ -154,15 +155,15 @@ const closeCashRegister = async (req, res) => {
     for (const service of services) {
       const barber = await Barber.findByPk(service.barberId);
       
-      // 🔥 PEGAR O NOME DO CLIENTE
       let clientName = 'Cliente';
+      let clientId = null;
       
-      // 🔥 1. TENTAR PELO clientId
       if (service.clientId) {
         try {
           const client = await Client.findByPk(service.clientId);
           if (client) {
             clientName = client.name;
+            clientId = client.id;
             console.log(`   ✅ Cliente encontrado por ID: ${clientName}`);
           }
         } catch (e) {
@@ -170,10 +171,21 @@ const closeCashRegister = async (req, res) => {
         }
       }
       
-      // 🔥 2. SE NÃO ACHOU, TENTAR PELO NOME
       if (clientName === 'Cliente' && service.client && service.client !== '' && service.client !== 'Cliente sem cadastro' && service.client !== 'Cliente') {
-        clientName = service.client;
-        console.log(`   ✅ Cliente encontrado por nome: ${clientName}`);
+        try {
+          const client = await Client.findOne({
+            where: { name: service.client }
+          });
+          if (client) {
+            clientName = client.name;
+            clientId = client.id;
+            console.log(`   ✅ Cliente encontrado por nome: ${clientName}`);
+          } else {
+            clientName = service.client;
+          }
+        } catch (e) {
+          clientName = service.client;
+        }
       }
       
       console.log(`   Cliente final: ${clientName}`);
@@ -181,23 +193,71 @@ const closeCashRegister = async (req, res) => {
       console.log(`   Price: ${service.price}`);
       console.log(`   Barber: ${barber?.name || 'Desconhecido'}`);
       
-      const revenue = await Revenue.create({
-        cashRegisterId: cashRegister.id,
-        barberId: service.barberId || null,
-        date: today,
-        total: service.price || 0,
-        commissions: service.commission || 0,
-        servicesCount: 1,
-        initialCash: 0,
-        finalCash: service.price || 0,
-        clientName: clientName, // 🔥 SALVAR O CLIENTE
+      // 🔥 VERIFICAR SE JÁ EXISTE REVENUE
+      let revenue = await Revenue.findOne({
+        where: {
+          cashRegisterId: cashRegister.id,
+          barberId: service.barberId || null,
+          date: today,
+          total: service.price || 0,
+        }
       });
       
-      console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Cliente: ${clientName})`);
+      if (revenue) {
+        await revenue.update({
+          clientId: clientId,
+          clientName: clientName,
+          barberName: barber?.name || 'Desconhecido',
+          service: service.service || 'Serviço',
+          serviceDescription: service.serviceDescription || '',
+          status: 'confirmed',
+          notes: `Confirmado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
+        });
+        console.log(`   ✅ Revenue atualizado: R$ ${revenue.total} (Cliente: ${clientName})`);
+      } else {
+        revenue = await Revenue.create({
+          cashRegisterId: cashRegister.id,
+          barberId: service.barberId || null,
+          clientId: clientId,
+          date: today,
+          total: service.price || 0,
+          commissions: service.commission || 0,
+          servicesCount: 1,
+          clientName: clientName,
+          barberName: barber?.name || 'Desconhecido',
+          service: service.service || 'Serviço',
+          serviceDescription: service.serviceDescription || '',
+          status: 'confirmed',
+          notes: `Criado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
+        });
+        console.log(`   ✅ Revenue criado: R$ ${revenue.total} (Cliente: ${clientName})`);
+      }
       revenueCount++;
     }
     
-    console.log(`✅ ${revenueCount} revenues criados com sucesso!`);
+    // 🔥 ATUALIZAR REVENUES PENDENTES
+    const pendingRevenues = await Revenue.findAll({
+      where: {
+        cashRegisterId: null,
+        status: 'pending',
+        barberId: req.userId,
+        date: today,
+      }
+    });
+    
+    if (pendingRevenues.length > 0) {
+      console.log(`📝 Atualizando ${pendingRevenues.length} revenues pendentes...`);
+      for (const pendingRevenue of pendingRevenues) {
+        await pendingRevenue.update({
+          cashRegisterId: cashRegister.id,
+          status: 'confirmed',
+          notes: `Confirmado ao fechar caixa em ${new Date().toLocaleString('pt-BR')}`,
+        });
+        console.log(`   ✅ Revenue pendente confirmado: ${pendingRevenue.id}`);
+      }
+    }
+    
+    console.log(`✅ ${revenueCount} revenues processados!`);
     console.log(`   Total Revenue: R$ ${totalRevenue}`);
     console.log(`   Total Comissões: R$ ${totalCommissions}`);
     
@@ -222,7 +282,7 @@ const addService = async (req, res) => {
       phone
     } = req.body;
     
-    const today = date || new Date().toISOString().split('T')[0];
+    const today = date || dateHelper.getTodayLocal();
     
     console.log('📦 Adicionando serviço ao caixa:');
     console.log('  client:', client);
@@ -231,12 +291,10 @@ const addService = async (req, res) => {
     console.log('  service:', service);
     console.log('  price:', price);
     
-    // 🔥 BUSCAR OU CRIAR O CLIENTE NO BANCO
     let clientRecord = null;
     let clientId = null;
     let clientName = client || 'Cliente';
     
-    // 🔥 SÓ TENTA CRIAR SE TIVER NOME E NÃO FOR "Cliente sem cadastro"
     if (client && client !== 'Cliente sem cadastro' && client !== '' && client !== 'Cliente') {
       try {
         const result = await findOrCreateClient({
@@ -255,7 +313,6 @@ const addService = async (req, res) => {
       console.log('⚠️ Cliente não será criado (nome inválido ou "Cliente sem cadastro")');
     }
     
-    // Buscar o barbeiro
     let barber = null;
     let barberName = 'Barbeiro';
     
@@ -266,7 +323,6 @@ const addService = async (req, res) => {
       }
     }
     
-    // Buscar o caixa
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -280,11 +336,9 @@ const addService = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    // Calcular comissão
     const commissionRate = barber ? barber.serviceCommissionRate : 0.20;
     const commission = price * commissionRate;
     
-    // 🔥 CRIAR O SERVIÇO COM O CLIENTE ID
     const newService = {
       id: Date.now().toString(),
       client: clientName,
@@ -324,7 +378,7 @@ const addService = async (req, res) => {
 const removeService = async (req, res) => {
   try {
     const { serviceId } = req.params;
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -351,7 +405,7 @@ const removeService = async (req, res) => {
 const updateServices = async (req, res) => {
   try {
     const { services } = req.body;
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     
     const cashRegister = await CashRegister.findOne({
       where: {

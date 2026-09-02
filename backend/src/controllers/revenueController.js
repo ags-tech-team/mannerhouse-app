@@ -1,92 +1,63 @@
 const { Revenue, CashRegister, Expense, Appointment, Sale, Barber, Product, MonthlyPayment, Client } = require('../models');
 const { Op } = require('sequelize');
+const dateHelper = require('../utils/dateHelper');
 
 const getFinancialDashboard = async (req, res) => {
   try {
     const { month, period, startDate: queryStart, endDate: queryEnd } = req.query;
-    const hoje = new Date();
-    let ano = hoje.getFullYear();
-    let mes = hoje.getMonth() + 1;
+    
+    // 🔥 CORRIGIDO: USAR DATEHELPER
+    const hoje = dateHelper.getTodayLocal();
+    const hojeDate = new Date(hoje + 'T00:00:00');
+    let ano = hojeDate.getFullYear();
+    let mes = hojeDate.getMonth() + 1;
     let startDate, endDate, monthString;
     
-    console.log('📊 Parâmetros recebidos:', { month, period, queryStart, queryEnd }); // 🔥 DEBUG
+    console.log('📊 Parâmetros recebidos:', { month, period, queryStart, queryEnd });
     
-    // 🔥 SE FOR PERÍODO "week", USAR AS DATAS ENVIADAS OU CALCULAR
     if (period === 'week') {
       if (queryStart && queryEnd) {
-        // 🔥 USAR DATAS ENVIADAS PELO FRONTEND
         startDate = queryStart;
         endDate = queryEnd;
         console.log('📅 Usando datas enviadas:', startDate, 'até', endDate);
       } else {
-        // 🔥 CALCULAR A SEMANA ATUAL
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - dayOfWeek);
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        startDate = startOfWeek.toISOString().split('T')[0];
-        endDate = endOfWeek.toISOString().split('T')[0];
+        const startOfWeek = dateHelper.subtractDays(hoje, 7);
+        startDate = startOfWeek;
+        endDate = hoje;
         console.log('📅 Calculando semana atual:', startDate, 'até', endDate);
       }
       monthString = startDate.substring(0, 7);
-    } 
-    // 🔥 SE FOR PERÍODO "month" OU NÃO ESPECIFICADO
-    else {
-      mes = month ? parseInt(month) : hoje.getMonth() + 1;
-      ano = hoje.getFullYear();
+    } else {
+      mes = month ? parseInt(month) : hojeDate.getMonth() + 1;
+      ano = hojeDate.getFullYear();
       startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
-      endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
+      const lastDay = new Date(ano, mes, 0).getDate();
+      endDate = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       monthString = `${ano}-${String(mes).padStart(2, '0')}`;
       console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
     }
     
-    // 🔥 BUSCAR REVENUES (SERVIÇOS)
     const revenues = await Revenue.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] },
+        status: 'confirmed'
       },
       include: [
-        { 
-          model: CashRegister, 
-          as: 'cashRegister',
-          required: false 
-        },
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        }
+        { model: CashRegister, as: 'cashRegister', required: false },
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
       ]
     });
     
-    // 🔥 BUSCAR VENDAS DE PRODUTOS
     const sales = await Sale.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       },
       include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        },
-        { 
-          model: Product, 
-          as: 'product',
-          attributes: ['id', 'name', 'hasCommission'] 
-        }
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'hasCommission'] }
       ]
     });
     
-    // 🔥 BUSCAR PAGAMENTOS DE MENSALIDADES
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         month: monthString,
@@ -109,14 +80,12 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
-    // 🔥 CALCULAR RECEITAS
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
-    // 🔥 CALCULAR COMISSÕES
     const totalServiceCommissions = serviceRevenues.reduce((sum, r) => sum + r.commissions, 0);
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
@@ -125,7 +94,6 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // 🔥 COMISSÕES POR BARBEIRO
     const commissionsByBarber = {};
 
     serviceRevenues.forEach(r => {
@@ -175,12 +143,9 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
-    // 🔥 BUSCAR DESPESAS
     const expenses = await Expense.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       }
     });
     
@@ -193,7 +158,6 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 MONTAR RESULTADO
     const result = {
       period: {
         type: period || 'month',
@@ -271,56 +235,43 @@ const getFinancialDashboard = async (req, res) => {
   }
 };
 
-// 🔥 O RESTO DO CÓDIGO IGUAL...
 const getSummary = async (req, res) => {
   try {
     const { period, startDate: queryStart, endDate: queryEnd } = req.query;
     let startDate, endDate;
-    const hoje = new Date();
+    
+    const hoje = dateHelper.getTodayLocal();
     
     if (period === 'today') {
-      startDate = hoje.toISOString().split('T')[0];
-      endDate = hoje.toISOString().split('T')[0];
+      startDate = hoje;
+      endDate = hoje;
     } else if (period === 'week') {
       if (queryStart && queryEnd) {
         startDate = queryStart;
         endDate = queryEnd;
       } else {
-        const dayOfWeek = hoje.getDay();
-        const startOfWeek = new Date(hoje);
-        startOfWeek.setDate(hoje.getDate() - dayOfWeek);
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        startDate = startOfWeek.toISOString().split('T')[0];
-        endDate = endOfWeek.toISOString().split('T')[0];
+        startDate = dateHelper.subtractDays(hoje, 7);
+        endDate = hoje;
       }
     } else if (period === 'month') {
-      const monthStart = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      startDate = monthStart.toISOString().split('T')[0];
-      endDate = hoje.toISOString().split('T')[0];
+      startDate = hoje.substring(0, 7) + '-01';
+      endDate = hoje;
     } else {
-      const monthStart = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      startDate = monthStart.toISOString().split('T')[0];
-      endDate = hoje.toISOString().split('T')[0];
+      startDate = hoje.substring(0, 7) + '-01';
+      endDate = hoje;
     }
     
     const monthString = startDate.substring(0, 7);
     
     const revenues = await Revenue.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       }
     });
     
     const sales = await Sale.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       }
     });
     
@@ -369,11 +320,7 @@ const getAll = async (req, res) => {
     const revenues = await Revenue.findAll({
       where,
       include: [
-        { 
-          model: CashRegister, 
-          as: 'cashRegister',
-          required: false 
-        }
+        { model: CashRegister, as: 'cashRegister', required: false }
       ],
       order: [['date', 'DESC']],
     });
@@ -392,11 +339,7 @@ const getByDate = async (req, res) => {
     const revenue = await Revenue.findOne({
       where: { date },
       include: [
-        { 
-          model: CashRegister, 
-          as: 'cashRegister',
-          required: false 
-        }
+        { model: CashRegister, as: 'cashRegister', required: false }
       ],
     });
     
@@ -418,7 +361,7 @@ const getServices = async (req, res) => {
     console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
     
     const where = {
-      status: 'completed' // 🔥 APENAS SERVIÇOS CONCLUÍDOS
+      status: 'completed'
     };
     
     if (startDate && endDate) {
@@ -430,29 +373,17 @@ const getServices = async (req, res) => {
       }
     }
     
-    // 🔥 BUSCAR DIRETO NA TABELA APPOINTMENTS
     const appointments = await Appointment.findAll({
       where,
       include: [
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone'],
-          required: false 
-        },
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name', 'email', 'phone'],
-          required: false 
-        }
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'], required: false },
+        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'], required: false }
       ],
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
     
     console.log(`📦 ${appointments.length} serviços concluídos encontrados`);
     
-    // 🔥 FORMATAR PARA O FRONTEND (MESMO FORMATO QUE O FRONTEND ESPERA)
     const formatted = appointments.map(app => {
       const appData = app.toJSON();
       
@@ -470,9 +401,9 @@ const getServices = async (req, res) => {
         notes: appData.notes || '',
         createdAt: appData.createdAt,
         updatedAt: appData.updatedAt,
-        clientName: appData.client?.name || 'Cliente removido', // 🔥 PARA COMPATIBILIDADE
-        total: appData.price || 0, // 🔥 PARA COMPATIBILIDADE
-        commissions: appData.commission || 0, // 🔥 PARA COMPATIBILIDADE
+        clientName: appData.client?.name || 'Cliente removido',
+        total: appData.price || 0,
+        commissions: appData.commission || 0,
       };
     });
     
@@ -489,19 +420,16 @@ const deleteRevenue = async (req, res) => {
     
     console.log('🗑️ Tentando excluir serviço do histórico:', id);
     
-    // 🔥 AGORA BUSCA NA TABELA APPOINTMENTS
     const appointment = await Appointment.findByPk(id);
     if (!appointment) {
       console.log('❌ Serviço não encontrado');
       return res.status(404).json({ error: 'Serviço não encontrado' });
     }
     
-    // 🔥 VERIFICAR SE PODE EXCLUIR (apenas se for completed)
     if (appointment.status !== 'completed') {
       return res.status(400).json({ error: 'Apenas serviços concluídos podem ser removidos do histórico' });
     }
     
-    // 🔥 VOLTAR O STATUS PARA PENDING (OU CONFIRMED)
     await appointment.update({ 
       status: 'pending',
       notes: `Serviço removido do histórico em ${new Date().toLocaleString('pt-BR')}`

@@ -4,7 +4,7 @@ const dateHelper = require('../utils/dateHelper');
 
 const getBarberDashboard = async (req, res) => {
   try {
-    const { barberId } = req.query;  // 🔥 RECEBE O BARBEIRO SELECIONADO
+    const { barberId } = req.query;
     const userId = req.userId;
     
     console.log('📊 Gerando dashboard da barbearia:');
@@ -14,7 +14,6 @@ const getBarberDashboard = async (req, res) => {
     const hoje = dateHelper.getTodayLocal();
     const startOfMonth = hoje.substring(0, 7) + '-01';
 
-    // 🔥 LISTA DE TODOS OS BARBEIROS ATIVOS (PARA O SELETOR)
     const allBarbers = await Barber.findAll({
       where: { isActive: true },
       attributes: ['id', 'name', 'userId'],
@@ -23,7 +22,6 @@ const getBarberDashboard = async (req, res) => {
 
     console.log(`✂️ Total de barbeiros ativos: ${allBarbers.length}`);
 
-    // 🔥 SE NÃO HOUVER BARBEIROS, RETORNAR VAZIO
     if (allBarbers.length === 0) {
       return res.json({
         summary: {
@@ -45,15 +43,12 @@ const getBarberDashboard = async (req, res) => {
       });
     }
 
-    // 🔥 DETERMINAR QUAL BARBEIRO VISUALIZAR
     let targetBarberId;
     let targetBarber;
 
-    // Se passou um barberId e existe na lista, usa ele
     if (barberId && allBarbers.some(b => b.id === barberId)) {
       targetBarberId = barberId;
     } else {
-      // Senão, usa o primeiro da lista
       targetBarberId = allBarbers[0].id;
     }
 
@@ -61,30 +56,23 @@ const getBarberDashboard = async (req, res) => {
 
     console.log(`👤 Visualizando: ${targetBarber.name} (${targetBarber.id})`);
 
-    // 🔥 CORRIGIDO: USAR barberId, NÃO userId!
     const barberIdForQuery = targetBarber.id;
 
-    // 🔥 BUSCAR AGENDAMENTOS DO DIA (USANDO barberId CORRETO)
     const todayAppointments = await Appointment.findAll({
       where: {
-        barberId: barberIdForQuery,  // ← 🔥 CORRIGIDO!
+        barberId: barberIdForQuery,
         date: hoje,
         status: { [Op.notIn]: ['cancelled'] }
       },
       include: [
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone'] 
-        }
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
       ],
       order: [['time', 'ASC']]
     });
 
-    // 🔥 BUSCAR CAIXA DO DIA (USANDO userId DO BARBEIRO)
     const cashRegister = await CashRegister.findOne({
       where: {
-        userId: targetBarber.userId,  // ← 🔥 CORRIGIDO!
+        userId: targetBarber.userId,
         date: hoje,
         isOpen: true
       }
@@ -93,36 +81,24 @@ const getBarberDashboard = async (req, res) => {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         barberId: barberIdForQuery,
-        date: { [Op.gt]: hoje },  
+        date: { [Op.gt]: hoje },
         status: { [Op.notIn]: ['cancelled', 'completed'] }
       },
       include: [
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone'] 
-        }
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
       ],
       order: [['date', 'ASC'], ['time', 'ASC']],
       limit: 10
     });
 
-
-    // 🔥 RESUMO DO MÊS (USANDO barberId CORRETO)
     const monthlyAppointments = await Appointment.findAll({
       where: {
-        barberId: barberIdForQuery,  // ← 🔥 CORRIGIDO!
-        date: {
-          [Op.between]: [startOfMonth, hoje]
-        },
+        barberId: barberIdForQuery,
+        date: { [Op.between]: [startOfMonth, hoje] },
         status: 'completed'
       },
       include: [
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name'] 
-        }
+        { model: Client, as: 'client', attributes: ['id', 'name'] }
       ]
     });
 
@@ -130,20 +106,13 @@ const getBarberDashboard = async (req, res) => {
     const totalRevenue = monthlyAppointments.reduce((sum, a) => sum + (a.price || 0), 0);
     const totalCommissions = monthlyAppointments.reduce((sum, a) => sum + (a.commission || 0), 0);
 
-    // 🔥 VENDAS DE PRODUTOS DO MÊS (USANDO barberId CORRETO)
     const monthlySales = await Sale.findAll({
       where: {
-        barberId: barberIdForQuery,  // ← 🔥 CORRIGIDO!
-        date: {
-          [Op.between]: [startOfMonth, hoje]
-        }
+        barberId: barberIdForQuery,
+        date: { [Op.between]: [startOfMonth, hoje] }
       },
       include: [
-        { 
-          model: Product, 
-          as: 'product',
-          attributes: ['id', 'name'] 
-        }
+        { model: Product, as: 'product', attributes: ['id', 'name'] }
       ]
     });
 
@@ -151,22 +120,17 @@ const getBarberDashboard = async (req, res) => {
     const totalProductRevenue = monthlySales.reduce((sum, s) => sum + ((s.salePrice || 0) * (s.quantity || 0)), 0);
     const totalProductCommissions = monthlySales.reduce((sum, s) => sum + (s.commission || 0), 0);
 
-    // 🔥 CALCULAR SEMANA (ÚLTIMOS 7 DIAS)
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - 7);
-    const weekStartDate = weekStart.toISOString().split('T')[0];
+    const weekStart = dateHelper.subtractDays(hoje, 7);
+    const weekStartDate = weekStart;
 
     const weekAppointments = await Appointment.findAll({
       where: {
-        barberId: barberIdForQuery,  // ← 🔥 CORRIGIDO!
-        date: {
-          [Op.between]: [weekStartDate, hoje]
-        },
+        barberId: barberIdForQuery,
+        date: { [Op.between]: [weekStartDate, hoje] },
         status: 'completed'
       }
     });
 
-    // 🔥 RESULTADO
     const result = {
       summary: {
         totalBarbers: allBarbers.length || 0,
@@ -232,7 +196,6 @@ const getBarberDashboard = async (req, res) => {
         }) || 0,
         todayAppointments: todayAppointments.length || 0
       },
-      // 🔥 DADOS PARA O SELETOR
       barbers: allBarbers,
       selectedBarberId: targetBarber.id,
       selectedBarberName: targetBarber.name,
@@ -246,7 +209,6 @@ const getBarberDashboard = async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao gerar dashboard:', error);
     
-    // 🔥 FALLBACK EM CASO DE ERRO
     res.status(500).json({
       error: 'Erro ao gerar dashboard',
       summary: {
@@ -269,6 +231,4 @@ const getBarberDashboard = async (req, res) => {
   }
 };
 
-module.exports = {
-  getBarberDashboard
-};
+module.exports = { getBarberDashboard };

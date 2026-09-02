@@ -10,58 +10,44 @@ const {
   MonthlyPayment
 } = require('../models');
 const { Op } = require('sequelize');
+const dateHelper = require('../utils/dateHelper');
 
 const getDashboard = async (req, res) => {
   try {
     const { month } = req.query;
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = month ? parseInt(month) : hoje.getMonth() + 1;
+    
+    const hoje = dateHelper.getTodayLocal();
+    const hojeDate = new Date(hoje + 'T00:00:00');
+    const ano = hojeDate.getFullYear();
+    const mes = month ? parseInt(month) : hojeDate.getMonth() + 1;
     
     const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
-    const endDate = `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`;
+    const lastDay = new Date(ano, mes, 0).getDate();
+    const endDate = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     const monthString = `${ano}-${String(mes).padStart(2, '0')}`;
     
     console.log('📊 Gerando dashboard admin:', { startDate, endDate, monthString });
     
-    // 🔥 1. BUSCAR REVENUES (SERVIÇOS)
     const revenues = await Revenue.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] },
+        status: 'confirmed'
       },
       include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        }
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
       ]
     });
     
-    // 🔥 2. BUSCAR VENDAS DE PRODUTOS
     const sales = await Sale.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       },
       include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        },
-        { 
-          model: Product, 
-          as: 'product',
-          attributes: ['id', 'name', 'hasCommission'] 
-        }
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'hasCommission'] }
       ]
     });
     
-    // 🔥 3. BUSCAR PAGAMENTOS DE MENSALIDADES
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         month: monthString,
@@ -82,16 +68,12 @@ const getDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 4. BUSCAR DESPESAS
     const expenses = await Expense.findAll({
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       }
     });
     
-    // 🔥 5. CALCULAR TOTAIS - MESMA LÓGICA DO FATURAMENTO
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
@@ -109,21 +91,20 @@ const getDashboard = async (req, res) => {
     const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // 🔥 6. CONTAGENS
     const totalServices = serviceRevenues.length;
     const totalProductsSold = sales.reduce((sum, s) => sum + s.quantity, 0);
     const activeBarbers = await Barber.count({ where: { isActive: true } });
     const totalClients = await Client.count({ where: { isActive: true } });
     
-    // 🔥 7. FATURAMENTO MENSAL (ÚLTIMOS 12 MESES)
     const monthlyRevenue = [];
     for (let i = 11; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(hojeDate);
       d.setMonth(d.getMonth() - i);
       const monthNum = d.getMonth() + 1;
       const year = d.getFullYear();
       const start = `${year}-${String(monthNum).padStart(2, '0')}-01`;
-      const end = `${year}-${String(monthNum).padStart(2, '0')}-${new Date(year, monthNum, 0).getDate()}`;
+      const lastDayMonth = new Date(year, monthNum, 0).getDate();
+      const end = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDayMonth).padStart(2, '0')}`;
       const monthKey = `${year}-${String(monthNum).padStart(2, '0')}`;
       
       const monthRevenues = await Revenue.findAll({
@@ -148,7 +129,6 @@ const getDashboard = async (req, res) => {
       });
     }
     
-    // 🔥 8. PERFORMANCE DOS BARBEIROS
     const barbers = await Barber.findAll({
       where: { isActive: true },
       attributes: ['id', 'name']
@@ -182,13 +162,10 @@ const getDashboard = async (req, res) => {
     
     barbersPerformance.sort((a, b) => b.revenue - a.revenue);
     
-    // 🔥 9. ÚLTIMOS AGENDAMENTOS
     const recentAppointments = await Appointment.findAll({
       limit: 10,
       where: {
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
+        date: { [Op.between]: [startDate, endDate] }
       },
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
@@ -218,7 +195,6 @@ const getDashboard = async (req, res) => {
       };
     }));
     
-    // 🔥 10. ESTOQUE BAIXO
     const lowStockProducts = await Product.findAll({
       where: {
         stock: { [Op.lt]: 5 },
@@ -228,17 +204,15 @@ const getDashboard = async (req, res) => {
       limit: 10
     });
     
-    // 🔥 11. ALERTAS
     const pendingAppointments = await Appointment.count({
       where: { status: 'pending' }
     });
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal();
     const todayAppointments = await Appointment.count({
       where: { date: today }
     });
     
-    // 🔥 12. MONTAR RESULTADO
     const result = {
       summary: {
         totalRevenue,
@@ -276,6 +250,4 @@ const getDashboard = async (req, res) => {
   }
 };
 
-module.exports = {
-  getDashboard
-};
+module.exports = { getDashboard };
