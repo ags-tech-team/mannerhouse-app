@@ -265,7 +265,8 @@ const getSummary = async (req, res) => {
     
     const revenues = await Revenue.findAll({
       where: {
-        date: { [Op.between]: [startDate, endDate] }
+        date: { [Op.between]: [startDate, endDate] },
+        status: 'confirmed'
       }
     });
     
