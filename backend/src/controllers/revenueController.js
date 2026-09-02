@@ -415,10 +415,11 @@ const getServices = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    console.log('📥 Parâmetros recebidos:', { startDate, endDate });
+    console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
     
-    const where = {};
-    where.barberId = { [Op.ne]: null };
+    const where = {
+      status: 'completed' // 🔥 APENAS SERVIÇOS CONCLUÍDOS
+    };
     
     if (startDate && endDate) {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -429,36 +430,56 @@ const getServices = async (req, res) => {
       }
     }
     
-    const revenues = await Revenue.findAll({
+    // 🔥 BUSCAR DIRETO NA TABELA APPOINTMENTS
+    const appointments = await Appointment.findAll({
       where,
       include: [
         { 
+          model: Client, 
+          as: 'client',
+          attributes: ['id', 'name', 'phone'],
+          required: false 
+        },
+        { 
           model: Barber, 
           as: 'barber',
-          attributes: ['id', 'name'] 
+          attributes: ['id', 'name', 'email', 'phone'],
+          required: false 
         }
       ],
-      order: [['date', 'DESC'], ['createdAt', 'DESC']]
+      order: [['date', 'DESC'], ['time', 'DESC']]
     });
     
-    // 🔥 FORMATAR OS DADOS NO FORMATO QUE O FRONTEND ESPERA
-    const formattedRevenues = revenues.map(r => {
-      const data = r.toJSON();
-      const clientName = r.clientName || 'Cliente';
+    console.log(`📦 ${appointments.length} serviços concluídos encontrados`);
+    
+    // 🔥 FORMATAR PARA O FRONTEND (MESMO FORMATO QUE O FRONTEND ESPERA)
+    const formatted = appointments.map(app => {
+      const appData = app.toJSON();
       
       return {
-        ...data,
-        clientName: clientName,
-        client: { name: clientName, phone: '' }, // 🔥 FRONTEND ESPERA client.name
-        barber: { name: r.barber?.name || 'Desconhecido' }
+        id: appData.id,
+        date: appData.date,
+        time: appData.time,
+        client: appData.client || { name: 'Cliente removido', phone: '' },
+        barber: appData.barber || { name: 'Barbeiro removido' },
+        service: appData.service || 'Serviço',
+        serviceDescription: appData.serviceDescription || 'Serviço concluído',
+        price: appData.price || 0,
+        commission: appData.commission || 0,
+        status: appData.status,
+        notes: appData.notes || '',
+        createdAt: appData.createdAt,
+        updatedAt: appData.updatedAt,
+        clientName: appData.client?.name || 'Cliente removido', // 🔥 PARA COMPATIBILIDADE
+        total: appData.price || 0, // 🔥 PARA COMPATIBILIDADE
+        commissions: appData.commission || 0, // 🔥 PARA COMPATIBILIDADE
       };
     });
     
-    console.log(`📦 ${formattedRevenues.length} serviços encontrados`);
-    res.json(formattedRevenues);
+    res.json(formatted);
   } catch (error) {
-    console.error('❌ Erro ao buscar serviços faturados:', error);
-    res.status(500).json({ error: 'Erro ao buscar faturamento' });
+    console.error('❌ Erro ao buscar serviços concluídos:', error);
+    res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 };
 
@@ -466,21 +487,36 @@ const deleteRevenue = async (req, res) => {
   try {
     const { id } = req.params;
     
-    console.log('🗑️ Tentando excluir revenue:', id);
+    console.log('🗑️ Tentando excluir serviço do histórico:', id);
     
-    const revenue = await Revenue.findByPk(id);
-    if (!revenue) {
-      console.log('❌ Revenue não encontrado');
-      return res.status(404).json({ error: 'Revenue não encontrado' });
+    // 🔥 AGORA BUSCA NA TABELA APPOINTMENTS
+    const appointment = await Appointment.findByPk(id);
+    if (!appointment) {
+      console.log('❌ Serviço não encontrado');
+      return res.status(404).json({ error: 'Serviço não encontrado' });
     }
     
-    await revenue.destroy();
-    console.log('✅ Revenue excluído com sucesso:', id);
+    // 🔥 VERIFICAR SE PODE EXCLUIR (apenas se for completed)
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({ error: 'Apenas serviços concluídos podem ser removidos do histórico' });
+    }
     
-    res.json({ message: 'Revenue excluído com sucesso!', id });
+    // 🔥 VOLTAR O STATUS PARA PENDING (OU CONFIRMED)
+    await appointment.update({ 
+      status: 'pending',
+      notes: `Serviço removido do histórico em ${new Date().toLocaleString('pt-BR')}`
+    });
+    
+    console.log('✅ Serviço removido do histórico:', id);
+    
+    res.json({ 
+      message: 'Serviço removido do histórico com sucesso!', 
+      id,
+      newStatus: 'pending'
+    });
   } catch (error) {
-    console.error('❌ Erro ao excluir revenue:', error);
-    res.status(500).json({ error: 'Erro ao excluir revenue' });
+    console.error('❌ Erro ao remover serviço:', error);
+    res.status(500).json({ error: 'Erro ao remover serviço' });
   }
 };
 

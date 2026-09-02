@@ -8,12 +8,29 @@ module.exports = (sequelize, DataTypes) => {
     cashRegisterId: {
       type: DataTypes.UUID,
       allowNull: true,
+      references: {
+        model: 'cash_registers',
+        key: 'id',
+      },
       field: 'cash_register_id',
     },
     barberId: {
       type: DataTypes.UUID,
       allowNull: true,
+      references: {
+        model: 'barbers',
+        key: 'id',
+      },
       field: 'barber_id',
+    },
+    clientId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'clients',
+        key: 'id',
+      },
+      field: 'client_id',
     },
     date: {
       type: DataTypes.DATEONLY,
@@ -31,23 +48,34 @@ module.exports = (sequelize, DataTypes) => {
     servicesCount: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
-      field: 'services_count',
     },
-    initialCash: {
-      type: DataTypes.FLOAT,
-      defaultValue: 0,
-      field: 'initial_cash',
-    },
-    finalCash: {
-      type: DataTypes.FLOAT,
-      defaultValue: 0,
-      field: 'final_cash',
-    },
-    // 🔥 ADICIONAR ESTE CAMPO
     clientName: {
       type: DataTypes.STRING,
       allowNull: true,
       field: 'client_name',
+    },
+    barberName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'barber_name',
+    },
+    service: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    serviceDescription: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'service_description',
+    },
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.ENUM('pending', 'confirmed'),
+      defaultValue: 'pending',
+      allowNull: false,
     },
   }, {
     tableName: 'revenues',
@@ -56,8 +84,18 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Revenue.associate = function(models) {
-    Revenue.belongsTo(models.CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
-    Revenue.belongsTo(models.Barber, { foreignKey: 'barberId', as: 'barber' });
+    Revenue.belongsTo(models.CashRegister, { 
+      foreignKey: 'cashRegisterId', 
+      as: 'cashRegister' 
+    });
+    Revenue.belongsTo(models.Barber, { 
+      foreignKey: 'barberId', 
+      as: 'barber' 
+    });
+    Revenue.belongsTo(models.Client, {
+      foreignKey: 'clientId', 
+      as: 'client' 
+    });
   };
 
   return Revenue;
