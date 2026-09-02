@@ -98,12 +98,52 @@ const BarberHistorico = () => {
     loadData();
   }, [selectedMonth]);
 
+  // 🔥 FUNÇÃO PARA FORMATAR DATA (SEM NEW DATE)
+  const formatDateDisplay = (date: string) => {
+    if (!date) return '';
+    
+    // Se já estiver no formato DD/MM/YYYY, retorna direto
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(date)) {
+      return date;
+    }
+    
+    // Se for ISO (YYYY-MM-DD), converte manualmente
+    const datePart = date.split('T')[0];
+    if (!datePart || !datePart.includes('-')) return date;
+    
+    const [year, month, day] = datePart.split('-').map(Number);
+    if (!year || !month || !day) return date;
+    
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  };
+
+  // 🔥 FUNÇÃO PARA FORMATAR DATA + HORA
+  const formatDateTimeDisplay = (date: string, time?: string) => {
+    if (!date) return '';
+    
+    const formattedDate = formatDateDisplay(date);
+    
+    if (time) {
+      return `${formattedDate} ${time}`;
+    }
+    
+    // Se tiver hora no formato ISO
+    if (date.includes('T')) {
+      const timePart = date.split('T')[1];
+      if (timePart) {
+        const hours = timePart.substring(0, 5);
+        return `${formattedDate} ${hours}`;
+      }
+    }
+    
+    return formattedDate;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [year, month] = selectedMonth.split('-').map(Number);
       
-      // 🔥 VALIDAR SE O MÊS É VÁLIDO
       if (!year || !month || month < 1 || month > 12) {
         console.error('❌ Mês inválido:', selectedMonth);
         setLoading(false);
@@ -114,14 +154,7 @@ const BarberHistorico = () => {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       
-      console.log('📅 DATAS CALCULADAS:', { startDate, endDate, selectedMonth }); // 🔥 LOG
-      
-      // 🔥 VERIFICAR SE AS DATAS SÃO VÁLIDAS
-      if (startDate === 'Invalid date' || endDate === 'Invalid date') {
-        console.error('❌ Datas inválidas:', { startDate, endDate });
-        setLoading(false);
-        return;
-      }
+      console.log('📅 DATAS CALCULADAS:', { startDate, endDate, selectedMonth });
 
       // Carregar pagamentos
       const paymentsRes = await api.get('/monthly/payments', {
@@ -129,7 +162,7 @@ const BarberHistorico = () => {
       });
       setPayments(paymentsRes.data.payments || []);
 
-      // 🔥 CARREGAR SERVIÇOS FATURADOS
+      // Carregar serviços
       console.log('📤 Enviando requisição para /revenues/services com:', { startDate, endDate });
       
       const servicesRes = await api.get('/revenues/services', {
@@ -141,19 +174,19 @@ const BarberHistorico = () => {
       
       console.log('📦 Resposta recebida:', servicesRes.data.length);
       
-      // 🔥 FORMATAR OS DADOS
-     const formattedServices = (servicesRes.data || []).map((r: any) => ({
+      // 🔥 FORMATAR OS DADOS - USANDO A DATA JÁ FORMATADA DO BACKEND
+      const formattedServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
-        date: r.date || startDate,
-        time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
-        client: { name: r.clientName || r.client?.name || 'Cliente', phone: '' }, // 🔥 USA O clientName DO BACKEND
+        date: r.date || startDate, // Backend já envia "02/09/2026"
+        time: r.time || (r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00'),
+        client: { name: r.clientName || r.client?.name || 'Cliente', phone: '' },
         barber: { name: r.barber?.name || 'Desconhecido' },
         service: 'Serviço',
-        serviceDescription: 'Serviço concluído',
+        serviceDescription: r.serviceDescription || 'Serviço concluído',
         price: r.total || 0,
         commission: r.commissions || 0,
         status: 'completed',
-        notes: '',
+        notes: r.notes || '',
         createdAt: r.createdAt,
       }));
       setServices(formattedServices);
@@ -172,7 +205,6 @@ const BarberHistorico = () => {
     }
   };
 
-  // 🔥 VERIFICAR SENHA DO BARBEIRO
   const verifyBarberPassword = async (password: string) => {
     try {
       const response = await api.post('/auth/verify-password', { password });
@@ -182,7 +214,6 @@ const BarberHistorico = () => {
     }
   };
 
-  // 🔥 ABRIR MODAL DE SENHA
   const openPasswordModal = (item: any, type: 'payment' | 'service' | 'product', action: 'edit' | 'delete') => {
     setSelectedItem(item);
     setSelectedItemType(type);
@@ -192,7 +223,6 @@ const BarberHistorico = () => {
     setShowPasswordModal(true);
   };
 
-  // 🔥 CONFIRMAR SENHA E EXECUTAR AÇÃO
   const handlePasswordConfirm = async () => {
     if (!password.trim()) {
       setPasswordError('Digite a senha do barbeiro');
@@ -232,7 +262,6 @@ const BarberHistorico = () => {
     }
   };
 
-  // 🔥 DELETAR ITEM
   const handleDelete = async () => {
     if (!selectedItem || !selectedItemType) return;
     
@@ -242,7 +271,6 @@ const BarberHistorico = () => {
       if (selectedItemType === 'payment') {
         await api.delete(`/monthly/payment/${selectedItem.id}`);
       } else if (selectedItemType === 'service') {
-        // 🔥 DELETAR REVENUE (SERVIÇO FATURADO)
         await api.delete(`/revenues/${selectedItem.id}`);
       } else if (selectedItemType === 'product') {
         await api.delete(`/sales/${selectedItem.id}`);
@@ -256,7 +284,6 @@ const BarberHistorico = () => {
     }
   };
 
-  // 🔥 EDITAR ITEM
   const handleEdit = async () => {
     if (!selectedItem || !selectedItemType) return;
 
@@ -267,10 +294,9 @@ const BarberHistorico = () => {
           notes: editData.notes,
         });
       } else if (selectedItemType === 'service') {
-        // 🔥 EDITAR REVENUE (SERVIÇO FATURADO)
         await api.put(`/revenues/${selectedItem.id}`, {
           total: editData.price,
-          commissions: editData.price * 0.5, // Recalcular comissão
+          commissions: editData.price * 0.5,
         });
       } else if (selectedItemType === 'product') {
         await api.put(`/sales/${selectedItem.id}`, {
@@ -301,12 +327,10 @@ const BarberHistorico = () => {
     }).format(value);
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
-  };
-
-  const formatDateTime = (date: string) => {
-    return new Date(date).toLocaleString('pt-BR');
+  // 🔥 FUNÇÃO PARA FORMATAR DATA DO PAGAMENTO (USANDO A MESMA LÓGICA)
+  const formatPaymentDate = (date: string) => {
+    if (!date) return '-';
+    return formatDateTimeDisplay(date);
   };
 
   const getPaymentStatus = (paid: boolean) => {
@@ -469,7 +493,7 @@ const BarberHistorico = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                            {payment.paidAt ? formatDateTime(payment.paidAt) : '-'}
+                            {formatPaymentDate(payment.paidAt)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                             <button
@@ -522,8 +546,9 @@ const BarberHistorico = () => {
                     ) : (
                       filteredServices.map((service) => (
                         <tr key={service.id} className="hover:bg-gray-50">
+                          {/* 🔥 CORRIGIDO: USAR A DATA JÁ FORMATADA DO BACKEND */}
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                            {formatDate(service.date)} {service.time}
+                            {service.date} {service.time}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
                             {service.client?.name || 'Cliente'}
@@ -593,7 +618,7 @@ const BarberHistorico = () => {
                       filteredProducts.map((product) => (
                         <tr key={product.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606]">
-                            {formatDate(product.date)}
+                            {formatDateDisplay(product.date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#060606] font-medium">
                             {product.product?.name || 'Produto removido'}

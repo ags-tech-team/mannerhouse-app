@@ -387,10 +387,27 @@ const getServices = async (req, res) => {
     const formatted = appointments.map(app => {
       const appData = app.toJSON();
       
+      // 🔥 FORMATAR DATA MANUALMENTE (sem usar new Date())
+      const dateStr = appData.date; // "2026-09-02"
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+      
+      // 🔥 FORMATAR HORA (se tiver)
+      let formattedTime = '';
+      if (appData.time) {
+        formattedTime = appData.time;
+      } else if (appData.createdAt) {
+        const createdDate = new Date(appData.createdAt);
+        const hours = String(createdDate.getHours()).padStart(2, '0');
+        const minutes = String(createdDate.getMinutes()).padStart(2, '0');
+        formattedTime = `${hours}:${minutes}`;
+      }
+      
       return {
         id: appData.id,
-        date: appData.date,
-        time: appData.time,
+        date: formattedDate,  // ← 🔥 AGORA VEM "02/09/2026"
+        time: formattedTime,
+        dateTime: formattedTime ? `${formattedDate} ${formattedTime}` : formattedDate,
         client: appData.client || { name: 'Cliente removido', phone: '' },
         barber: appData.barber || { name: 'Barbeiro removido' },
         service: appData.service || 'Serviço',
