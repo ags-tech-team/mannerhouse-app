@@ -142,7 +142,6 @@ const create = async (req, res) => {
       service, 
       serviceDescription,
       price,
-      notes 
     } = req.body;
     
     console.log('📝 Criando agendamento:', { barberId, clientName, clientPhone, date, time });
@@ -194,7 +193,6 @@ const create = async (req, res) => {
       price: price || 0,
       commission,
       status: 'pending',
-      notes,
     });
     
     console.log('✅ Agendamento criado:', appointment.id);
@@ -307,7 +305,6 @@ const updateStatus = async (req, res) => {
             service: appointment.service,
             serviceDescription: appointment.serviceDescription,
             status: 'confirmed',
-            notes: `Concluído em ${new Date().toLocaleString('pt-BR')} (caixa aberto)`,
           });
           revenueCreated = true;
           console.log(`✅ Revenue confirmado criado: ${revenue.id}`);
@@ -334,7 +331,6 @@ const updateStatus = async (req, res) => {
             service: appointment.service,
             serviceDescription: appointment.serviceDescription,
             status: 'pending',
-            notes: `Concluído em ${new Date().toLocaleString('pt-BR')} (caixa fechado)`,
           });
           revenueCreated = true;
           console.log(`✅ Revenue pendente criado: ${revenue.id}`);

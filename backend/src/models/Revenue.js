@@ -68,10 +68,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'service_description',
     },
-    notes: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
     status: {
       type: DataTypes.ENUM('pending', 'confirmed'),
       defaultValue: 'pending',
