@@ -74,6 +74,11 @@ interface DashboardData {
     pendingToday: number;
     cancelledToday: number;
   };
+  // 🔥 NOVOS CAMPOS PARA ALERTAS
+  alerts?: {
+    pendingAppointments: number;
+    todayAppointments: number;
+  };
 }
 
 // 🔥 DADOS PADRÃO PARA FALLBACK
@@ -96,7 +101,8 @@ const defaultData: DashboardData = {
   todayAppointments: [],
   upcomingAppointments: [],
   cashRegister: { isOpen: false, openingTime: null },
-  stats: { completedToday: 0, pendingToday: 0, cancelledToday: 0 }
+  stats: { completedToday: 0, pendingToday: 0, cancelledToday: 0 },
+  alerts: { pendingAppointments: 0, todayAppointments: 0 }
 };
 
 const BarberDashboard = () => {
@@ -115,15 +121,13 @@ const BarberDashboard = () => {
         setData({
           ...defaultData,
           ...response.data,
-          // 🔥 GARANTIR QUE cashRegister SEMPRE EXISTA
           cashRegister: response.data.cashRegister || { isOpen: false, openingTime: null },
-          // 🔥 GARANTIR QUE stats SEMPRE EXISTA
-          stats: response.data.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 }
+          stats: response.data.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 },
+          alerts: response.data.alerts || { pendingAppointments: 0, todayAppointments: 0 }
         });
       }
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
-      // 🔥 MANTER DADOS PADRÃO EM CASO DE ERRO
       setData(defaultData);
     } finally {
       setLoading(false);
@@ -195,11 +199,12 @@ const BarberDashboard = () => {
 
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
-
-  // 🔥 VERIFICAÇÃO DE SEGURANÇA PARA O CAIXA
+  
+  // 🔥 VERIFICAÇÃO DE SEGURANÇA PARA OS DADOS
   const cashRegister = data?.cashRegister || { isOpen: false, openingTime: null };
   const stats = data?.stats || { completedToday: 0, pendingToday: 0, cancelledToday: 0 };
   const summary = data?.summary || defaultData.summary;
+  const alerts = data?.alerts || { pendingAppointments: 0, todayAppointments: 0 };
 
   return (
     <div className="space-y-6">
@@ -224,7 +229,7 @@ const BarberDashboard = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* 🔥 STATUS DO CAIXA COM VERIFICAÇÃO DE SEGURANÇA */}
+          {/* STATUS DO CAIXA */}
           <div className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
             cashRegister.isOpen 
               ? 'bg-green-100 text-green-800' 
@@ -245,6 +250,23 @@ const BarberDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 🔥 NOVO: ALERTA DE AGENDAMENTOS PENDENTES */}
+      {(alerts.pendingAppointments > 0) && (
+        <div className="grid grid-cols-1 gap-3 sm:gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
+            <Clock className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+            <div>
+              <p className="text-blue-800 font-medium text-sm sm:text-base">
+                📋 Agendamentos pendentes
+              </p>
+              <p className="text-blue-700 text-xs sm:text-sm">
+                {alerts.pendingAppointments} agendamentos aguardando confirmação
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cards de Resumo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
