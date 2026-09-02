@@ -473,9 +473,10 @@ const BarberAgenda = () => {
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 sm:mt-1 space-y-0.5 max-h-[40px] sm:max-h-[60px] overflow-y-auto">
-                    {day.appointments.slice(0, 2).map((app) => {
-                      const statusInfo = getStatusLabel(app.status);
+                  
+                  {/* 🔥 PARTE CORRIGIDA: LISTA COM SCROLL */}
+                  <div className="mt-0.5 sm:mt-1 space-y-0.5 max-h-[50px] sm:max-h-[70px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#9c7f64] scrollbar-track-gray-100">
+                    {day.appointments.map((app) => {
                       const isCompleted = app.status === 'completed';
                       const isCancelled = app.status === 'cancelled';
                       return (
@@ -496,12 +497,8 @@ const BarberAgenda = () => {
                         </div>
                       );
                     })}
-                    {day.appointments.length > 2 && (
-                      <div className="text-[6px] sm:text-[10px] text-[#7f7c7a] text-center">
-                        +{day.appointments.length - 2} mais...
-                      </div>
-                    )}
                   </div>
+                  {/* FIM DA PARTE CORRIGIDA */}
                 </>
               )}
             </div>
