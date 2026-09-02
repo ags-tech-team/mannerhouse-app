@@ -90,11 +90,10 @@ const getBarberDashboard = async (req, res) => {
       }
     });
 
-    // 🔥 BUSCAR PRÓXIMOS AGENDAMENTOS (USANDO barberId CORRETO)
     const upcomingAppointments = await Appointment.findAll({
       where: {
-        barberId: barberIdForQuery,  // ← 🔥 CORRIGIDO!
-        date: { [Op.gte]: hoje },
+        barberId: barberIdForQuery,
+        date: { [Op.gt]: hoje },  
         status: { [Op.notIn]: ['cancelled', 'completed'] }
       },
       include: [
@@ -105,8 +104,9 @@ const getBarberDashboard = async (req, res) => {
         }
       ],
       order: [['date', 'ASC'], ['time', 'ASC']],
-      limit: 5
+      limit: 10
     });
+
 
     // 🔥 RESUMO DO MÊS (USANDO barberId CORRETO)
     const monthlyAppointments = await Appointment.findAll({
