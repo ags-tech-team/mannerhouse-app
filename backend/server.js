@@ -5,7 +5,6 @@ const cors = require('cors');
 const path = require('path');
 const { sequelize } = require('./src/models');
 
-// 🔥 IMPORTAÇÕES DAS ROTAS (VOCÊ REMOVEU ISSO)
 const authRoutes = require('./src/routes/authRoutes');
 const barberRoutes = require('./src/routes/barberRoutes');
 const barberDashboardRoutes = require('./src/routes/barberDashboardRoutes');

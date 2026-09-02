@@ -1,200 +1,185 @@
-const { Appointment, Barber, Client } = require('../models');
-const { Op } = require('sequelize');
-const dateHelper = require('../utils/dateHelper');
+const TIMEZONE = 'America/Sao_Paulo';
 
-// ==========================================
-// GET BARBERS - Listar barbeiros ativos
-// ==========================================
-const getBarbers = async (req, res) => {
-  try {
-    const barbers = await Barber.findAll({
-      where: { isActive: true },
-      attributes: ['id', 'name', 'phone', 'serviceCommissionRate', 'schedule']
-    });
-    res.json(barbers);
-  } catch (error) {
-    console.error('❌ Erro ao buscar barbeiros:', error);
-    res.status(500).json({ error: 'Erro ao buscar barbeiros' });
+/**
+ * Converte uma string de data (YYYY-MM-DD) para Date no timezone local
+ */
+const parseDateLocal = (dateString) => {
+  if (!dateString) return null;
+  
+  // Validar formato
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    console.warn(`⚠️ Data em formato inválido: ${dateString}`);
+    return null;
   }
+  
+  const [year, month, day] = dateString.split('-').map(Number);
+  // 🔥 CRIA DATA NO TIMEZONE LOCAL (sem conversão UTC)
+  return new Date(year, month - 1, day);
 };
 
-// ==========================================
-// 🔥 CORRIGIDO: Buscar horários disponíveis
-// ==========================================
-const getAvailableTimes = async (req, res) => {
-  try {
-    const { barberId, date } = req.query;
-    
-    if (!barberId || !date) {
-      return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
-    }
-    
-    // 🔥 VALIDAR DATA
-    if (!dateHelper.isValidDate(date)) {
-      return res.status(400).json({ error: 'Data inválida' });
-    }
-    
-    // 🔥 BUSCAR BARBEIRO COM SCHEDULE
-    const barber = await Barber.findByPk(barberId);
-    if (!barber) {
-      return res.status(404).json({ error: 'Barbeiro não encontrado' });
-    }
-    
-    // 🔥 CORREÇÃO: Usar helper para dia da semana
-    const dayOfWeek = dateHelper.getDayOfWeekEn(date);
-    
-    if (!dayOfWeek) {
-      return res.status(400).json({ error: 'Data inválida para cálculo do dia da semana' });
-    }
-    
-    // 🔥 VERIFICAR SCHEDULE DO BARBEIRO
-    const schedule = barber.schedule || {};
-    const daySchedule = schedule[dayOfWeek];
-    
-    console.log(`📅 Buscando horários para ${barber.name} em ${date} (${dayOfWeek})`);
-    
-    let allTimes = [];
-    
-    // 🔥 SE TIVER SCHEDULE CONFIGURADO, USA ELE
-    if (daySchedule && daySchedule.enabled) {
-      allTimes = daySchedule.times || [];
-      console.log(`✅ Usando schedule do barbeiro: ${allTimes.length} horários`);
-    } else {
-      // 🔥 SE NÃO TIVER, RETORNA VAZIO
-      console.log(`⚠️ ${barber.name} não tem horários configurados para ${dayOfWeek}`);
-      return res.json([]);
-    }
-    
-    // 🔥 BUSCAR HORÁRIOS OCUPADOS
-    const appointments = await Appointment.findAll({
-      where: {
-        barberId,
-        date,
-        status: {
-          [Op.notIn]: ['cancelled']
-        }
-      },
-      attributes: ['time']
-    });
-    
-    const bookedTimes = appointments.map(app => app.time);
-    const availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
-    
-    console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
-    
-    res.json(availableTimes);
-  } catch (error) {
-    console.error('❌ Erro ao buscar horários disponíveis:', error);
-    res.status(500).json({ error: 'Erro ao buscar horários disponíveis' });
-  }
+/**
+ * Obtém o dia da semana em inglês (para comparar com o schedule)
+ */
+const getDayOfWeekEn = (dateString) => {
+  const date = parseDateLocal(dateString);
+  if (!date) return null;
+  
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'long',
+    timeZone: TIMEZONE 
+  }).toLowerCase();
 };
 
-// ==========================================
-// CREATE APPOINTMENT - Criar agendamento público
-// ==========================================
-const createAppointment = async (req, res) => {
-  try {
-    const { 
-      barberId, 
-      clientName, 
-      clientPhone, 
-      date, 
-      time, 
-      service, 
-      serviceDescription,
-      price
-    } = req.body;
-    
-    // 🔥 VALIDAR DATA
-    if (!dateHelper.isValidDate(date)) {
-      return res.status(400).json({ error: 'Data inválida' });
-    }
-    
-    // 🔥 VERIFICAR SE A DATA NÃO É PASSADA
-    if (dateHelper.isPastDate(date)) {
-      return res.status(400).json({ error: 'Não é possível agendar em datas passadas' });
-    }
-    
-    // 🔥 VERIFICAR BARBEIRO
-    const barber = await Barber.findByPk(barberId);
-    if (!barber) {
-      return res.status(404).json({ error: 'Barbeiro não encontrado' });
-    }
-    
-    // 🔥 VERIFICAR DISPONIBILIDADE
-    const existing = await Appointment.findOne({
-      where: {
-        barberId,
-        date,
-        time,
-        status: { [Op.notIn]: ['cancelled'] }
-      }
-    });
-    
-    if (existing) {
-      return res.status(400).json({ error: 'Horário já ocupado' });
-    }
-    
-    // 🔥 BUSCAR OU CRIAR CLIENTE
-    let client = await Client.findOne({
-      where: { phone: clientPhone }
-    });
-    
-    if (!client) {
-      client = await Client.create({
-        name: clientName,
-        phone: clientPhone,
-        isActive: true,
-      });
-    }
-    
-    // 🔥 CALCULAR COMISSÃO
-    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
-    
-    // 🔥 CRIAR AGENDAMENTO
-    const appointment = await Appointment.create({
-      barberId,
-      clientId: client.id,
-      date,
-      time,
-      service: service || 'outro',
-      serviceDescription: serviceDescription || '',
-      price: price || 0,
-      commission,
-      status: 'pending',
-      notes: `Agendamento feito pelo site - Cliente: ${clientName}`,
-    });
-    
-    console.log(`✅ Agendamento público ${appointment.id} criado para ${date} às ${time}`);
-    
-    const created = await Appointment.findByPk(appointment.id, {
-      include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        },
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone'] 
-        }
-      ],
-    });
-    
-    res.status(201).json({
-      success: true,
-      message: 'Agendamento realizado com sucesso!',
-      appointment: created
-    });
-  } catch (error) {
-    console.error('❌ Erro ao criar agendamento:', error);
-    res.status(500).json({ error: 'Erro ao criar agendamento' });
+/**
+ * Obtém o dia da semana em português (para exibição)
+ */
+const getDayOfWeekPt = (dateString) => {
+  const date = parseDateLocal(dateString);
+  if (!date) return null;
+  
+  return date.toLocaleDateString('pt-BR', { 
+    weekday: 'long',
+    timeZone: TIMEZONE 
+  });
+};
+
+/**
+ * Obtém a data atual no timezone local (YYYY-MM-DD)
+ */
+const getTodayLocal = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Formata data para exibição (DD/MM/YYYY)
+ */
+const formatDateDisplay = (dateString) => {
+  const date = parseDateLocal(dateString);
+  if (!date) return '';
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}/${month}/${year}`;
+};
+
+/**
+ * Formata data para exibição com dia da semana
+ */
+const formatDateWithDay = (dateString) => {
+  const date = parseDateLocal(dateString);
+  if (!date) return '';
+  
+  const dayOfWeek = getDayOfWeekPt(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${dayOfWeek}, ${day}/${month}/${year}`;
+};
+
+/**
+ * Verifica se uma data é no passado (comparando apenas dia)
+ */
+const isPastDate = (dateString) => {
+  if (!dateString) return false;
+  const today = getTodayLocal();
+  return dateString < today;
+};
+
+/**
+ * Verifica se uma data é hoje
+ */
+const isToday = (dateString) => {
+  if (!dateString) return false;
+  const today = getTodayLocal();
+  return dateString === today;
+};
+
+/**
+ * Valida se a data está no formato correto YYYY-MM-DD
+ */
+const isValidDate = (dateString) => {
+  if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return false;
   }
+  
+  const date = parseDateLocal(dateString);
+  return date instanceof Date && !isNaN(date.getTime());
+};
+
+/**
+ * Compara duas datas (apenas dia, mês, ano)
+ */
+const isSameDate = (date1, date2) => {
+  return date1 === date2;
+};
+
+/**
+ * Adiciona dias a uma data
+ */
+const addDays = (dateString, days) => {
+  const date = parseDateLocal(dateString);
+  if (!date) return null;
+  
+  date.setDate(date.getDate() + days);
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Subtrai dias de uma data
+ */
+const subtractDays = (dateString, days) => {
+  return addDays(dateString, -days);
+};
+
+/**
+ * Retorna o timestamp atual no timezone local para logs
+ */
+const getTimestampLocal = () => {
+  return new Date().toLocaleString('pt-BR', {
+    timeZone: TIMEZONE,
+  });
+};
+
+/**
+ * Gera um intervalo de datas entre duas datas
+ */
+const getDateRange = (startDate, endDate) => {
+  const dates = [];
+  let current = startDate;
+  
+  while (current <= endDate) {
+    dates.push(current);
+    current = addDays(current, 1);
+  }
+  
+  return dates;
 };
 
 module.exports = {
-  getBarbers,
-  getAvailableTimes,
-  createAppointment,
+  TIMEZONE,
+  parseDateLocal,
+  getDayOfWeekEn,
+  getDayOfWeekPt,
+  getTodayLocal,
+  formatDateDisplay,
+  formatDateWithDay,
+  isPastDate,
+  isToday,
+  isValidDate,
+  isSameDate,
+  addDays,
+  subtractDays,
+  getTimestampLocal,
+  getDateRange,
 };

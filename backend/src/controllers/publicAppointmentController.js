@@ -52,7 +52,6 @@ const getAvailableTimes = async (req, res) => {
     const daySchedule = schedule[dayOfWeek];
     
     console.log(`📅 Buscando horários para ${barber.name} em ${date} (${dayOfWeek})`);
-    console.log(`📅 Schedule:`, JSON.stringify(daySchedule, null, 2));
     
     let allTimes = [];
     
@@ -61,7 +60,7 @@ const getAvailableTimes = async (req, res) => {
       allTimes = daySchedule.times || [];
       console.log(`✅ Usando schedule do barbeiro: ${allTimes.length} horários`);
     } else {
-      // 🔥 SE NÃO TIVER, RETORNA VAZIO (não usa mais horários fixos!)
+      // 🔥 SE NÃO TIVER, RETORNA VAZIO
       console.log(`⚠️ ${barber.name} não tem horários configurados para ${dayOfWeek}`);
       return res.json([]);
     }
