@@ -494,7 +494,6 @@ const PublicSchedule = () => {
                     selectedServices={selectedServices}
                     onChange={handleServicesChange}
                     maxServices={5}
-                    hideMensalista={true} // 🔥 ESCONDE O MENSALISTA NO AGENDAMENTO PÚBLICO
                   />
                 </div>
 
