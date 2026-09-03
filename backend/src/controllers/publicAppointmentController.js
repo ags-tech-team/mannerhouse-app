@@ -10,7 +10,7 @@ const getBarbers = async (req, res) => {
     const barbers = await Barber.findAll({
       where: { 
         isActive: true,
-        name: { [Op.not]: 'Luiz' }
+        name: { [Op.notLike]: '%Luiz%' }
        },
       attributes: ['id', 'name', 'phone', 'serviceCommissionRate', 'schedule']
     });
