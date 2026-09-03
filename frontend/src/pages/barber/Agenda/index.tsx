@@ -111,9 +111,9 @@ const BarberAgenda = () => {
   const loadBarbers = useCallback(async () => {
   try {
     const response = await api.get('/barbers');
-    // 🔥 FILTRAR O BARBEIRO LUIZ
+    // 🔥 FILTRAR O LUIZ
     const activeBarbers = response.data.filter((b: Barber) => 
-      b.isActive && b.name !== 'Luiz' // ← 🔥 ESCONDE O LUIZ
+      b.isActive && !b.name.includes('Luiz')
     );
     setBarbers(activeBarbers);
     const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
