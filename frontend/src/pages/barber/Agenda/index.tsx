@@ -108,24 +108,26 @@ const BarberAgenda = () => {
     }
   };
 
-  // Carregar barbeiros
   const loadBarbers = useCallback(async () => {
-    try {
-      const response = await api.get('/barbers');
-      const activeBarbers = response.data.filter((b: Barber) => b.isActive);
-      setBarbers(activeBarbers);
-      const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
-      if (savedBarberId && activeBarbers.some(b => b.id === savedBarberId)) {
-        setSelectedBarberId(savedBarberId);
-      } else if (activeBarbers.length > 0) {
-        setSelectedBarberId(activeBarbers[0].id);
-        localStorage.setItem('@mannerhouse:selectedBarber', activeBarbers[0].id);
-        localStorage.setItem('@mannerhouse:selectedBarberName', activeBarbers[0].name);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar barbeiros:', error);
+  try {
+    const response = await api.get('/barbers');
+    // 🔥 FILTRAR O BARBEIRO LUIZ
+    const activeBarbers = response.data.filter((b: Barber) => 
+      b.isActive && b.name !== 'Luiz' // ← 🔥 ESCONDE O LUIZ
+    );
+    setBarbers(activeBarbers);
+    const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
+    if (savedBarberId && activeBarbers.some(b => b.id === savedBarberId)) {
+      setSelectedBarberId(savedBarberId);
+    } else if (activeBarbers.length > 0) {
+      setSelectedBarberId(activeBarbers[0].id);
+      localStorage.setItem('@mannerhouse:selectedBarber', activeBarbers[0].id);
+      localStorage.setItem('@mannerhouse:selectedBarberName', activeBarbers[0].name);
     }
-  }, []);
+  } catch (error) {
+    console.error('Erro ao carregar barbeiros:', error);
+  }
+}, []);
 
   // Carregar agendamentos
   const loadAppointments = useCallback(async () => {

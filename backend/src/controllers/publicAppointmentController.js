@@ -8,7 +8,10 @@ const dateHelper = require('../utils/dateHelper');
 const getBarbers = async (req, res) => {
   try {
     const barbers = await Barber.findAll({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        name: { [Op.not]: 'Luiz' }
+       },
       attributes: ['id', 'name', 'phone', 'serviceCommissionRate', 'schedule']
     });
     res.json(barbers);
