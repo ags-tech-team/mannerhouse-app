@@ -113,7 +113,7 @@ const BarberAgenda = () => {
     const response = await api.get('/barbers');
     // 🔥 FILTRAR O LUIZ
     const activeBarbers = response.data.filter((b: Barber) => 
-      b.isActive && !b.name.includes('Luiz')
+      b.isActive && b.name !== 'Luiz '
     );
     setBarbers(activeBarbers);
     const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
