@@ -88,7 +88,7 @@ const BarberCaixa = () => {
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
-  // 🔥 BARBEIRO SELECIONADO PARA ABERTURA
+  // 🔥 NOVO: estado para o barbeiro selecionado na abertura
   const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -180,6 +180,7 @@ const BarberCaixa = () => {
       const response = await api.get('/barbers');
       const activeBarbers = response.data.filter((b: any) => b.isActive);
       setBarbersList(activeBarbers);
+      // Se não houver currentBarber, escolhe o primeiro (fallback)
       if (activeBarbers.length > 0 && !currentBarber) {
         setCurrentBarber(activeBarbers[0]);
         setFormData(prev => ({
@@ -211,17 +212,19 @@ const BarberCaixa = () => {
       
       setCaixa(data);
       
-      // 🔥 ATUALIZA O CURRENT BARBER COM O BARBEIRO DO CAIXA
-      if (data.barber) {
-        console.log('👤 Barbeiro do caixa:', data.barber);
-        setCurrentBarber(data.barber);
-        setFormData(prev => ({
-          ...prev,
-          barbeiroId: data.barber.id,
-          barbeiroNome: data.barber.name,
-        }));
+      // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
+      if (data.barber && data.barber.id) {
+        const barberFromCaixa = barbersList.find(b => b.id === data.barber.id);
+        if (barberFromCaixa) {
+          setCurrentBarber(barberFromCaixa);
+          setFormData(prev => ({
+            ...prev,
+            barbeiroId: barberFromCaixa.id,
+            barbeiroNome: barberFromCaixa.name,
+          }));
+        }
       } else {
-        // Fallback: se não tiver barbeiro, tenta usar o primeiro da lista
+        // Se não houver barbeiro associado, usar o primeiro da lista (fallback)
         if (barbersList.length > 0 && !currentBarber) {
           setCurrentBarber(barbersList[0]);
           setFormData(prev => ({
@@ -234,7 +237,11 @@ const BarberCaixa = () => {
       
       if (data.services && data.services.length > 0) {
         console.log(`📋 ${data.services.length} serviços encontrados`);
+        
         const servicosFormatados = data.services.map((s: any, index: number) => {
+          console.log(`🔍 Serviço ${index + 1}:`, s);
+          
+          // 🔥 MAPEAMENTO COM FALLBACK PARA PORTUGUÊS E INGLÊS
           const formatted = {
             id: s.id || Date.now().toString(),
             cliente: s.cliente || s.client || 'Cliente',
@@ -251,8 +258,11 @@ const BarberCaixa = () => {
             formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
             observacao: s.observacao || '',
           };
+          
+          console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
           return formatted;
         });
+        
         setServicos(servicosFormatados);
       } else {
         setServicos([]);
@@ -327,9 +337,10 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) ==========
+  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) CORRIGIDO ==========
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
+      // 🔥 EDIÇÃO - CARREGA TODOS OS DADOS
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -346,12 +357,14 @@ const BarberCaixa = () => {
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
       
+      // 🔥 CARREGA OS SERVIÇOS SELECIONADOS
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
         const loadedServices = serviceIds
           .map((id: string) => {
             const trimmedId = id.trim();
             let baseId = trimmedId;
+            // Tenta extrair o ID base (caso tenha sufixo)
             const parts = trimmedId.split('-');
             if (parts.length > 2) {
               const possibleBaseId = parts.slice(0, -2).join('-');
@@ -371,6 +384,7 @@ const BarberCaixa = () => {
         setSelectedServices([]);
       }
     } else {
+      // 🔥 CRIAÇÃO - LIMPA TUDO
       setEditingServico(null);
       setClientName('');
       setClientPhone('');
@@ -387,19 +401,27 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
-      if (barbersList.length > 0) {
+      // Se não houver currentBarber, usa o primeiro da lista
+      if (barbersList.length > 0 && !currentBarber) {
         setCurrentBarber(barbersList[0]);
         setFormData(prev => ({
           ...prev,
           barbeiroId: barbersList[0].id,
           barbeiroNome: barbersList[0].name,
         }));
+      } else if (currentBarber) {
+        // Usa o barbeiro atual (do caixa)
+        setFormData(prev => ({
+          ...prev,
+          barbeiroId: currentBarber.id,
+          barbeiroNome: currentBarber.name,
+        }));
       }
     }
     setShowModal(true);
   };
 
-  // ========== SUBMIT ==========
+  // ========== SUBMIT (SALVAR) CORRIGIDO ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caixa?.isOpen) {
@@ -416,6 +438,7 @@ const BarberCaixa = () => {
       return;
     }
     
+    // 🔥 NOME DO CLIENTE - PRIORIZA O QUE VEIO DO FORMULÁRIO
     const clientNameFinal = isGuest 
       ? 'Cliente sem cadastro' 
       : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
@@ -433,6 +456,7 @@ const BarberCaixa = () => {
       alert('Selecione um horário');
       return;
     }
+    // Só valida horário se for NOVO serviço
     if (!editingServico && isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
@@ -464,10 +488,11 @@ const BarberCaixa = () => {
       console.log('📤 ENVIANDO SERVIÇO:', { clientNameFinal, barberId, serviceNames, total });
 
       if (editingServico) {
+        // 🔥 EDIÇÃO - MANTÉM TODOS OS CAMPOS ORIGINAIS E SÓ ATUALIZA O QUE VEIO
         const updatedServicos = servicos.map(s => {
           if (s.id === editingServico.id) {
             return {
-              ...s,
+              ...s, // mantém tudo
               cliente: clientNameFinal || s.cliente,
               telefone: clientPhoneFinal || s.telefone,
               barbeiro: formData.barbeiroNome || currentBarber?.name || s.barbeiro,
@@ -487,6 +512,7 @@ const BarberCaixa = () => {
         await cashRegisterService.updateServices(updatedServicos);
         await loadData();
       } else {
+        // 🔥 CRIAÇÃO
         await cashRegisterService.addService({
           client: clientNameFinal,
           barberId: barberId,
@@ -502,6 +528,7 @@ const BarberCaixa = () => {
         await loadData();
       }
 
+      // Fecha o modal e limpa os estados
       setShowModal(false);
       setEditingServico(null);
       setClientName('');
@@ -526,6 +553,7 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== EXCLUIR ==========
   const handleDelete = async (id: string) => {
     if (!caixa?.isOpen) {
       alert('O caixa precisa estar aberto para excluir serviços!');
@@ -540,6 +568,7 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== FILTROS E TOTAIS ==========
   const filteredServicos = servicos.filter(servico => {
     const matchSearch = 
       servico.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -607,6 +636,7 @@ const BarberCaixa = () => {
   // ==================== RENDER ====================
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">💰 Caixa</h1>
@@ -620,7 +650,6 @@ const BarberCaixa = () => {
                 <Lock size={16} /> Caixa fechado
               </span>
             )}
-            {/* 🔥 EXIBE O BARBEIRO DO CAIXA */}
             {currentBarber && (
               <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
             )}
@@ -653,7 +682,7 @@ const BarberCaixa = () => {
         </div>
       </div>
 
-      {/* Alertas e cards... (mantido) */}
+      {/* Alertas */}
       {!caixa?.isOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
           <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
@@ -674,11 +703,159 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Cards de resumo, filtros e tabela – mantidos como estão... */}
-      {/* (Para não alongar, mantenha o restante do código exatamente como você tinha) */}
-      {/* ... */}
+      {/* Cards de Resumo */}
+      {(caixa?.isOpen || servicos.length > 0) && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Vendas</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalVendas.toFixed(2)}</p>
+              </div>
+              <div className="p-2 sm:p-3 bg-green-100 rounded-full"><DollarSign size={16} className="sm:w-5 sm:h-5 text-green-600" /></div>
+            </div>
+            {caixa?.initialCash !== undefined && (
+              <p className="text-xs text-[#7f7c7a] mt-1">Inicial: R$ {caixa.initialCash.toFixed(2)}</p>
+            )}
+          </div>
 
-      {/* Modal Abrir Caixa com seletor de barbeiro */}
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Comissões</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p>
+              </div>
+              <div className="p-2 sm:p-3 bg-orange-100 rounded-full"><TrendingUp size={16} className="sm:w-5 sm:h-5 text-orange-600" /></div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Ticket Médio</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {ticketMedio.toFixed(2)}</p>
+              </div>
+              <div className="p-2 sm:p-3 bg-blue-100 rounded-full"><Users size={16} className="sm:w-5 sm:h-5 text-blue-600" /></div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Serviços</p>
+                <p className="text-lg sm:text-2xl font-bold text-[#060606]">{totalServicos}</p>
+              </div>
+              <div className="p-2 sm:p-3 bg-purple-100 rounded-full"><Clock size={16} className="sm:w-5 sm:h-5 text-purple-600" /></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
+      {(caixa?.isOpen || servicos.length > 0) && (
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="flex-1 flex items-center gap-2">
+              <Search size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                disabled={!caixa?.isOpen}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
+              <select
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value)}
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                disabled={!caixa?.isOpen}
+              >
+                <option value="todos">Todos</option>
+                <option value="concluido">Concluídos</option>
+                <option value="pendente">Pendentes</option>
+                <option value="cancelado">Cancelados</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela */}
+      {(caixa?.isOpen || servicos.length > 0) && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <div className="min-w-[700px] sm:min-w-full">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-[#f5f0e8]">
+                  <tr>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Cliente</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Serviço</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Valor</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Pagto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">Carregando...</td></tr>
+                  ) : filteredServicos.length === 0 ? (
+                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">{caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}</td></tr>
+                  ) : (
+                    filteredServicos.map((servico) => (
+                      <tr key={servico.id} className="hover:bg-gray-50">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">{servico.cliente}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.barbeiro}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.servico}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">R$ {servico.valor.toFixed(2)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">R$ {servico.comissao.toFixed(2)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{getPaymentText(servico.formaPagamento)}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${getStatusColor(servico.status)}`}>
+                            {getStatusText(servico.status)}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right">
+                          <button 
+                            onClick={() => handleOpenModal(servico)} 
+                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2" 
+                            disabled={!caixa?.isOpen}
+                          >
+                            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button 
+                            onClick={() => window.print()} 
+                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2"
+                          >
+                            <Printer size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(servico.id)} 
+                            className="text-red-500 hover:text-red-700 transition" 
+                            disabled={!caixa?.isOpen}
+                          >
+                            <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAIS ==================== */}
+
+      {/* Modal Abrir Caixa */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -687,22 +864,8 @@ const BarberCaixa = () => {
               <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro responsável</label>
-                <select
-                  value={selectedBarberForOpening?.id || ''}
-                  onChange={(e) => {
-                    const barber = barbersList.find(b => b.id === e.target.value);
-                    setSelectedBarberForOpening(barber || null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
-                  required
-                >
-                  <option value="">Selecione um barbeiro</option>
-                  {barbersList.map((barber) => (
-                    <option key={barber.id} value={barber.id}>{barber.name}</option>
-                  ))}
-                </select>
+              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                <p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor Inicial (R$)</label>
@@ -717,6 +880,22 @@ const BarberCaixa = () => {
                   required 
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro responsável</label>
+                <select
+                  value={selectedBarberForOpening?.id || ''}
+                  onChange={(e) => {
+                    const barber = barbersList.find(b => b.id === e.target.value);
+                    setSelectedBarberForOpening(barber || null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                >
+                  <option value="">Selecione um barbeiro</option>
+                  {barbersList.map((barber) => (
+                    <option key={barber.id} value={barber.id}>{barber.name}</option>
+                  ))}
+                </select>
+              </div>
               <button 
                 onClick={handleAbrirCaixa} 
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
@@ -728,8 +907,250 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Fechar Caixa e Modal de Serviço – mantidos */}
-      {/* ... (você já tem esses modais) */}
+      {/* Modal Fechar Caixa */}
+      {showModalFecharCaixa && caixa && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Fechar Caixa</h2>
+              <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm"><span className="text-yellow-800">Valor Inicial</span><span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2 text-sm"><span className="text-yellow-800">Vendas do Dia</span><span className="font-medium">R$ {totalVendas.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm font-bold text-yellow-800">Total em Caixa</span><span className="font-bold text-base sm:text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span></div>
+              </div>
+              <button 
+                onClick={handleFecharCaixa} 
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
+              >
+                <Lock size={18} /> Fechar Caixa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo/Editar Serviço */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
+                {editingServico ? 'Editar Serviço' : '📝 Novo Serviço'}
+              </h2>
+              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Barbeiro */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro</label>
+                <select
+                  value={formData.barbeiroId || currentBarber?.id || ''}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const barber = barbersList.find(b => b.id === id);
+                    if (barber) {
+                      setCurrentBarber(barber);
+                      setFormData(prev => ({
+                        ...prev,
+                        barbeiroId: barber.id,
+                        barbeiroNome: barber.name,
+                      }));
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base"
+                  required
+                >
+                  <option value="">Selecione um barbeiro</option>
+                  {barbersList.map((barber) => (
+                    <option key={barber.id} value={barber.id}>
+                      {barber.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data e Horário */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#060606] mb-1">Data</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#060606] mb-1">Horário</label>
+                  {loadingTimes ? (
+                    <div className="flex justify-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#9c7f64]"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+                      ].map((time) => {
+                        const isBooked = isTimeOccupied(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => !isBooked && setSelectedTime(time)}
+                            disabled={isBooked}
+                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
+                              isBooked 
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' 
+                                : selectedTime === time 
+                                  ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' 
+                                  : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
+                            }`}
+                          >
+                            {time}
+                            {isBooked && ' 🔒'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedTime && !isTimeOccupied(selectedTime) && (
+                    <p className="text-[10px] sm:text-xs text-green-600 mt-1">✅ {selectedTime}</p>
+                  )}
+                  {selectedTime && isTimeOccupied(selectedTime) && (
+                    <p className="text-[10px] sm:text-xs text-red-600 mt-1">❌ Ocupado!</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Cliente */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
+                <ClientAutocomplete
+                  value={formData.cliente}
+                  onChange={(value) => {
+                    setClientName(value);
+                    setFormData(prev => ({
+                      ...prev,
+                      cliente: value,
+                    }));
+                  }}
+                  onSelectClient={handleSelectClient}
+                  placeholder="Digite o nome ou telefone..."
+                  disabled={isGuest}
+                  required={!isGuest}
+                />
+              </div>
+
+              {/* Telefone */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
+                <div className="relative">
+                  <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
+                  <input
+                    type="text"
+                    value={formData.clienteTelefone}
+                    onChange={(e) => setFormData({ ...formData, clienteTelefone: e.target.value })}
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                    placeholder="(00) 00000-0000"
+                    disabled={isGuest}
+                  />
+                </div>
+              </div>
+
+              {/* Opção sem cadastro */}
+              <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="isGuest"
+                  checked={isGuest}
+                  onChange={(e) => {
+                    setIsGuest(e.target.checked);
+                    if (e.target.checked) {
+                      setFormData({ ...formData, cliente: '' });
+                      setClientName('');
+                    }
+                  }}
+                  className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
+                />
+                <label htmlFor="isGuest" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
+                  <UserX size={16} /> Cliente sem cadastro
+                </label>
+              </div>
+
+              {/* Multi Serviços */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Serviços</label>
+                <MultiServiceSelector
+                  selectedServices={selectedServices}
+                  onChange={setSelectedServices}
+                  maxServices={5}
+                />
+              </div>
+
+              {/* Total e Comissão */}
+              {selectedServices.length > 0 && (
+                <div className="bg-[#f5f0e8] rounded-lg p-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#7f7c7a]">Total:</span>
+                    <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Forma de Pagamento */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Forma de Pagamento</label>
+                <select
+                  value={formData.formaPagamento}
+                  onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  required
+                >
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="credito">Crédito</option>
+                  <option value="debito">Débito</option>
+                  <option value="pix">PIX</option>
+                </select>
+              </div>
+
+              {/* Observação */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Observação</label>
+                <textarea
+                  value={formData.observacao}
+                  onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  rows={2}
+                  placeholder="Observações..."
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#9c7f64] hover:bg-[#544941] text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-1"
+                >
+                  <Check size={18} /> Salvar
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-2"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
