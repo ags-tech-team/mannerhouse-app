@@ -195,7 +195,7 @@ const AdminFaturamento = () => {
     if (!window.confirm('Tem certeza que deseja resetar todos os vales de todos os barbeiros?')) return;
     setUpdating(true);
     try {
-      await api.post('/barbers/advance/reset-all');
+      await api.post('/barbers/reset-weekly-advances');
       await loadBarbers();
       alert('✅ Todos os vales foram resetados!');
     } catch (error) {
