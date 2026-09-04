@@ -13,6 +13,10 @@ export interface CashRegister {
   totalRevenue: number;
   totalCommissions: number;
   servicesCount: number;
+  barber?: { // 🔥 ADICIONAR
+    id: string;
+    name: string;
+  } | null;
 }
 
 export const cashRegisterService = {
@@ -23,8 +27,8 @@ export const cashRegisterService = {
   },
 
   // Abrir caixa
-  async open(initialCash: number): Promise<CashRegister> {
-    const response = await api.post('/cash-register/open', { initialCash });
+  async open(initialCash: number, barberId?: string) {
+    const response = await api.post('/cash-register/open', { initialCash, barberId });
     return response.data;
   },
 

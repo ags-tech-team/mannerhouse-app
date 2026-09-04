@@ -203,15 +203,14 @@ const BarberCaixa = () => {
     loadOccupiedTimes();
   }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
 
-  // ========== LOAD DATA CORRIGIDO ==========
   const loadData = async () => {
     setLoading(true);
     try {
       const data = await cashRegisterService.getToday();
       console.log('📦 Dados do caixa (RAW):', data);
-      
+
       setCaixa(data);
-      
+
       // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
       if (data.barber && data.barber.id) {
         const barberFromCaixa = barbersList.find(b => b.id === data.barber.id);
@@ -234,14 +233,13 @@ const BarberCaixa = () => {
           }));
         }
       }
-      
+
       if (data.services && data.services.length > 0) {
         console.log(`📋 ${data.services.length} serviços encontrados`);
-        
+
         const servicosFormatados = data.services.map((s: any, index: number) => {
           console.log(`🔍 Serviço ${index + 1}:`, s);
-          
-          // 🔥 MAPEAMENTO COM FALLBACK PARA PORTUGUÊS E INGLÊS
+
           const formatted = {
             id: s.id || Date.now().toString(),
             cliente: s.cliente || s.client || 'Cliente',
@@ -258,11 +256,11 @@ const BarberCaixa = () => {
             formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
             observacao: s.observacao || '',
           };
-          
+
           console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
           return formatted;
         });
-        
+
         setServicos(servicosFormatados);
       } else {
         setServicos([]);
@@ -288,6 +286,7 @@ const BarberCaixa = () => {
             totalRevenue: caixaData.totalVendas || 0,
             totalCommissions: caixaData.totalComissoes || 0,
             servicesCount: caixaData.quantidadeServicos || 0,
+            barber: null, // fallback não tem barbeiro
           });
           setServicos(caixaData.servicos || []);
         }
@@ -299,7 +298,6 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
     const initialValor = valorInicial.getNumberValue();
     if (!initialValor || initialValor < 0) {
@@ -307,15 +305,14 @@ const BarberCaixa = () => {
       return;
     }
     if (!selectedBarberForOpening) {
-      alert('Selecione o barbeiro que vai abrir o caixa');
+      alert('Selecione o barbeiro responsável');
       return;
     }
     try {
-      await cashRegisterService.open(initialValor, selectedBarberForOpening.id);
+      await cashRegisterService.open(initialValor, selectedBarberForOpening.id); // 🔥 ENVIAR O ID
       await loadData();
       setShowModalAbrirCaixa(false);
       valorInicial.reset();
-      setSelectedBarberForOpening(null);
       alert('✅ Caixa aberto com sucesso!');
     } catch (error: any) {
       console.error('Erro ao abrir caixa:', error);
@@ -889,6 +886,7 @@ const BarberCaixa = () => {
                     setSelectedBarberForOpening(barber || null);
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  required
                 >
                   <option value="">Selecione um barbeiro</option>
                   {barbersList.map((barber) => (

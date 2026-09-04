@@ -91,7 +91,6 @@ const openCashRegister = async (req, res) => {
     
     if (existingClosed) {
       console.log('🔄 Caixa fechado encontrado. Reabrindo...');
-      
       await existingClosed.update({
         isOpen: true,
         openingTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -102,9 +101,8 @@ const openCashRegister = async (req, res) => {
         totalCommissions: 0,
         servicesCount: 0,
         closingTime: null,
-        barberId: barberId || null,
+        barberId: barberId || null, // 🔥 ADICIONAR ESTA LINHA
       });
-      
       console.log('✅ Caixa reaberto com sucesso');
       return res.json(existingClosed);
     }
