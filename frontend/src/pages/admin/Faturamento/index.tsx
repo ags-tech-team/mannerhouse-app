@@ -158,14 +158,14 @@ const AdminFaturamento = () => {
     }
     setUpdating(true);
     try {
+      // 🔥 CAMPO CORRETO: weeklyAdvance
       await api.put(`/barbers/${barberId}/advance`, {
-        value: amount,
+        weeklyAdvance: amount,
         action: 'add',
       });
-      await loadBarbers();
-      alert(`✅ Vale de R$ ${amount.toFixed(2)} adicionado com sucesso!`);
+      await loadBarbers(); // recarrega do backend
+      alert(`✅ Vale de R$ ${amount.toFixed(2)} adicionado!`);
     } catch (error) {
-      console.error('Erro ao adicionar vale:', error);
       alert('❌ Erro ao adicionar vale.');
     } finally {
       setUpdating(false);
@@ -177,7 +177,7 @@ const AdminFaturamento = () => {
     setUpdating(true);
     try {
       await api.put(`/barbers/${barberId}/advance`, {
-        value: 0,
+        weeklyAdvance: 0,       // ✅ CORRETO
         action: 'reset',
       });
       markAsPaid(barberId);
