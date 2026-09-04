@@ -5,7 +5,6 @@ const { DataTypes } = require('sequelize');
 const modelOptions = {
   timestamps: true,
   underscored: true,
-  // 🔥 Timezone padrão para todos os modelos
   timezone: 'America/Sao_Paulo',
 };
 
@@ -45,9 +44,11 @@ Barber.hasMany(Sale, { foreignKey: 'barberId', as: 'sales' });
 Client.hasMany(Sale, { foreignKey: 'clientId', as: 'sales' });
 Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales' });
 
-// CashRegister -> User
+// CashRegister -> User e Barber (NOVO)
 CashRegister.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+CashRegister.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' }); // 🔥 ADICIONADO
 User.hasMany(CashRegister, { foreignKey: 'userId', as: 'cashRegisters' });
+Barber.hasMany(CashRegister, { foreignKey: 'barberId', as: 'cashRegisters' }); // 🔥 ADICIONADO
 
 // Revenue -> CashRegister e Barber
 Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
@@ -80,7 +81,6 @@ const syncDatabase = async () => {
     console.log('📊 Conexão com banco estabelecida');
     console.log('🕐 Timezone configurado para: America/Sao_Paulo');
     
-    // 🔥 TESTAR TIMEZONE
     try {
       const [results] = await sequelize.query('SELECT NOW() as current_time');
       console.log('🕐 Hora do banco:', results[0]?.current_time || 'N/A');
