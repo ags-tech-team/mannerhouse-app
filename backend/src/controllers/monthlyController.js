@@ -1,5 +1,6 @@
 const { Client, MonthlyPayment, Revenue, CashRegister, Barber } = require('../models');
 const { Op } = require('sequelize');
+const dateHelper = require('../utils/dateHelper');
 
 const getMonthlyClients = async (req, res) => {
   try {
