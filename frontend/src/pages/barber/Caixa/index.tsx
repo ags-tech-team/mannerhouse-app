@@ -433,7 +433,7 @@ const BarberCaixa = () => {
       alert('Selecione um horário');
       return;
     }
-    if (isTimeOccupied(selectedTime)) {
+    if (!editingServico && isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
     }
