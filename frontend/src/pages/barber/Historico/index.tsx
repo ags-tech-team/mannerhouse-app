@@ -755,5 +755,5 @@ const BarberHistorico = () => {
     )}
   </div>
 );
-
+}
 export default BarberHistorico;
