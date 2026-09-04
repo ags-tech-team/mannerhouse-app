@@ -44,7 +44,7 @@ interface ServicoFaturamento {
   data: string;
   hora: string;
   status: 'concluido' | 'pendente' | 'cancelado';
-  formaPagamento: 'dinheiro' | 'cartao' | 'pix' | 'debito';
+  formaPagamento: 'dinheiro' | 'credito' | 'pix' | 'debito';
   observacao?: string;
 }
 
@@ -564,7 +564,8 @@ const BarberCaixa = () => {
   const getPaymentText = (payment: string) => {
     switch(payment) {
       case 'dinheiro': return 'Dinheiro';
-      case 'cartao': return 'Cartão';
+      case 'credito': return 'Crédito';   // ← novo
+      case 'cartao': return 'Cartão';     // ← mantido para compatibilidade
       case 'pix': return 'PIX';
       case 'debito': return 'Débito';
       default: return payment;
@@ -1057,7 +1058,7 @@ const BarberCaixa = () => {
                   required
                 >
                   <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao">Cartão</option>
+                  <option value="cartao">Crédito</option>
                   <option value="debito">Débito</option>
                   <option value="pix">PIX</option>
                 </select>
