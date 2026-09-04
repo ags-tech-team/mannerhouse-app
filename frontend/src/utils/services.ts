@@ -15,6 +15,7 @@ export const SERVICES: Service[] = [
   { id: 'cabelo-barba', name: 'Cabelo e Barba', price: 70.00, category: 'corte' },
   { id: 'platinado-corte', name: 'Platinado com Corte', price: 160.00, category: 'cabelo' },
   { id: 'luzes-corte', name: 'Luzes com Corte', price: 140.00, category: 'cabelo' },
+  { id: 'pigmentacao', name: 'Pigmentação', price: 25.00, category: 'cabelo' },
   { id: 'depilacao-cera', name: 'Depilação com Cera', price: 20.00, category: 'outro' },
   { id: 'sobrancelha', name: 'Sobrancelha', price: 10.00, category: 'outro' },
   { id: 'limpeza-pele', name: 'Limpeza de Pele', price: 30.00, category: 'tratamento' },
