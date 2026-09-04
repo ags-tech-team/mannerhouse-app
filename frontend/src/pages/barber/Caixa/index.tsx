@@ -199,12 +199,12 @@ const BarberCaixa = () => {
     loadOccupiedTimes();
   }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
 
+  // ========== LOAD DATA CORRIGIDO ==========
   const loadData = async () => {
     setLoading(true);
     try {
       const data = await cashRegisterService.getToday();
       console.log('📦 Dados do caixa (RAW):', data);
-      console.log('📦 Services:', data.services);
       
       setCaixa(data);
       
@@ -213,37 +213,31 @@ const BarberCaixa = () => {
         
         const servicosFormatados = data.services.map((s: any, index: number) => {
           console.log(`🔍 Serviço ${index + 1}:`, s);
-          console.log(`   serviceId:`, s.serviceId);
-          console.log(`   service:`, s.service);
-          console.log(`   client:`, s.client);
           
+          // 🔥 MAPEAMENTO COM FALLBACK PARA PORTUGUÊS E INGLÊS
           const formatted = {
             id: s.id || Date.now().toString(),
-            cliente: s.client || 'Cliente',
-            telefone: s.phone || '',
-            barbeiro: s.barberName || s.barber || user?.name || 'Barbeiro',
-            barbeiroId: s.barberId || user?.id || '',
-            servico: s.service || s.servico || 'Serviço',
-            servicoId: s.serviceId || '',
-            valor: s.price || s.valor || 0,
-            comissao: s.commission || s.comissao || 0,
-            data: s.date || new Date().toISOString().split('T')[0],
-            hora: s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            cliente: s.cliente || s.client || 'Cliente',          // ← FALLBACK
+            telefone: s.telefone || s.phone || '',               // ← FALLBACK
+            barbeiro: s.barbeiro || s.barberName || s.barber || user?.name || 'Barbeiro',
+            barbeiroId: s.barbeiroId || s.barberId || user?.id || '',
+            servico: s.servico || s.service || 'Serviço',
+            servicoId: s.servicoId || s.serviceId || '',
+            valor: s.valor || s.price || 0,
+            comissao: s.comissao || s.commission || 0,
+            data: s.data || s.date || new Date().toISOString().split('T')[0],
+            hora: s.hora || s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             status: 'concluido',
-            formaPagamento: s.paymentMethod || 'dinheiro',
+            formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
             observacao: s.observacao || '',
           };
           
           console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
-          console.log(`   servicoId formatado:`, formatted.servicoId);
-          
           return formatted;
         });
         
-        console.log('📋 Todos os serviços formatados:', servicosFormatados);
         setServicos(servicosFormatados);
       } else {
-        console.log('⚠️ Nenhum serviço encontrado no caixa');
         setServicos([]);
       }
     } catch (error) {
@@ -253,10 +247,7 @@ const BarberCaixa = () => {
         const hoje = new Date().toISOString().split('T')[0];
         const caixaSalvo = localStorage.getItem(`@caixa_${hoje}`);
         if (caixaSalvo) {
-          console.log('📦 Carregando fallback do localStorage');
           const caixaData = JSON.parse(caixaSalvo);
-          console.log('📦 Dados do fallback:', caixaData);
-          
           setCaixa({
             id: 'local',
             userId: user?.id || '',
@@ -272,17 +263,16 @@ const BarberCaixa = () => {
             servicesCount: caixaData.quantidadeServicos || 0,
           });
           setServicos(caixaData.servicos || []);
-          console.log('✅ Fallback carregado com', caixaData.servicos?.length || 0, 'serviços');
         }
       } catch (e) {
         console.error('❌ Erro ao carregar fallback:', e);
       }
     } finally {
       setLoading(false);
-      console.log('✅ loadData finalizado');
     }
   };
 
+  // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
     const initialValor = valorInicial.getNumberValue();
     if (!initialValor || initialValor < 0) {
@@ -301,6 +291,7 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== FECHAR CAIXA ==========
   const handleFecharCaixa = async () => {
     try {
       await cashRegisterService.close();
@@ -314,8 +305,10 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) CORRIGIDO ==========
   const handleOpenModal = (servico?: ServicoFaturamento) => {
-    if (servico) {   
+    if (servico) {
+      // 🔥 EDIÇÃO - CARREGA TODOS OS DADOS
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -332,48 +325,34 @@ const BarberCaixa = () => {
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
       
+      // 🔥 CARREGA OS SERVIÇOS SELECIONADOS
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
-        
         const loadedServices = serviceIds
           .map((id: string) => {
             const trimmedId = id.trim();
-            
             let baseId = trimmedId;
-            
+            // Tenta extrair o ID base (caso tenha sufixo)
             const parts = trimmedId.split('-');
             if (parts.length > 2) {
               const possibleBaseId = parts.slice(0, -2).join('-');
               const service = getServiceById(possibleBaseId);
-              if (service) {
-                baseId = possibleBaseId;
-              } else {
-                baseId = trimmedId;
-              }
+              if (service) baseId = possibleBaseId;
             }
-            
-            console.log(`  ID original: ${trimmedId} -> ID base: ${baseId}`);
-            
             const service = getServiceById(baseId);
             if (service) {
-              console.log(`    ✅ Serviço encontrado:`, service);
-              return {
-                id: trimmedId, 
-                service: service
-              };
-            } else {
-              console.log(`    ❌ Serviço NÃO encontrado para ID: ${baseId}`);
-              return null;
+              return { id: trimmedId, service };
             }
+            console.warn(`⚠️ Serviço não encontrado para ID: ${baseId}`);
+            return null;
           })
           .filter(Boolean) as SelectedService[];
-        
-        console.log('📋 Serviços carregados:', loadedServices);
         setSelectedServices(loadedServices);
       } else {
         setSelectedServices([]);
       }
     } else {
+      // 🔥 CRIAÇÃO - LIMPA TUDO
       setEditingServico(null);
       setClientName('');
       setClientPhone('');
@@ -402,6 +381,7 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
+  // ========== SUBMIT (SALVAR) CORRIGIDO ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caixa?.isOpen) {
@@ -418,9 +398,12 @@ const BarberCaixa = () => {
       return;
     }
     
-    const clientNameFinal = isGuest ? 'Cliente sem cadastro' : clientName.trim() || formData.cliente.trim();
+    // 🔥 NOME DO CLIENTE - PRIORIZA O QUE VEIO DO FORMULÁRIO
+    const clientNameFinal = isGuest 
+      ? 'Cliente sem cadastro' 
+      : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
     
-    if (!clientNameFinal || clientNameFinal === '') {
+    if (!clientNameFinal) {
       alert('Digite o nome do cliente');
       return;
     }
@@ -433,27 +416,24 @@ const BarberCaixa = () => {
       alert('Selecione um horário');
       return;
     }
+    // Só valida horário se for NOVO serviço
     if (!editingServico && isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
     }
 
     try {
-      const clientPhoneFinal = isGuest ? '00000000000' : formData.clienteTelefone || '(00) 00000-0000';
+      const clientPhoneFinal = isGuest 
+        ? '00000000000' 
+        : (formData.clienteTelefone || clientPhone || (editingServico ? editingServico.telefone : ''));
       
-      // 🔥 VERIFICAR SE TEM MENSALISTA
       const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
-      
-      // 🔥 CALCULAR TOTAL - SE TIVER MENSALISTA, TOTAL = 0
       const total = hasMensalista ? 0 : getTotalServices();
-      
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
 
       const barber = barbersList.find(b => b.id === barberId);
       const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
-      
-      // 🔥 COMISSÃO SÓ É CALCULADA SE NÃO TIVER MENSALISTA
       const comissaoServico = hasMensalista ? 0 : (total * taxaComissaoServico);
 
       let comissaoProduto = 0;
@@ -463,41 +443,36 @@ const BarberCaixa = () => {
           comissaoProduto += comissao;
         }
       }
-
       const comissaoTotal = hasMensalista ? 0 : (comissaoServico + comissaoProduto);
 
-      console.log('📤 ENVIANDO SERVIÇO:');
-      console.log('  client:', clientNameFinal);
-      console.log('  phone:', clientPhoneFinal);
-      console.log('  barberId:', barberId);
-      console.log('  service:', serviceNames);
-      console.log('  price:', total);
-      console.log('  hasMensalista:', hasMensalista);
-      console.log('  commission:', comissaoTotal);
+      console.log('📤 ENVIANDO SERVIÇO:', { clientNameFinal, barberId, serviceNames, total });
 
       if (editingServico) {
-        const updatedServicos = servicos.map(s => 
-          s.id === editingServico.id 
-            ? { 
-                ...s, 
-                cliente: clientNameFinal,
-                servico: serviceNames,
-                servicoId: serviceIds,
-                valor: total,
-                comissao: comissaoTotal,
-                formaPagamento: formData.formaPagamento,
-                observacao: formData.observacao,
-                barbeiro: formData.barbeiroNome || currentBarber?.name || 'Barbeiro',
-                barbeiroId: barberId,
-                data: selectedDate,
-                hora: selectedTime,
-                telefone: clientPhoneFinal,
-              }
-            : s
-        );
+        // 🔥 EDIÇÃO - MANTÉM TODOS OS CAMPOS ORIGINAIS E SÓ ATUALIZA O QUE VEIO
+        const updatedServicos = servicos.map(s => {
+          if (s.id === editingServico.id) {
+            return {
+              ...s, // mantém tudo
+              cliente: clientNameFinal || s.cliente,
+              telefone: clientPhoneFinal || s.telefone,
+              barbeiro: formData.barbeiroNome || currentBarber?.name || s.barbeiro,
+              barbeiroId: barberId || s.barbeiroId,
+              servico: serviceNames || s.servico,
+              servicoId: serviceIds || s.servicoId,
+              valor: total || s.valor,
+              comissao: comissaoTotal || s.comissao,
+              formaPagamento: formData.formaPagamento || s.formaPagamento, // ← FALLBACK
+              observacao: formData.observacao || s.observacao,
+              data: selectedDate || s.data,
+              hora: selectedTime || s.hora,
+            };
+          }
+          return s;
+        });
         await cashRegisterService.updateServices(updatedServicos);
         await loadData();
       } else {
+        // 🔥 CRIAÇÃO
         await cashRegisterService.addService({
           client: clientNameFinal,
           barberId: barberId,
@@ -513,10 +488,11 @@ const BarberCaixa = () => {
         await loadData();
       }
 
-      closeModal()
+      // Fecha o modal e limpa os estados
+      setShowModal(false);
+      setEditingServico(null);
       setClientName('');
       setClientPhone('');
-      setEditingServico(null);
       setFormData({
         cliente: '',
         clienteTelefone: '',
@@ -533,14 +509,11 @@ const BarberCaixa = () => {
       alert('✅ Serviço registrado com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro ao salvar:', error);
-      if (error.response?.data?.error?.includes('já existe')) {
-        alert(error.response.data.error);
-      } else {
-        alert(error.response?.data?.error || 'Erro ao salvar serviço');
-      }
+      alert(error.response?.data?.error || 'Erro ao salvar serviço');
     }
   };
 
+  // ========== EXCLUIR ==========
   const handleDelete = async (id: string) => {
     if (!caixa?.isOpen) {
       alert('O caixa precisa estar aberto para excluir serviços!');
@@ -555,6 +528,7 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== FILTROS E TOTAIS ==========
   const filteredServicos = servicos.filter(servico => {
     const matchSearch = 
       servico.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -618,6 +592,7 @@ const BarberCaixa = () => {
     });
   };
 
+  // ==================== RENDER ====================
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Cabeçalho */}
@@ -837,6 +812,8 @@ const BarberCaixa = () => {
         </div>
       )}
 
+      {/* ==================== MODAIS ==================== */}
+
       {/* Modal Abrir Caixa */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -898,7 +875,7 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Novo Serviço */}
+      {/* Modal Novo/Editar Serviço */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
@@ -910,7 +887,7 @@ const BarberCaixa = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* SELECT DE BARBEIROS */}
+              {/* Barbeiro */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro</label>
                 <select
@@ -951,7 +928,6 @@ const BarberCaixa = () => {
                     required
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-1">Horário</label>
                   {loadingTimes ? (
@@ -972,7 +948,13 @@ const BarberCaixa = () => {
                             type="button"
                             onClick={() => !isBooked && setSelectedTime(time)}
                             disabled={isBooked}
-                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${isBooked ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' : selectedTime === time ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'}`}
+                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
+                              isBooked 
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' 
+                                : selectedTime === time 
+                                  ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' 
+                                  : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
+                            }`}
                           >
                             {time}
                             {isBooked && ' 🔒'}
@@ -996,7 +978,6 @@ const BarberCaixa = () => {
                 <ClientAutocomplete
                   value={formData.cliente}
                   onChange={(value) => {
-                    console.log('📝 onChange:', value);
                     setClientName(value);
                     setFormData(prev => ({
                       ...prev,

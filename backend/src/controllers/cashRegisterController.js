@@ -427,7 +427,7 @@ const removeService = async (req, res) => {
 const updateServices = async (req, res) => {
   try {
     const { services } = req.body;
-    const today = dateHelper.getTodayLocal();
+    const today = new Date().toISOString().split('T')[0];
     
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -441,15 +441,24 @@ const updateServices = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    const totalRevenue = services.reduce((sum, s) => sum + (s.valor || 0), 0);
-    const totalCommissions = services.reduce((sum, s) => sum + (s.comissao || 0), 0);
-    const servicesCount = services.length;
+    // 🔥 MERGE: só atualiza os serviços que vieram, mantendo os campos originais
+    const currentServices = cashRegister.services || [];
+    const updatedServices = currentServices.map(s => {
+      const updated = services.find(service => service.id === s.id);
+      if (updated) {
+        return { ...s, ...updated }; // Mantém tudo e sobrescreve só o que veio
+      }
+      return s;
+    });
+    
+    const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.valor || 0), 0);
+    const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.comissao || 0), 0);
     
     await cashRegister.update({
-      services,
+      services: updatedServices,
       totalRevenue,
       totalCommissions,
-      servicesCount,
+      servicesCount: updatedServices.length,
     });
     
     res.json(cashRegister);
