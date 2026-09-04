@@ -383,7 +383,7 @@ const getServices = async (req, res) => {
         barberName: r.barberName || 'Desconhecido',
         service: r.service || 'Serviço',
         serviceDescription: r.serviceDescription || '',
-        price: r.total || 0,               // 🔥 CAMPO CORRETO
+        price: r.total || 0,
         commission: r.commissions || 0,
         status: 'completed',
         notes: r.notes || '',
@@ -411,9 +411,9 @@ const getServices = async (req, res) => {
       });
       
       cashServices.forEach(s => {
-        // 🔥 EXTRAIR VALOR CORRETAMENTE (português ou inglês)
-        const price = parseFloat(s.price || s.valor || 0);
-        const commission = parseFloat(s.commission || s.comissao || 0);
+        // 🔥 EXTRAIR VALORES CORRETAMENTE (USANDO OS CAMPOS QUE O SCRIPT MOSTROU)
+        const price = parseFloat(s.price) || parseFloat(s.valor) || 0;
+        const commission = parseFloat(s.commission) || parseFloat(s.comissao) || 0;
         const client = s.client || s.cliente || 'Cliente';
         const barber = s.barberName || s.barbeiro || 'Desconhecido';
         const service = s.service || s.servico || 'Serviço';
@@ -436,7 +436,7 @@ const getServices = async (req, res) => {
       });
     }
     
-    // 3️⃣ Buscar agendamentos concluídos (para complementar, se não estiverem em revenue/caixa)
+    // 3️⃣ Buscar agendamentos concluídos (para complementar)
     const appointmentWhere = { status: 'completed' };
     if (startDate && endDate) {
       appointmentWhere.date = { [Op.between]: [startDate, endDate] };
@@ -451,7 +451,6 @@ const getServices = async (req, res) => {
     });
     
     appointments.forEach(app => {
-      // Evitar duplicação (se já existe com mesmo ID)
       const alreadyExists = results.some(r => r.id === app.id);
       if (!alreadyExists) {
         results.push({
@@ -479,6 +478,7 @@ const getServices = async (req, res) => {
     });
     
     console.log(`📦 ${results.length} serviços encontrados (revenues: ${revenues.length}, caixa: ${cashRegister?.services?.length || 0}, appointments: ${appointments.length})`);
+    console.log('📊 Primeiro serviço do caixa (exemplo):', results.find(r => r.source === 'cash'));
     
     // Formatar datas para o frontend (DD/MM/YYYY)
     const formatted = results.map(s => {
