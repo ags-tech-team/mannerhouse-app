@@ -14,6 +14,15 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'user_id',
     },
+    barberId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'barbers',
+        key: 'id',
+      },
+      field: 'barber_id',
+    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,

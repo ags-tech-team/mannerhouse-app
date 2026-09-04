@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Filter, 
+import {
+  Search,
+  Filter,
   Plus,
   X,
   Check,
@@ -87,6 +87,9 @@ const BarberCaixa = () => {
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
+
+  // 🔥 ESTADO PARA O BARBEIRO SELECIONADO NA ABERTURA
+  const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
     cliente: '',
@@ -199,7 +202,6 @@ const BarberCaixa = () => {
     loadOccupiedTimes();
   }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
 
-  // ========== LOAD DATA CORRIGIDO ==========
   const loadData = async () => {
     setLoading(true);
     try {
@@ -208,17 +210,26 @@ const BarberCaixa = () => {
       
       setCaixa(data);
       
+      // 🔥 ATUALIZA O CURRENT BARBER COM O BARBEIRO ASSOCIADO AO CAIXA
+      if (data.barber) {
+        setCurrentBarber(data.barber);
+        setFormData(prev => ({
+          ...prev,
+          barbeiroId: data.barber.id,
+          barbeiroNome: data.barber.name,
+        }));
+      }
+      
       if (data.services && data.services.length > 0) {
         console.log(`📋 ${data.services.length} serviços encontrados`);
         
         const servicosFormatados = data.services.map((s: any, index: number) => {
           console.log(`🔍 Serviço ${index + 1}:`, s);
           
-          // 🔥 MAPEAMENTO COM FALLBACK PARA PORTUGUÊS E INGLÊS
           const formatted = {
             id: s.id || Date.now().toString(),
-            cliente: s.cliente || s.client || 'Cliente',          // ← FALLBACK
-            telefone: s.telefone || s.phone || '',               // ← FALLBACK
+            cliente: s.cliente || s.client || 'Cliente',
+            telefone: s.telefone || s.phone || '',
             barbeiro: s.barbeiro || s.barberName || s.barber || user?.name || 'Barbeiro',
             barbeiroId: s.barbeiroId || s.barberId || user?.id || '',
             servico: s.servico || s.service || 'Serviço',
@@ -242,7 +253,6 @@ const BarberCaixa = () => {
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
-      // Fallback para localStorage
       try {
         const hoje = new Date().toISOString().split('T')[0];
         const caixaSalvo = localStorage.getItem(`@caixa_${hoje}`);
@@ -272,18 +282,22 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
     const initialValor = valorInicial.getNumberValue();
     if (!initialValor || initialValor < 0) {
       alert('Digite um valor inicial válido');
       return;
     }
+    if (!selectedBarberForOpening) {
+      alert('Selecione o barbeiro que vai abrir o caixa');
+      return;
+    }
     try {
-      await cashRegisterService.open(initialValor);
+      await cashRegisterService.open(initialValor, selectedBarberForOpening.id);
       await loadData();
       setShowModalAbrirCaixa(false);
       valorInicial.reset();
+      setSelectedBarberForOpening(null);
       alert('✅ Caixa aberto com sucesso!');
     } catch (error: any) {
       console.error('Erro ao abrir caixa:', error);
@@ -291,7 +305,6 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== FECHAR CAIXA ==========
   const handleFecharCaixa = async () => {
     try {
       await cashRegisterService.close();
@@ -305,10 +318,8 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) CORRIGIDO ==========
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
-      // 🔥 EDIÇÃO - CARREGA TODOS OS DADOS
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -325,14 +336,12 @@ const BarberCaixa = () => {
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
       
-      // 🔥 CARREGA OS SERVIÇOS SELECIONADOS
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
         const loadedServices = serviceIds
           .map((id: string) => {
             const trimmedId = id.trim();
             let baseId = trimmedId;
-            // Tenta extrair o ID base (caso tenha sufixo)
             const parts = trimmedId.split('-');
             if (parts.length > 2) {
               const possibleBaseId = parts.slice(0, -2).join('-');
@@ -352,7 +361,6 @@ const BarberCaixa = () => {
         setSelectedServices([]);
       }
     } else {
-      // 🔥 CRIAÇÃO - LIMPA TUDO
       setEditingServico(null);
       setClientName('');
       setClientPhone('');
@@ -381,7 +389,6 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
-  // ========== SUBMIT (SALVAR) CORRIGIDO ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caixa?.isOpen) {
@@ -398,7 +405,6 @@ const BarberCaixa = () => {
       return;
     }
     
-    // 🔥 NOME DO CLIENTE - PRIORIZA O QUE VEIO DO FORMULÁRIO
     const clientNameFinal = isGuest 
       ? 'Cliente sem cadastro' 
       : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
@@ -416,7 +422,6 @@ const BarberCaixa = () => {
       alert('Selecione um horário');
       return;
     }
-    // Só valida horário se for NOVO serviço
     if (!editingServico && isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
@@ -448,11 +453,10 @@ const BarberCaixa = () => {
       console.log('📤 ENVIANDO SERVIÇO:', { clientNameFinal, barberId, serviceNames, total });
 
       if (editingServico) {
-        // 🔥 EDIÇÃO - MANTÉM TODOS OS CAMPOS ORIGINAIS E SÓ ATUALIZA O QUE VEIO
         const updatedServicos = servicos.map(s => {
           if (s.id === editingServico.id) {
             return {
-              ...s, // mantém tudo
+              ...s,
               cliente: clientNameFinal || s.cliente,
               telefone: clientPhoneFinal || s.telefone,
               barbeiro: formData.barbeiroNome || currentBarber?.name || s.barbeiro,
@@ -461,7 +465,7 @@ const BarberCaixa = () => {
               servicoId: serviceIds || s.servicoId,
               valor: total || s.valor,
               comissao: comissaoTotal || s.comissao,
-              formaPagamento: formData.formaPagamento || s.formaPagamento, // ← FALLBACK
+              formaPagamento: formData.formaPagamento || s.formaPagamento,
               observacao: formData.observacao || s.observacao,
               data: selectedDate || s.data,
               hora: selectedTime || s.hora,
@@ -472,7 +476,6 @@ const BarberCaixa = () => {
         await cashRegisterService.updateServices(updatedServicos);
         await loadData();
       } else {
-        // 🔥 CRIAÇÃO
         await cashRegisterService.addService({
           client: clientNameFinal,
           barberId: barberId,
@@ -488,7 +491,6 @@ const BarberCaixa = () => {
         await loadData();
       }
 
-      // Fecha o modal e limpa os estados
       setShowModal(false);
       setEditingServico(null);
       setClientName('');
@@ -513,7 +515,6 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== EXCLUIR ==========
   const handleDelete = async (id: string) => {
     if (!caixa?.isOpen) {
       alert('O caixa precisa estar aberto para excluir serviços!');
@@ -528,7 +529,6 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== FILTROS E TOTAIS ==========
   const filteredServicos = servicos.filter(servico => {
     const matchSearch = 
       servico.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -564,8 +564,8 @@ const BarberCaixa = () => {
   const getPaymentText = (payment: string) => {
     switch(payment) {
       case 'dinheiro': return 'Dinheiro';
-      case 'credito': return 'Crédito';   // ← novo
-      case 'cartao': return 'Cartão';     // ← mantido para compatibilidade
+      case 'credito': return 'Crédito';
+      case 'cartao': return 'Cartão';
       case 'pix': return 'PIX';
       case 'debito': return 'Débito';
       default: return payment;
@@ -593,10 +593,8 @@ const BarberCaixa = () => {
     });
   };
 
-  // ==================== RENDER ====================
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#060606]">💰 Caixa</h1>
@@ -642,7 +640,6 @@ const BarberCaixa = () => {
         </div>
       </div>
 
-      {/* Alertas */}
       {!caixa?.isOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
           <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
@@ -663,7 +660,6 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Cards de Resumo */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
@@ -711,7 +707,6 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Filtros */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -744,7 +739,6 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Tabela */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
@@ -813,20 +807,36 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* ==================== MODAIS ==================== */}
-
-      {/* Modal Abrir Caixa */}
       {showModalAbrirCaixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Abrir Caixa</h2>
-              <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={() => { setShowModalAbrirCaixa(false); setSelectedBarberForOpening(null); }} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
               <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
                 <p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p>
               </div>
+
+              {/* 🔥 SELETOR DE BARBEIRO */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro responsável</label>
+                <select
+                  value={selectedBarberForOpening?.id || ''}
+                  onChange={(e) => {
+                    const barber = barbersList.find(b => b.id === e.target.value);
+                    setSelectedBarberForOpening(barber || null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                >
+                  <option value="">Selecione um barbeiro</option>
+                  {barbersList.map((barber) => (
+                    <option key={barber.id} value={barber.id}>{barber.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor Inicial (R$)</label>
                 <input 
@@ -851,7 +861,6 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Fechar Caixa */}
       {showModalFecharCaixa && caixa && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -876,7 +885,6 @@ const BarberCaixa = () => {
         </div>
       )}
 
-      {/* Modal Novo/Editar Serviço */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
@@ -888,7 +896,6 @@ const BarberCaixa = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Barbeiro */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Barbeiro</label>
                 <select
@@ -917,7 +924,6 @@ const BarberCaixa = () => {
                 </select>
               </div>
 
-              {/* Data e Horário */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-1">Data</label>
@@ -949,13 +955,7 @@ const BarberCaixa = () => {
                             type="button"
                             onClick={() => !isBooked && setSelectedTime(time)}
                             disabled={isBooked}
-                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
-                              isBooked 
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' 
-                                : selectedTime === time 
-                                  ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' 
-                                  : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
-                            }`}
+                            className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${isBooked ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' : selectedTime === time ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'}`}
                           >
                             {time}
                             {isBooked && ' 🔒'}
@@ -973,7 +973,6 @@ const BarberCaixa = () => {
                 </div>
               </div>
 
-              {/* Cliente */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Nome do Cliente</label>
                 <ClientAutocomplete
@@ -992,7 +991,6 @@ const BarberCaixa = () => {
                 />
               </div>
 
-              {/* Telefone */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Telefone</label>
                 <div className="relative">
@@ -1008,7 +1006,6 @@ const BarberCaixa = () => {
                 </div>
               </div>
 
-              {/* Opção sem cadastro */}
               <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
                 <input
                   type="checkbox"
@@ -1028,7 +1025,6 @@ const BarberCaixa = () => {
                 </label>
               </div>
 
-              {/* Multi Serviços */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Serviços</label>
                 <MultiServiceSelector
@@ -1038,7 +1034,6 @@ const BarberCaixa = () => {
                 />
               </div>
 
-              {/* Total e Comissão */}
               {selectedServices.length > 0 && (
                 <div className="bg-[#f5f0e8] rounded-lg p-3">
                   <div className="flex justify-between text-sm">
@@ -1048,7 +1043,6 @@ const BarberCaixa = () => {
                 </div>
               )}
 
-              {/* Forma de Pagamento */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Forma de Pagamento</label>
                 <select
@@ -1058,13 +1052,12 @@ const BarberCaixa = () => {
                   required
                 >
                   <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao">Crédito</option>
+                  <option value="credito">Crédito</option>
                   <option value="debito">Débito</option>
                   <option value="pix">PIX</option>
                 </select>
               </div>
 
-              {/* Observação */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">Observação</label>
                 <textarea

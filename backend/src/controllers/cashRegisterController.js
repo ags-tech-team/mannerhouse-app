@@ -14,6 +14,13 @@ const getToday = async (req, res) => {
         date: today,
         userId: req.userId,
       },
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber', 
+          attributes: ['id', 'name', 'email', 'phone'] 
+        }
+      ],
       order: [['createdAt', 'DESC']],
     });
     
@@ -30,6 +37,7 @@ const getToday = async (req, res) => {
         totalRevenue: 0,
         totalCommissions: 0,
         servicesCount: 0,
+        barber: null,
       });
     }
     
@@ -42,13 +50,22 @@ const getToday = async (req, res) => {
 
 const openCashRegister = async (req, res) => {
   try {
-    const { initialCash } = req.body;
+    const { initialCash, barberId } = req.body;
     const today = dateHelper.getTodayLocal();
     
     console.log('🔓 ===== ABRINDO CAIXA =====');
     console.log('📌 userId:', req.userId);
     console.log('📌 date:', today);
     console.log('📌 initialCash:', initialCash);
+    console.log('📌 barberId:', barberId);
+    
+    // Validar se o barbeiro existe (opcional)
+    if (barberId) {
+      const barber = await Barber.findByPk(barberId);
+      if (!barber) {
+        return res.status(400).json({ error: 'Barbeiro não encontrado' });
+      }
+    }
     
     const existingOpen = await CashRegister.findOne({
       where: {
@@ -85,6 +102,7 @@ const openCashRegister = async (req, res) => {
         totalCommissions: 0,
         servicesCount: 0,
         closingTime: null,
+        barberId: barberId || null,
       });
       
       console.log('✅ Caixa reaberto com sucesso');
@@ -101,6 +119,7 @@ const openCashRegister = async (req, res) => {
       totalRevenue: 0,
       totalCommissions: 0,
       servicesCount: 0,
+      barberId: barberId || null,
     });
     
     console.log('✅ CAIXA CRIADO COM SUCESSO');
@@ -427,7 +446,7 @@ const removeService = async (req, res) => {
 const updateServices = async (req, res) => {
   try {
     const { services } = req.body;
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateHelper.getTodayLocal(); // 🔥 corrigido para usar dateHelper
     
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -483,6 +502,13 @@ const getHistory = async (req, res) => {
     
     const registers = await CashRegister.findAll({
       where,
+      include: [
+        { 
+          model: Barber, 
+          as: 'barber', 
+          attributes: ['id', 'name'] 
+        }
+      ],
       order: [['date', 'DESC']],
     });
     
