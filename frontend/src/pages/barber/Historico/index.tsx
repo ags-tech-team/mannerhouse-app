@@ -174,17 +174,17 @@ const BarberHistorico = () => {
       
       console.log('📦 Resposta recebida:', servicesRes.data.length);
       
-      // 🔥 FORMATAR OS DADOS - USANDO A DATA JÁ FORMATADA DO BACKEND
       const formattedServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
-        date: r.date || startDate, // Backend já envia "02/09/2026"
+        date: r.date || startDate,
         time: r.time || (r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00'),
         client: { name: r.clientName || r.client?.name || 'Cliente', phone: '' },
         barber: { name: r.barber?.name || 'Desconhecido' },
-        service: 'Serviço',
+        service: r.service || 'Serviço',
         serviceDescription: r.serviceDescription || r.service || 'Serviço',
-        price: r.total || 0,
-        commission: r.commissions || 0,
+        // 🔥 CORRIGIDO: usar price e commission (e fallback para total/commissions)
+        price: r.price || r.total || 0,
+        commission: r.commission || r.commissions || 0,
         status: 'completed',
         notes: r.notes || '',
         createdAt: r.createdAt,
