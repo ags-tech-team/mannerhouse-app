@@ -361,41 +361,29 @@ const getServices = async (req, res) => {
     
     console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
     
-    // 1️⃣ Buscar revenues confirmados (já fechados)
+    const today = dateHelper.getTodayLocal();
+    const results = [];
+    
+    // 1️⃣ Buscar revenues confirmados
     const revenueWhere = { status: 'confirmed' };
     if (startDate && endDate) {
       revenueWhere.date = { [Op.between]: [startDate, endDate] };
     }
-    
     const revenues = await Revenue.findAll({
       where: revenueWhere,
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    // 2️⃣ Buscar caixa aberto do usuário (se houver)
-    const today = dateHelper.getTodayLocal();
-    const cashRegister = await CashRegister.findOne({
-      where: {
-        date: today,
-        userId: req.userId,
-        isOpen: true,
-      }
-    });
-    
-    // 3️⃣ Montar lista unificada
-    const allServices = [];
-    
-    // Adicionar revenues
     revenues.forEach(r => {
-      allServices.push({
+      results.push({
         id: r.id,
-        date: r.date, // YYYY-MM-DD
+        date: r.date,
         time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
         clientName: r.clientName || 'Cliente',
         barberName: r.barberName || 'Desconhecido',
         service: r.service || 'Serviço',
         serviceDescription: r.serviceDescription || '',
-        price: r.total || 0,
+        price: r.total || 0,               // 🔥 CAMPO CORRETO
         commission: r.commissions || 0,
         status: 'completed',
         notes: r.notes || '',
@@ -404,10 +392,17 @@ const getServices = async (req, res) => {
       });
     });
     
-    // Adicionar serviços do caixa aberto (se existir e estiver dentro do período)
+    // 2️⃣ Buscar serviços do caixa ABERTO (se existir)
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: today,
+        userId: req.userId,
+        isOpen: true,
+      }
+    });
+    
     if (cashRegister && cashRegister.services && cashRegister.services.length > 0) {
       const cashServices = cashRegister.services.filter(s => {
-        // Se startDate e endDate foram passados, filtrar pela data do serviço
         if (startDate && endDate) {
           const serviceDate = s.date || cashRegister.date;
           return serviceDate >= startDate && serviceDate <= endDate;
@@ -416,16 +411,23 @@ const getServices = async (req, res) => {
       });
       
       cashServices.forEach(s => {
-        allServices.push({
-          id: s.id || `cash-${Date.now()}`,
+        // 🔥 EXTRAIR VALOR CORRETAMENTE (português ou inglês)
+        const price = parseFloat(s.price || s.valor || 0);
+        const commission = parseFloat(s.commission || s.comissao || 0);
+        const client = s.client || s.cliente || 'Cliente';
+        const barber = s.barberName || s.barbeiro || 'Desconhecido';
+        const service = s.service || s.servico || 'Serviço';
+        
+        results.push({
+          id: s.id || `cash-${Date.now()}-${Math.random()}`,
           date: s.date || cashRegister.date,
           time: s.time || '00:00',
-          clientName: s.client || s.cliente || 'Cliente',
-          barberName: s.barberName || s.barbeiro || 'Desconhecido',
-          service: s.service || s.servico || 'Serviço',
+          clientName: client,
+          barberName: barber,
+          service: service,
           serviceDescription: s.serviceDescription || '',
-          price: s.price || s.valor || 0,
-          commission: s.commission || s.comissao || 0,
+          price: price,
+          commission: commission,
           status: 'completed',
           notes: s.observacao || s.notes || '',
           createdAt: s.createdAt || new Date().toISOString(),
@@ -434,16 +436,52 @@ const getServices = async (req, res) => {
       });
     }
     
+    // 3️⃣ Buscar agendamentos concluídos (para complementar, se não estiverem em revenue/caixa)
+    const appointmentWhere = { status: 'completed' };
+    if (startDate && endDate) {
+      appointmentWhere.date = { [Op.between]: [startDate, endDate] };
+    }
+    const appointments = await Appointment.findAll({
+      where: appointmentWhere,
+      include: [
+        { model: Client, as: 'client', attributes: ['name'] },
+        { model: Barber, as: 'barber', attributes: ['name'] }
+      ],
+      order: [['date', 'DESC'], ['time', 'DESC']]
+    });
+    
+    appointments.forEach(app => {
+      // Evitar duplicação (se já existe com mesmo ID)
+      const alreadyExists = results.some(r => r.id === app.id);
+      if (!alreadyExists) {
+        results.push({
+          id: app.id,
+          date: app.date,
+          time: app.time || '00:00',
+          clientName: app.client?.name || 'Cliente',
+          barberName: app.barber?.name || 'Desconhecido',
+          service: app.service || 'Serviço',
+          serviceDescription: app.serviceDescription || '',
+          price: app.price || 0,
+          commission: app.commission || 0,
+          status: 'completed',
+          notes: app.notes || '',
+          createdAt: app.createdAt,
+          source: 'appointment'
+        });
+      }
+    });
+    
     // Ordenar por data (mais recente primeiro)
-    allServices.sort((a, b) => {
+    results.sort((a, b) => {
       if (a.date !== b.date) return b.date.localeCompare(a.date);
       return (b.time || '').localeCompare(a.time || '');
     });
     
-    console.log(`📦 ${allServices.length} serviços encontrados (${revenues.length} revenues + ${cashRegister?.services?.length || 0} do caixa)`);
+    console.log(`📦 ${results.length} serviços encontrados (revenues: ${revenues.length}, caixa: ${cashRegister?.services?.length || 0}, appointments: ${appointments.length})`);
     
-    // 🔥 Formatar datas para o frontend (DD/MM/YYYY)
-    const formatted = allServices.map(s => {
+    // Formatar datas para o frontend (DD/MM/YYYY)
+    const formatted = results.map(s => {
       const dateStr = s.date; // YYYY-MM-DD
       const [year, month, day] = dateStr.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
