@@ -361,73 +361,104 @@ const getServices = async (req, res) => {
     
     console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
     
-    const where = {
-      status: 'completed'
-    };
-    
+    // 1️⃣ Buscar revenues confirmados (já fechados)
+    const revenueWhere = { status: 'confirmed' };
     if (startDate && endDate) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (dateRegex.test(startDate) && dateRegex.test(endDate)) {
-        where.date = {
-          [Op.between]: [startDate, endDate]
-        };
-      }
+      revenueWhere.date = { [Op.between]: [startDate, endDate] };
     }
     
-    const appointments = await Appointment.findAll({
-      where,
-      include: [
-        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'], required: false },
-        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'], required: false }
-      ],
-      order: [['date', 'DESC'], ['time', 'DESC']]
+    const revenues = await Revenue.findAll({
+      where: revenueWhere,
+      order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
     
-    console.log(`📦 ${appointments.length} serviços concluídos encontrados`);
+    // 2️⃣ Buscar caixa aberto do usuário (se houver)
+    const today = dateHelper.getTodayLocal();
+    const cashRegister = await CashRegister.findOne({
+      where: {
+        date: today,
+        userId: req.userId,
+        isOpen: true,
+      }
+    });
     
-    const formatted = appointments.map(app => {
-      const appData = app.toJSON();
+    // 3️⃣ Montar lista unificada
+    const allServices = [];
+    
+    // Adicionar revenues
+    revenues.forEach(r => {
+      allServices.push({
+        id: r.id,
+        date: r.date, // YYYY-MM-DD
+        time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        clientName: r.clientName || 'Cliente',
+        barberName: r.barberName || 'Desconhecido',
+        service: r.service || 'Serviço',
+        serviceDescription: r.serviceDescription || '',
+        price: r.total || 0,
+        commission: r.commissions || 0,
+        status: 'completed',
+        notes: r.notes || '',
+        createdAt: r.createdAt,
+        source: 'revenue'
+      });
+    });
+    
+    // Adicionar serviços do caixa aberto (se existir e estiver dentro do período)
+    if (cashRegister && cashRegister.services && cashRegister.services.length > 0) {
+      const cashServices = cashRegister.services.filter(s => {
+        // Se startDate e endDate foram passados, filtrar pela data do serviço
+        if (startDate && endDate) {
+          const serviceDate = s.date || cashRegister.date;
+          return serviceDate >= startDate && serviceDate <= endDate;
+        }
+        return true;
+      });
       
-      // 🔥 FORMATAR DATA MANUALMENTE (sem usar new Date())
-      const dateStr = appData.date; // "2026-09-02"
+      cashServices.forEach(s => {
+        allServices.push({
+          id: s.id || `cash-${Date.now()}`,
+          date: s.date || cashRegister.date,
+          time: s.time || '00:00',
+          clientName: s.client || s.cliente || 'Cliente',
+          barberName: s.barberName || s.barbeiro || 'Desconhecido',
+          service: s.service || s.servico || 'Serviço',
+          serviceDescription: s.serviceDescription || '',
+          price: s.price || s.valor || 0,
+          commission: s.commission || s.comissao || 0,
+          status: 'completed',
+          notes: s.observacao || s.notes || '',
+          createdAt: s.createdAt || new Date().toISOString(),
+          source: 'cash'
+        });
+      });
+    }
+    
+    // Ordenar por data (mais recente primeiro)
+    allServices.sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return (b.time || '').localeCompare(a.time || '');
+    });
+    
+    console.log(`📦 ${allServices.length} serviços encontrados (${revenues.length} revenues + ${cashRegister?.services?.length || 0} do caixa)`);
+    
+    // 🔥 Formatar datas para o frontend (DD/MM/YYYY)
+    const formatted = allServices.map(s => {
+      const dateStr = s.date; // YYYY-MM-DD
       const [year, month, day] = dateStr.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
       
-      // 🔥 FORMATAR HORA (se tiver)
-      let formattedTime = '';
-      if (appData.time) {
-        formattedTime = appData.time;
-      } else if (appData.createdAt) {
-        const createdDate = new Date(appData.createdAt);
-        const hours = String(createdDate.getHours()).padStart(2, '0');
-        const minutes = String(createdDate.getMinutes()).padStart(2, '0');
-        formattedTime = `${hours}:${minutes}`;
-      }
-      
       return {
-        id: appData.id,
-        date: formattedDate,  // ← 🔥 AGORA VEM "02/09/2026"
-        time: formattedTime,
-        dateTime: formattedTime ? `${formattedDate} ${formattedTime}` : formattedDate,
-        client: appData.client || { name: 'Cliente removido', phone: '' },
-        barber: appData.barber || { name: 'Barbeiro removido' },
-        service: appData.service || 'Serviço',
-        serviceDescription: appData.serviceDescription || 'Serviço concluído',
-        price: appData.price || 0,
-        commission: appData.commission || 0,
-        status: appData.status,
-        notes: appData.notes || '',
-        createdAt: appData.createdAt,
-        updatedAt: appData.updatedAt,
-        clientName: appData.client?.name || 'Cliente removido',
-        total: appData.price || 0,
-        commissions: appData.commission || 0,
+        ...s,
+        date: formattedDate,
+        client: { name: s.clientName, phone: '' },
+        barber: { name: s.barberName },
       };
     });
     
     res.json(formatted);
   } catch (error) {
-    console.error('❌ Erro ao buscar serviços concluídos:', error);
+    console.error('❌ Erro ao buscar histórico de serviços:', error);
     res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 };
