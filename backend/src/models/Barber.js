@@ -71,6 +71,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'schedule',
     },
+     weeklyAdvance: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+      allowNull: false,
+      field: 'weekly_advance',
+    },
   }, {
     tableName: 'barbers',
     underscored: true,

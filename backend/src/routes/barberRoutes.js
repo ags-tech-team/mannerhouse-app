@@ -5,6 +5,8 @@ const {
   create,
   update,
   remove,
+  resetAllWeeklyAdvances,
+  updateWeeklyAdvance
 } = require('../controllers/barberController');
 const { authMiddleware, adminMiddleware } = require('../middlewares/auth');
 
@@ -17,7 +19,9 @@ router.get('/:id', getById);
 
 router.use(adminMiddleware);
 router.post('/', create);
+router.post('/reset-weekly-advances', resetAllWeeklyAdvances);
 router.put('/:id', update);
+router.put('/:id/advance', updateWeeklyAdvance);
 router.delete('/:id', remove);
 
 module.exports = router;

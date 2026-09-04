@@ -1,12 +1,12 @@
 const { Barber, User } = require('../models');
 const bcrypt = require('bcryptjs');
 
+// ========== GET ALL ==========
 const getAll = async (req, res) => {
   try {
     const { includeInactive } = req.query;
-    const where = { isActive: true};
+    const where = { isActive: true };
     
-    // 🔥 POR PADRÃO, NÃO MOSTRAR INATIVOS
     if (includeInactive !== 'true') {
       where.isActive = true;
     }
@@ -16,7 +16,7 @@ const getAll = async (req, res) => {
       include: [
         {
           model: User,
-          as: 'user',  // 🔥 ADICIONAR
+          as: 'user',
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
@@ -29,6 +29,7 @@ const getAll = async (req, res) => {
   }
 };
 
+// ========== GET BY ID ==========
 const getById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -36,7 +37,7 @@ const getById = async (req, res) => {
       include: [
         {
           model: User,
-          as: 'user',  // 🔥 ADICIONAR
+          as: 'user',
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
@@ -53,7 +54,7 @@ const getById = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO - CREATE
+// ========== CREATE ==========
 const create = async (req, res) => {
   try {
     const { 
@@ -64,7 +65,8 @@ const create = async (req, res) => {
       password, 
       serviceCommissionRate,
       productCommissionRate,
-      isActive 
+      isActive,
+      weeklyAdvance // 🔥 NOVO: vale semanal inicial
     } = req.body;
 
     // Verificar se email já existe
@@ -99,6 +101,7 @@ const create = async (req, res) => {
       serviceCommissionRate: serviceCommissionRate || 0.5,
       productCommissionRate: productCommissionRate || 0.5,
       isActive: isActive !== undefined ? isActive : true,
+      weeklyAdvance: weeklyAdvance || 0, // 🔥 NOVO: valor inicial
     });
 
     console.log('✅ Barbeiro criado:', {
@@ -106,6 +109,7 @@ const create = async (req, res) => {
       name: barber.name,
       serviceCommissionRate: barber.serviceCommissionRate,
       productCommissionRate: barber.productCommissionRate,
+      weeklyAdvance: barber.weeklyAdvance,
     });
 
     res.status(201).json(barber);
@@ -115,7 +119,7 @@ const create = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO - UPDATE
+// ========== UPDATE ==========
 const update = async (req, res) => {
   try {
     const { id } = req.params;
@@ -127,7 +131,8 @@ const update = async (req, res) => {
       password, 
       serviceCommissionRate,
       productCommissionRate,
-      isActive 
+      isActive,
+      weeklyAdvance // 🔥 NOVO: permite atualizar o vale semanal
     } = req.body;
 
     const barber = await Barber.findByPk(id);
@@ -156,6 +161,11 @@ const update = async (req, res) => {
       isActive: isActive !== undefined ? isActive : true,
     };
 
+    // 🔥 SE O weeklyAdvance FOR ENVIADO, ADICIONA AO UPDATE
+    if (weeklyAdvance !== undefined && weeklyAdvance !== null) {
+      updateData.weeklyAdvance = weeklyAdvance;
+    }
+
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }
@@ -167,6 +177,7 @@ const update = async (req, res) => {
       name: barber.name,
       serviceCommissionRate: barber.serviceCommissionRate,
       productCommissionRate: barber.productCommissionRate,
+      weeklyAdvance: barber.weeklyAdvance,
     });
 
     // Buscar o barbeiro atualizado
@@ -174,7 +185,7 @@ const update = async (req, res) => {
       include: [
         {
           model: User,
-          as: 'user',  // 🔥 ADICIONAR
+          as: 'user',
           attributes: ['id', 'name', 'email', 'isActive'],
         },
       ],
@@ -187,6 +198,7 @@ const update = async (req, res) => {
   }
 };
 
+// ========== REMOVE (DESATIVAR) ==========
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
@@ -212,10 +224,85 @@ const remove = async (req, res) => {
   }
 };
 
+// ========== 🔥 NOVO: ATUALIZAR APENAS O WEEKLY ADVANCE ==========
+const updateWeeklyAdvance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { weeklyAdvance, action } = req.body;
+
+    // 🔥 action pode ser 'set' (substitui) ou 'add' (soma/subtrai)
+    const barber = await Barber.findByPk(id);
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+
+    let newAdvance = barber.weeklyAdvance;
+
+    if (action === 'add') {
+      // 🔥 ADICIONAR UM VALOR (ex: dar um vale)
+      const value = parseFloat(weeklyAdvance) || 0;
+      newAdvance = (barber.weeklyAdvance || 0) + value;
+    } else if (action === 'set') {
+      // 🔥 DEFINIR UM VALOR ESPECÍFICO (substituir)
+      newAdvance = parseFloat(weeklyAdvance) || 0;
+    } else if (action === 'reset') {
+      // 🔥 RESETAR PARA ZERO (ex: começo da semana)
+      newAdvance = 0;
+    } else {
+      // Fallback: set
+      newAdvance = parseFloat(weeklyAdvance) || 0;
+    }
+
+    // 🔥 GARANTIR QUE NÃO FIQUE NEGATIVO
+    if (newAdvance < 0) newAdvance = 0;
+
+    await barber.update({ weeklyAdvance: newAdvance });
+
+    console.log(`✅ WeeklyAdvance do barbeiro ${barber.name} atualizado: ${newAdvance}`);
+
+    res.json({
+      message: 'Vale semanal atualizado com sucesso!',
+      barberId: barber.id,
+      barberName: barber.name,
+      weeklyAdvance: newAdvance,
+    });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar vale semanal:', error);
+    res.status(500).json({ error: 'Erro ao atualizar vale semanal' });
+  }
+};
+
+// ========== 🔥 NOVO: RESETAR WEEKLY ADVANCE DE TODOS OS BARBEIROS ==========
+const resetAllWeeklyAdvances = async (req, res) => {
+  try {
+    // 🔥 Resetar para 0 no início da semana (pode ser chamado manualmente ou por um cron job)
+    const barbers = await Barber.findAll({ where: { isActive: true } });
+    
+    const updates = await Promise.all(barbers.map(async (barber) => {
+      await barber.update({ weeklyAdvance: 0 });
+      return { id: barber.id, name: barber.name };
+    }));
+
+    console.log(`✅ WeeklyAdvance resetado para ${updates.length} barbeiros`);
+    
+    res.json({
+      message: 'Todos os vales semanais foram resetados para 0',
+      count: updates.length,
+      barbers: updates,
+    });
+  } catch (error) {
+    console.error('❌ Erro ao resetar vales semanais:', error);
+    res.status(500).json({ error: 'Erro ao resetar vales semanais' });
+  }
+};
+
+// ========== EXPORTAR ==========
 module.exports = {
   getAll,
   getById,
   create,
   update,
   remove,
+  updateWeeklyAdvance,  // 🔥 NOVO
+  resetAllWeeklyAdvances, // 🔥 NOVO
 };
