@@ -22,8 +22,9 @@ import {
   Phone,
   FileText,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface Barber {
   id: string;
@@ -63,6 +64,7 @@ interface NewClientData {
 }
 
 const AdminMensalistas = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -72,13 +74,15 @@ const AdminMensalistas = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [editingBarberId, setEditingBarberId] = useState('');
   
-  // 🔥 MÊS SELECIONADO
+  // 🔥 CONFIRMAÇÃO PARA REMOVER
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [clientToRemove, setClientToRemove] = useState<Client | null>(null);
+
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
 
@@ -93,7 +97,6 @@ const AdminMensalistas = () => {
 
   const monthlyFee = useNumberInput();
 
-  // 🔥 CARREGAR BARBEIROS
   useEffect(() => {
     loadBarbers();
   }, []);
@@ -133,66 +136,42 @@ const AdminMensalistas = () => {
   }, [selectedMonth]);
 
   const loadClients = async () => {
-  setLoading(true);
-  try {
-    console.log('🔄 Buscando clientes mensalistas...');
-    console.log('📅 Mês selecionado:', selectedMonth); // 🔥 DEBUG
-    
-    // 🔥 ENVIAR O MÊS PARA O BACKEND
-    const response = await api.get('/monthly/clients', {
-      params: { month: selectedMonth }
-    });
-    
-    console.log('📦 Clientes carregados:', response.data);
-    setClients(response.data);
-  } catch (error: any) {
-    console.error('❌ Erro ao carregar mensalistas:', error);
-    console.error('Detalhes:', error.response?.data || error.message);
-    setClients([]);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      const response = await api.get('/monthly/clients', {
+        params: { month: selectedMonth }
+      });
+      setClients(response.data);
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar mensalistas:', error);
+      setClients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getLastPayment = (client: Client) => {
-    if (!client.MonthlyPayments || client.MonthlyPayments.length === 0) {
-      return null;
-    }
-    
+    if (!client.MonthlyPayments || client.MonthlyPayments.length === 0) return null;
     const paidPayments = client.MonthlyPayments.filter(p => p.paid);
     if (paidPayments.length === 0) return null;
-    
     const sorted = paidPayments.sort((a, b) => {
-      if (a.paidAt && b.paidAt) {
-        return new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime();
-      }
+      if (a.paidAt && b.paidAt) return new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime();
       if (a.month > b.month) return -1;
       if (a.month < b.month) return 1;
       return 0;
     });
-    
     return sorted[0];
   };
 
   const formatPaymentDate = (payment: MonthlyPayment | null) => {
     if (!payment) return 'Nunca';
-    
     if (payment.paidAt) {
       const date = new Date(payment.paidAt);
-      return date.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: 'long', 
-        year: 'numeric' 
-      });
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     }
-    
     const [year, month] = payment.month.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-    return date.toLocaleDateString('pt-BR', { 
-      day: '2-digit',
-      month: 'long', 
-      year: 'numeric' 
-    });
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
   const handleSelectClient = (client: Client) => {
@@ -207,8 +186,6 @@ const AdminMensalistas = () => {
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 🔥 USAR clientName (o que foi digitado/selecionado no autocomplete)
     const nomeCliente = clientName.trim();
     const telefoneCliente = newClient.phone.trim() || clientPhone.trim();
     
@@ -216,17 +193,14 @@ const AdminMensalistas = () => {
       alert('Nome é obrigatório');
       return;
     }
-    
     if (!telefoneCliente) {
       alert('Telefone é obrigatório');
       return;
     }
-    
     if (newClient.monthlyFee <= 0) {
       alert('Valor da mensalidade deve ser maior que 0');
       return;
     }
-
     if (!newClient.barberId) {
       alert('Selecione um barbeiro responsável');
       return;
@@ -234,7 +208,7 @@ const AdminMensalistas = () => {
 
     try {
       const response = await api.post('/monthly/clients', {
-        name: nomeCliente,        // 🔥 CORRIGIDO: usa clientName
+        name: nomeCliente,
         phone: telefoneCliente,
         monthlyFee: newClient.monthlyFee,
         barberId: newClient.barberId,
@@ -242,9 +216,7 @@ const AdminMensalistas = () => {
         notes: newClient.notes || 'Nova assinatura',
       });
 
-      console.log('✅ Mensalista criado:', response.data);
       await loadClients();
-      
       setShowNewClientModal(false);
       setClientName('');
       setClientPhone('');
@@ -256,7 +228,6 @@ const AdminMensalistas = () => {
         paymentMethod: 'pix',
         notes: ''
       });
-      
       alert('✅ Cliente mensalista criado! Aguardando primeiro pagamento.');
     } catch (error: any) {
       console.error('❌ Erro ao criar mensalista:', error);
@@ -268,21 +239,32 @@ const AdminMensalistas = () => {
     }
   };
 
-  const handleToggleMonthly = async (client: Client) => {
+  // 🔥 REMOVER MENSALISTA – abre o modal de confirmação
+  const openRemoveConfirm = (client: Client) => {
+    setClientToRemove(client);
+    setShowConfirmModal(true);
+  };
+
+  // 🔥 EXECUTA A REMOÇÃO
+  const handleConfirmRemove = async () => {
+    if (!clientToRemove) return;
     try {
-      await api.put(`/monthly/client/${client.id}`, {
-        isMonthly: !client.isMonthly,
-        monthlyFee: client.monthlyFee || 0,
-        barberId: client.barberId || null,
+      await api.put(`/monthly/client/${clientToRemove.id}`, {
+        isMonthly: false,
+        monthlyFee: clientToRemove.monthlyFee || 0,
+        barberId: clientToRemove.barberId || null,
       });
       await loadClients();
+      setShowConfirmModal(false);
+      setClientToRemove(null);
+      alert('✅ Cliente removido do plano mensal com sucesso!');
     } catch (error) {
-      console.error('Erro ao atualizar:', error);
-      alert('Erro ao atualizar status mensal');
+      console.error('❌ Erro ao remover mensalista:', error);
+      alert('❌ Erro ao remover cliente do plano mensal.');
+      setShowConfirmModal(false);
     }
   };
 
-  // 🔥 FUNÇÃO PARA ABRIR MODAL DE EDIÇÃO
   const handleEditClient = (client: Client) => {
     setSelectedClient(client);
     setEditingBarberId(client.barberId || '');
@@ -290,37 +272,32 @@ const AdminMensalistas = () => {
     setShowModal(true);
   };
 
-  // 🔥 FUNÇÃO PARA SALVAR EDIÇÃO
   const handleSaveEdit = async () => {
     if (!selectedClient) return;
-    
     const fee = monthlyFee.getNumberValue();
     if (!fee || fee < 0) {
       alert('Digite um valor válido');
       return;
     }
-
     try {
       await api.put(`/monthly/client/${selectedClient.id}`, {
         isMonthly: true,
         monthlyFee: fee,
         barberId: editingBarberId || null,
       });
-      
       monthlyFee.reset();
       await loadClients();
       setShowModal(false);
       setSelectedClient(null);
       alert('✅ Cliente atualizado com sucesso!');
     } catch (error) {
-      console.error('Erro ao atualizar:', error);
-      alert('Erro ao atualizar cliente');
+      console.error('❌ Erro ao atualizar:', error);
+      alert('❌ Erro ao atualizar cliente');
     }
   };
 
   const handleConfirmPayment = async (clientId: string) => {
     if (!confirm(`Confirmar pagamento da mensalidade para ${selectedMonth}?`)) return;
-
     try {
       await api.post(`/monthly/pay/${clientId}`, {
         month: selectedMonth,
@@ -329,14 +306,8 @@ const AdminMensalistas = () => {
       await loadClients();
       alert('✅ Pagamento confirmado! Comissão enviada para o faturamento.');
     } catch (error: any) {
-      console.error('Erro ao confirmar pagamento:', error);
-      
-      const errorMessage = error.response?.data?.error || error.response?.data?.message;
-      if (errorMessage) {
-        alert(errorMessage);
-      } else {
-        alert('Erro ao confirmar pagamento');
-      }
+      console.error('❌ Erro ao confirmar pagamento:', error);
+      alert(error.response?.data?.error || 'Erro ao confirmar pagamento');
     }
   };
 
@@ -405,19 +376,13 @@ const AdminMensalistas = () => {
           </button>
           
           <div className="flex items-center gap-1 sm:gap-2 bg-white rounded-lg shadow px-2 sm:px-3 py-1.5 sm:py-2">
-            <button
-              onClick={() => changeMonth(-1)}
-              className="p-1 hover:bg-gray-100 rounded transition"
-            >
+            <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-gray-100 rounded transition">
               <ChevronLeft size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
             <span className="text-[10px] sm:text-sm font-medium min-w-[80px] sm:min-w-[120px] text-center truncate">
               {formatMonthDisplay(selectedMonth)}
             </span>
-            <button
-              onClick={() => changeMonth(1)}
-              className="p-1 hover:bg-gray-100 rounded transition"
-            >
+            <button onClick={() => changeMonth(1)} className="p-1 hover:bg-gray-100 rounded transition">
               <ChevronRight size={14} className="sm:w-4 sm:h-4 text-[#7f7c7a]" />
             </button>
             {!isCurrentMonth() && (
@@ -640,7 +605,7 @@ const AdminMensalistas = () => {
                                 </button>
                               )}
                               <button
-                                onClick={() => handleToggleMonthly(client)}
+                                onClick={() => openRemoveConfirm(client)}
                                 className="text-red-500 hover:text-red-700 transition p-1"
                                 title="Remover"
                               >
@@ -659,7 +624,62 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL NOVA ASSINATURA - Responsivo */}
+      {/* ==================== MODAIS ==================== */}
+
+      {/* MODAL DE CONFIRMAÇÃO PARA REMOVER */}
+      {showConfirmModal && clientToRemove && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#060606] flex items-center gap-2">
+                <AlertCircle size={24} className="text-red-500" />
+                Confirmar Remoção
+              </h2>
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setClientToRemove(null);
+                }}
+                className="text-[#7f7c7a] hover:text-[#060606]"
+              >
+                <X size={20} className="sm:w-6 sm:h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 text-sm text-yellow-700">
+                <p className="font-medium">⚠️ Atenção</p>
+                <p className="mt-1">
+                  Tem certeza que deseja remover <strong>{clientToRemove.name}</strong> do plano mensal?
+                </p>
+                <p className="mt-1 text-xs text-yellow-600">
+                  Isso não excluirá o cliente, apenas o desativará como mensalista. Os pagamentos futuros não serão mais cobrados.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setClientToRemove(null);
+                  }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmRemove}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base order-2 sm:order-2"
+                >
+                  <X size={16} /> Remover
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NOVA ASSINATURA (mantido igual) */}
       {showNewClientModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -689,6 +709,7 @@ const AdminMensalistas = () => {
             </div>
 
             <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-4">
+              {/* ... campos do formulário (mantido igual) ... */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Nome do Cliente *</label>
                 <ClientAutocomplete
@@ -837,7 +858,7 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL EDITAR - Responsivo */}
+      {/* MODAL EDITAR (mantido igual) */}
       {showModal && selectedClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
@@ -924,7 +945,7 @@ const AdminMensalistas = () => {
         </div>
       )}
     </div>
-  )
+  );
 };
 
 export default AdminMensalistas;
