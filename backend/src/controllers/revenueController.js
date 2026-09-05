@@ -491,7 +491,7 @@ const getServices = async (req, res) => {
       }
     });
 
-    // 🔥 SEGUNDA DEDUPLICAÇÃO: agrupar por (cliente + barbeiro + serviço + valor) e manter o mais antigo
+    // 🔥 DEDUPLICAÇÃO POR CLIENTE + SERVIÇO + BARBEIRO + VALOR (mantém o mais antigo)
     const grouped = new Map();
     results.forEach(item => {
       const groupKey = `${item.clientName}|${item.barberName}|${item.service}|${item.price}`;
@@ -499,15 +499,20 @@ const getServices = async (req, res) => {
         grouped.set(groupKey, item);
       } else {
         const existing = grouped.get(groupKey);
-        // Comparar datas (formato YYYY-MM-DD)
         if (item.date < existing.date) {
-          grouped.set(groupKey, item); // mantém o mais antigo
+          grouped.set(groupKey, item);
         }
       }
     });
 
-    // Converter de volta para array
-    const finalResults = Array.from(grouped.values());
+    let finalResults = Array.from(grouped.values());
+
+    // 🔥 FILTRO: REMOVER REGISTROS COM BARBEIRO "Desconhecido" OU SERVIÇO "Serviço"
+    finalResults = finalResults.filter(item => {
+      const barberOk = item.barberName !== 'Desconhecido';
+      const serviceOk = item.service !== 'Serviço' && item.serviceDescription !== 'Serviço';
+      return barberOk && serviceOk;
+    });
 
     // Ordenar por data (mais recente primeiro)
     finalResults.sort((a, b) => {
@@ -515,7 +520,7 @@ const getServices = async (req, res) => {
       return (b.time || '').localeCompare(a.time || '');
     });
 
-    console.log(`📦 ${results.length} serviços brutos -> ${finalResults.length} após deduplicação por cliente+serviço (mantendo o mais antigo)`);
+    console.log(`📦 ${results.length} serviços brutos -> ${finalResults.length} após deduplicação e filtros`);
 
     // Formatar datas para o frontend (DD/MM/YYYY)
     const formatted = finalResults.map(s => {
