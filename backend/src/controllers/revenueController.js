@@ -357,16 +357,41 @@ const getByDate = async (req, res) => {
 
 const getServices = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
-    console.log('📥 Buscando histórico de serviços (unificado):', { startDate, endDate });
+    const { month, startDate, endDate } = req.query;
+    let start, end;
+
+    // 🔥 Se receber month (YYYY-MM), calcular o intervalo no backend (usando dateHelper)
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [year, mes] = month.split('-').map(Number);
+      start = `${year}-${String(mes).padStart(2, '0')}-01`;
+      // 🔥 Usar dateHelper para obter o último dia (já considera timezone)
+      const lastDay = new Date(year, mes, 0).getDate();
+      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      console.log(`📅 Mês recebido: ${month} -> intervalo: ${start} até ${end}`);
+    } else if (startDate && endDate) {
+      // Fallback para chamadas que ainda usam startDate/endDate
+      start = startDate;
+      end = endDate;
+      console.log(`📅 Usando datas fornecidas: ${start} até ${end}`);
+    } else {
+      // Fallback: mês atual
+      const hoje = dateHelper.getTodayLocal();
+      const [year, mes] = hoje.split('-').map(Number);
+      start = `${year}-${String(mes).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, mes, 0).getDate();
+      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      console.log(`📅 Mês atual (fallback): ${start} até ${end}`);
+    }
+
+    console.log('📥 Buscando histórico de serviços (unificado):', { start, end });
 
     const results = [];
     const uniqueKeys = new Set();
 
     // 1️⃣ BUSCAR REVENUES CONFIRMADOS
     const revenueWhere = { status: 'confirmed' };
-    if (startDate && endDate) {
-      revenueWhere.date = { [Op.between]: [startDate, endDate] };
+    if (start && end) {
+      revenueWhere.date = { [Op.between]: [start, end] };
     }
     const revenues = await Revenue.findAll({
       where: revenueWhere,
@@ -396,8 +421,8 @@ const getServices = async (req, res) => {
 
     // 2️⃣ BUSCAR SERVIÇOS DO CAIXA (ABERTOS E FECHADOS)
     const cashWhere = {};
-    if (startDate && endDate) {
-      cashWhere.date = { [Op.between]: [startDate, endDate] };
+    if (start && end) {
+      cashWhere.date = { [Op.between]: [start, end] };
     }
     const cashRegisters = await CashRegister.findAll({
       where: cashWhere,
@@ -437,8 +462,8 @@ const getServices = async (req, res) => {
 
     // 3️⃣ BUSCAR APPOINTMENTS CONCLUÍDOS (COM VALOR > 0, PARA EVITAR MENSALIDADES VAZIAS)
     const appWhere = { status: 'completed' };
-    if (startDate && endDate) {
-      appWhere.date = { [Op.between]: [startDate, endDate] };
+    if (start && end) {
+      appWhere.date = { [Op.between]: [start, end] };
     }
     const appointments = await Appointment.findAll({
       where: appWhere,
@@ -452,7 +477,7 @@ const getServices = async (req, res) => {
       const price = app.price || 0;
       // 🔥 PULAR APENAS SE FOR MENSALIDADE E VALOR 0
       if (price === 0 && app.service && app.service.toLowerCase().includes('mensal')) {
-        return; // ignora mensalidades com valor 0
+        return;
       }
       const clientName = app.client?.name || 'Cliente';
       const barberName = app.barber?.name || 'Desconhecido';
