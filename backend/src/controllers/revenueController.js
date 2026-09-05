@@ -360,21 +360,18 @@ const getServices = async (req, res) => {
     const { month, startDate, endDate } = req.query;
     let start, end;
 
-    // 🔥 Se receber month (YYYY-MM), calcular o intervalo no backend (usando dateHelper)
+    // 🔥 Se receber month (YYYY-MM), calcular o intervalo no backend
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const [year, mes] = month.split('-').map(Number);
       start = `${year}-${String(mes).padStart(2, '0')}-01`;
-      // 🔥 Usar dateHelper para obter o último dia (já considera timezone)
       const lastDay = new Date(year, mes, 0).getDate();
       end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       console.log(`📅 Mês recebido: ${month} -> intervalo: ${start} até ${end}`);
     } else if (startDate && endDate) {
-      // Fallback para chamadas que ainda usam startDate/endDate
       start = startDate;
       end = endDate;
       console.log(`📅 Usando datas fornecidas: ${start} até ${end}`);
     } else {
-      // Fallback: mês atual
       const hoje = dateHelper.getTodayLocal();
       const [year, mes] = hoje.split('-').map(Number);
       start = `${year}-${String(mes).padStart(2, '0')}-01`;
@@ -388,11 +385,9 @@ const getServices = async (req, res) => {
     const results = [];
     const uniqueKeys = new Set();
 
-    // 1️⃣ BUSCAR REVENUES CONFIRMADOS
+    // 1️⃣ REVENUES
     const revenueWhere = { status: 'confirmed' };
-    if (start && end) {
-      revenueWhere.date = { [Op.between]: [start, end] };
-    }
+    if (start && end) revenueWhere.date = { [Op.between]: [start, end] };
     const revenues = await Revenue.findAll({
       where: revenueWhere,
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
@@ -419,11 +414,9 @@ const getServices = async (req, res) => {
       }
     });
 
-    // 2️⃣ BUSCAR SERVIÇOS DO CAIXA (ABERTOS E FECHADOS)
+    // 2️⃣ CAIXA
     const cashWhere = {};
-    if (start && end) {
-      cashWhere.date = { [Op.between]: [start, end] };
-    }
+    if (start && end) cashWhere.date = { [Op.between]: [start, end] };
     const cashRegisters = await CashRegister.findAll({
       where: cashWhere,
       order: [['date', 'DESC']]
@@ -460,11 +453,9 @@ const getServices = async (req, res) => {
       });
     });
 
-    // 3️⃣ BUSCAR APPOINTMENTS CONCLUÍDOS (COM VALOR > 0, PARA EVITAR MENSALIDADES VAZIAS)
+    // 3️⃣ APPOINTMENTS
     const appWhere = { status: 'completed' };
-    if (start && end) {
-      appWhere.date = { [Op.between]: [start, end] };
-    }
+    if (start && end) appWhere.date = { [Op.between]: [start, end] };
     const appointments = await Appointment.findAll({
       where: appWhere,
       include: [
@@ -475,10 +466,7 @@ const getServices = async (req, res) => {
     });
     appointments.forEach(app => {
       const price = app.price || 0;
-      // 🔥 PULAR APENAS SE FOR MENSALIDADE E VALOR 0
-      if (price === 0 && app.service && app.service.toLowerCase().includes('mensal')) {
-        return;
-      }
+      if (price === 0 && app.service && app.service.toLowerCase().includes('mensal')) return;
       const clientName = app.client?.name || 'Cliente';
       const barberName = app.barber?.name || 'Desconhecido';
       const service = app.service || 'Serviço';
@@ -503,16 +491,34 @@ const getServices = async (req, res) => {
       }
     });
 
+    // 🔥 SEGUNDA DEDUPLICAÇÃO: agrupar por (cliente + barbeiro + serviço + valor) e manter o mais antigo
+    const grouped = new Map();
+    results.forEach(item => {
+      const groupKey = `${item.clientName}|${item.barberName}|${item.service}|${item.price}`;
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, item);
+      } else {
+        const existing = grouped.get(groupKey);
+        // Comparar datas (formato YYYY-MM-DD)
+        if (item.date < existing.date) {
+          grouped.set(groupKey, item); // mantém o mais antigo
+        }
+      }
+    });
+
+    // Converter de volta para array
+    const finalResults = Array.from(grouped.values());
+
     // Ordenar por data (mais recente primeiro)
-    results.sort((a, b) => {
+    finalResults.sort((a, b) => {
       if (a.date !== b.date) return b.date.localeCompare(a.date);
       return (b.time || '').localeCompare(a.time || '');
     });
 
-    console.log(`📦 ${results.length} serviços únicos encontrados (revenues: ${revenues.length}, caixa: ${cashRegisters.reduce((acc, c) => acc + (c.services || []).length, 0)}, appointments: ${appointments.length})`);
+    console.log(`📦 ${results.length} serviços brutos -> ${finalResults.length} após deduplicação por cliente+serviço (mantendo o mais antigo)`);
 
     // Formatar datas para o frontend (DD/MM/YYYY)
-    const formatted = results.map(s => {
+    const formatted = finalResults.map(s => {
       const dateStr = s.date;
       const [year, month, day] = dateStr.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
