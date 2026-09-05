@@ -174,7 +174,8 @@ const BarberHistorico = () => {
       
       console.log('📦 Resposta recebida:', servicesRes.data.length);
       
-      const formattedServices = (servicesRes.data || []).map((r: any) => ({
+      // 🔥 1. Mapear os dados brutos para o formato Service
+      const rawServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
         date: r.date || startDate,
         time: r.time || (r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00'),
@@ -182,13 +183,28 @@ const BarberHistorico = () => {
         barber: { name: r.barber?.name || 'Desconhecido' },
         service: r.service || 'Serviço',
         serviceDescription: r.serviceDescription || r.service || 'Serviço',
-        // 🔥 CORRIGIDO: usar price e commission (e fallback para total/commissions)
         price: r.price || r.total || 0,
         commission: r.commission || r.commissions || 0,
         status: 'completed',
         notes: r.notes || '',
         createdAt: r.createdAt,
       }));
+
+      // 🔥 2. DEDUPLICAR usando chave composta (data + cliente + horário + valor + serviço)
+      const uniqueMap = new Map();
+      rawServices.forEach((service: any) => {
+        // Chave que identifica um serviço único
+        const key = `${service.date}|${service.client.name}|${service.time}|${service.price}|${service.service}`;
+        // Se a chave ainda não existe, adiciona; senão, mantém o primeiro (ou poderia manter o mais recente)
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, service);
+        }
+      });
+
+      // Converter o Map de volta para array
+      const formattedServices = Array.from(uniqueMap.values());
+      console.log(`✅ Removidas ${rawServices.length - formattedServices.length} duplicatas`);
+
       setServices(formattedServices);
 
       // Carregar produtos vendidos
