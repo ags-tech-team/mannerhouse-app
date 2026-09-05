@@ -194,6 +194,7 @@ const BarberCaixa = () => {
       const data = await cashRegisterService.getToday();
       console.log('📦 Dados do caixa (RAW):', data);
       setCaixa(data);
+      console.log('🔍 barbersList no loadData:', barbersList.length, barbersList.map(b => b.name));
 
       // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
       let barberFromData = null;
