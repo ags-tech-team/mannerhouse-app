@@ -84,22 +84,26 @@ const AdminFaturamento = () => {
     setLoading(true);
     try {
       const params: any = {};
+      
       if (periodType === 'week') {
         params.period = 'week';
         const now = new Date();
         now.setDate(now.getDate() + weekOffset * 7);
         const dayOfWeek = now.getDay();
+        const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - dayOfWeek);
+        startOfWeek.setDate(now.getDate() + diffToMonday);
         startOfWeek.setHours(0, 0, 0, 0);
         const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setDate(startOfWeek.getDate() + 5);
         endOfWeek.setHours(23, 59, 59, 999);
         params.startDate = startOfWeek.toISOString().split('T')[0];
         params.endDate = endOfWeek.toISOString().split('T')[0];
+        console.log('📅 Semana (segunda a sábado):', params.startDate, 'até', params.endDate);
       } else {
         params.month = selectedMonth;
       }
+      
       const response = await api.get('/revenues/dashboard', { params });
       setData(response.data);
     } catch (error) {

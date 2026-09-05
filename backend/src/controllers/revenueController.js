@@ -21,10 +21,27 @@ const getFinancialDashboard = async (req, res) => {
         endDate = queryEnd;
         console.log('📅 Usando datas enviadas:', startDate, 'até', endDate);
       } else {
-        const startOfWeek = dateHelper.subtractDays(hoje, 7);
-        startDate = startOfWeek;
-        endDate = hoje;
-        console.log('📅 Calculando semana atual:', startDate, 'até', endDate);
+        // 🔥 CALCULAR A SEMANA ATUAL DE SEGUNDA A SÁBADO
+        const hojeObj = new Date(hoje + 'T00:00:00');
+        // Ajustar para segunda-feira (0=domingo, 1=segunda, ..., 6=sábado)
+        let dayOfWeek = hojeObj.getDay(); // 0=domingo
+        // Se domingo, volta 6 dias para segunda (semana anterior)
+        const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
+        const monday = new Date(hojeObj);
+        monday.setDate(hojeObj.getDate() + diffToMonday);
+        const saturday = new Date(monday);
+        saturday.setDate(monday.getDate() + 5); // +5 dias = sábado
+
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        startDate = formatDate(monday);
+        endDate = formatDate(saturday);
+        console.log(`📅 Calculando semana (segunda a sábado): ${startDate} até ${endDate}`);
       }
       monthString = startDate.substring(0, 7);
     } else {
@@ -37,6 +54,7 @@ const getFinancialDashboard = async (req, res) => {
       console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
     }
     
+    // ===== BUSCAR REVENUES =====
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] },
@@ -48,6 +66,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
+    // ===== BUSCAR SALES =====
     const sales = await Sale.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -58,6 +77,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
+    // ===== BUSCAR MONTHLY PAYMENTS =====
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         month: monthString,
@@ -80,6 +100,7 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
+    // ===== CALCULAR TOTAIS =====
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
@@ -94,6 +115,7 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
+    // ===== COMISSÕES POR BARBEIRO =====
     const commissionsByBarber = {};
 
     serviceRevenues.forEach(r => {
@@ -143,6 +165,7 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
+    // ===== BUSCAR EXPENSES =====
     const expenses = await Expense.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -158,6 +181,7 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
+    // ===== MONTAR RESULTADO =====
     const result = {
       period: {
         type: period || 'month',
@@ -250,8 +274,24 @@ const getSummary = async (req, res) => {
         startDate = queryStart;
         endDate = queryEnd;
       } else {
-        startDate = dateHelper.subtractDays(hoje, 7);
-        endDate = hoje;
+        // 🔥 CALCULAR A SEMANA ATUAL DE SEGUNDA A SÁBADO
+        const hojeObj = new Date(hoje + 'T00:00:00');
+        let dayOfWeek = hojeObj.getDay();
+        const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
+        const monday = new Date(hojeObj);
+        monday.setDate(hojeObj.getDate() + diffToMonday);
+        const saturday = new Date(monday);
+        saturday.setDate(monday.getDate() + 5);
+        
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        startDate = formatDate(monday);
+        endDate = formatDate(saturday);
+        console.log(`📅 Resumo semana (segunda a sábado): ${startDate} até ${endDate}`);
       }
     } else if (period === 'month') {
       startDate = hoje.substring(0, 7) + '-01';
