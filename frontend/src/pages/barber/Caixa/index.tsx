@@ -88,7 +88,7 @@ const BarberCaixa = () => {
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
-  // 🔥 NOVO: estado para o barbeiro selecionado na abertura
+  // Estado para o barbeiro selecionado na abertura
   const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -175,40 +175,25 @@ const BarberCaixa = () => {
     return occupiedTimes.includes(time);
   };
 
+  // ========== LOAD BARBERS ==========
   const loadBarbersList = async () => {
     try {
       const response = await api.get('/barbers');
       const activeBarbers = response.data.filter((b: any) => b.isActive);
       setBarbersList(activeBarbers);
-      // Se não houver currentBarber, escolhe o primeiro (fallback)
-      if (activeBarbers.length > 0 && !currentBarber) {
-        setCurrentBarber(activeBarbers[0]);
-        setFormData(prev => ({
-          ...prev,
-          barbeiroId: activeBarbers[0].id,
-          barbeiroNome: activeBarbers[0].name,
-        }));
-      }
+      return activeBarbers;
     } catch (error) {
       console.error('Erro ao carregar barbeiros:', error);
+      return [];
     }
   };
 
-  useEffect(() => {
-    loadData();
-    loadBarbersList();
-  }, []);
-
-  useEffect(() => {
-    loadOccupiedTimes();
-  }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
-
+  // ========== LOAD DATA (CAIXA) ==========
   const loadData = async () => {
     setLoading(true);
     try {
       const data = await cashRegisterService.getToday();
       console.log('📦 Dados do caixa (RAW):', data);
-
       setCaixa(data);
 
       // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
@@ -225,21 +210,20 @@ const BarberCaixa = () => {
       } else {
         // Se não houver barbeiro associado, usar o primeiro da lista (fallback)
         if (barbersList.length > 0 && !currentBarber) {
-          setCurrentBarber(barbersList[0]);
+          const first = barbersList[0];
+          setCurrentBarber(first);
           setFormData(prev => ({
             ...prev,
-            barbeiroId: barbersList[0].id,
-            barbeiroNome: barbersList[0].name,
+            barbeiroId: first.id,
+            barbeiroNome: first.name,
           }));
         }
       }
 
       if (data.services && data.services.length > 0) {
         console.log(`📋 ${data.services.length} serviços encontrados`);
-
         const servicosFormatados = data.services.map((s: any, index: number) => {
           console.log(`🔍 Serviço ${index + 1}:`, s);
-
           const formatted = {
             id: s.id || Date.now().toString(),
             cliente: s.cliente || s.client || 'Cliente',
@@ -256,11 +240,9 @@ const BarberCaixa = () => {
             formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
             observacao: s.observacao || '',
           };
-
           console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
           return formatted;
         });
-
         setServicos(servicosFormatados);
       } else {
         setServicos([]);
@@ -286,7 +268,7 @@ const BarberCaixa = () => {
             totalRevenue: caixaData.totalVendas || 0,
             totalCommissions: caixaData.totalComissoes || 0,
             servicesCount: caixaData.quantidadeServicos || 0,
-            barber: null, // fallback não tem barbeiro
+            barber: null,
           });
           setServicos(caixaData.servicos || []);
         }
@@ -298,6 +280,22 @@ const BarberCaixa = () => {
     }
   };
 
+  // ========== INICIALIZAÇÃO: CARREGAR BARBEIROS PRIMEIRO ==========
+  useEffect(() => {
+    const init = async () => {
+      const barbers = await loadBarbersList();
+      // Agora que barbersList está carregado, carregar dados do caixa
+      await loadData();
+    };
+    init();
+  }, []);
+
+  // ========== OUTROS EFFECTS ==========
+  useEffect(() => {
+    loadOccupiedTimes();
+  }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
+
+  // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
     const initialValor = valorInicial.getNumberValue();
     if (!initialValor || initialValor < 0) {
@@ -309,7 +307,7 @@ const BarberCaixa = () => {
       return;
     }
     try {
-      await cashRegisterService.open(initialValor, selectedBarberForOpening.id); // 🔥 ENVIAR O ID
+      await cashRegisterService.open(initialValor, selectedBarberForOpening.id);
       await loadData();
       setShowModalAbrirCaixa(false);
       valorInicial.reset();
@@ -334,10 +332,10 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) CORRIGIDO ==========
+  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) ==========
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
-      // 🔥 EDIÇÃO - CARREGA TODOS OS DADOS
+      // EDIÇÃO
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -353,15 +351,12 @@ const BarberCaixa = () => {
       setSelectedTime(servico.hora || '');
       valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
-      
-      // 🔥 CARREGA OS SERVIÇOS SELECIONADOS
       if (servico.servicoId) {
         const serviceIds = servico.servicoId.split(',');
         const loadedServices = serviceIds
           .map((id: string) => {
             const trimmedId = id.trim();
             let baseId = trimmedId;
-            // Tenta extrair o ID base (caso tenha sufixo)
             const parts = trimmedId.split('-');
             if (parts.length > 2) {
               const possibleBaseId = parts.slice(0, -2).join('-');
@@ -381,7 +376,7 @@ const BarberCaixa = () => {
         setSelectedServices([]);
       }
     } else {
-      // 🔥 CRIAÇÃO - LIMPA TUDO
+      // CRIAÇÃO
       setEditingServico(null);
       setClientName('');
       setClientPhone('');
@@ -398,7 +393,6 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
-      // Se não houver currentBarber, usa o primeiro da lista
       if (barbersList.length > 0 && !currentBarber) {
         setCurrentBarber(barbersList[0]);
         setFormData(prev => ({
@@ -407,7 +401,6 @@ const BarberCaixa = () => {
           barbeiroNome: barbersList[0].name,
         }));
       } else if (currentBarber) {
-        // Usa o barbeiro atual (do caixa)
         setFormData(prev => ({
           ...prev,
           barbeiroId: currentBarber.id,
@@ -418,7 +411,7 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
-  // ========== SUBMIT (SALVAR) CORRIGIDO ==========
+  // ========== SUBMIT (SALVAR) ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caixa?.isOpen) {
@@ -434,17 +427,13 @@ const BarberCaixa = () => {
       alert('Selecione pelo menos um serviço');
       return;
     }
-    
-    // 🔥 NOME DO CLIENTE - PRIORIZA O QUE VEIO DO FORMULÁRIO
     const clientNameFinal = isGuest 
       ? 'Cliente sem cadastro' 
       : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
-    
     if (!clientNameFinal) {
       alert('Digite o nome do cliente');
       return;
     }
-    
     if (!selectedDate) {
       alert('Selecione uma data');
       return;
@@ -453,7 +442,6 @@ const BarberCaixa = () => {
       alert('Selecione um horário');
       return;
     }
-    // Só valida horário se for NOVO serviço
     if (!editingServico && isTimeOccupied(selectedTime)) {
       alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
       return;
@@ -463,7 +451,6 @@ const BarberCaixa = () => {
       const clientPhoneFinal = isGuest 
         ? '00000000000' 
         : (formData.clienteTelefone || clientPhone || (editingServico ? editingServico.telefone : ''));
-      
       const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
       const total = hasMensalista ? 0 : getTotalServices();
       const serviceNames = getServiceNames();
@@ -485,11 +472,10 @@ const BarberCaixa = () => {
       console.log('📤 ENVIANDO SERVIÇO:', { clientNameFinal, barberId, serviceNames, total });
 
       if (editingServico) {
-        // 🔥 EDIÇÃO - MANTÉM TODOS OS CAMPOS ORIGINAIS E SÓ ATUALIZA O QUE VEIO
         const updatedServicos = servicos.map(s => {
           if (s.id === editingServico.id) {
             return {
-              ...s, // mantém tudo
+              ...s,
               cliente: clientNameFinal || s.cliente,
               telefone: clientPhoneFinal || s.telefone,
               barbeiro: formData.barbeiroNome || currentBarber?.name || s.barbeiro,
@@ -509,7 +495,6 @@ const BarberCaixa = () => {
         await cashRegisterService.updateServices(updatedServicos);
         await loadData();
       } else {
-        // 🔥 CRIAÇÃO
         await cashRegisterService.addService({
           client: clientNameFinal,
           barberId: barberId,
@@ -525,7 +510,6 @@ const BarberCaixa = () => {
         await loadData();
       }
 
-      // Fecha o modal e limpa os estados
       setShowModal(false);
       setEditingServico(null);
       setClientName('');
