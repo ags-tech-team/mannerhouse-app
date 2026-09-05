@@ -208,12 +208,16 @@ const AdminMensalistas = () => {
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!clientName.trim()) {
+    // 🔥 USAR clientName (o que foi digitado/selecionado no autocomplete)
+    const nomeCliente = clientName.trim();
+    const telefoneCliente = newClient.phone.trim() || clientPhone.trim();
+    
+    if (!nomeCliente) {
       alert('Nome é obrigatório');
       return;
     }
     
-    if (!newClient.phone.trim()) {
+    if (!telefoneCliente) {
       alert('Telefone é obrigatório');
       return;
     }
@@ -229,11 +233,9 @@ const AdminMensalistas = () => {
     }
 
     try {
-      console.log('📝 Criando mensalista:', newClient);
-      
       const response = await api.post('/monthly/clients', {
-        name: newClient.name.trim(),
-        phone: newClient.phone.trim(),
+        name: nomeCliente,        // 🔥 CORRIGIDO: usa clientName
+        phone: telefoneCliente,
         monthlyFee: newClient.monthlyFee,
         barberId: newClient.barberId,
         paymentMethod: newClient.paymentMethod,
@@ -241,7 +243,6 @@ const AdminMensalistas = () => {
       });
 
       console.log('✅ Mensalista criado:', response.data);
-      
       await loadClients();
       
       setShowNewClientModal(false);
@@ -259,8 +260,6 @@ const AdminMensalistas = () => {
       alert('✅ Cliente mensalista criado! Aguardando primeiro pagamento.');
     } catch (error: any) {
       console.error('❌ Erro ao criar mensalista:', error);
-      console.error('Detalhes:', error.response?.data || error.message);
-      
       if (error.response?.data?.error?.includes('já existe')) {
         alert(error.response.data.error);
       } else {
