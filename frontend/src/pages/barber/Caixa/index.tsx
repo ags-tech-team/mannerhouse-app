@@ -191,30 +191,32 @@ const BarberCaixa = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // 🔥 SEMPRE RECARREGAR A LISTA DE BARBEIROS ANTES DE PROCESSAR
+      const currentBarbersList = await loadBarbersList();
+      console.log('📦 Barbeiros carregados:', currentBarbersList.map(b => b.name));
+
       const data = await cashRegisterService.getToday();
       console.log('📦 Dados do caixa (RAW):', data);
       setCaixa(data);
-      console.log('🔍 barbersList no loadData:', barbersList.length, barbersList.map(b => b.name));
 
-      // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
+      // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa
       let barberFromData = null;
 
       // 1. Se o objeto já tiver um 'barber' populado (via include do backend)
       if (data.barber && data.barber.id) {
-        barberFromData = barbersList.find(b => b.id === data.barber.id);
+        barberFromData = currentBarbersList.find(b => b.id === data.barber.id);
       }
 
       // 2. Se não, tentar usar o barberId que está dentro do objeto (se existir)
       if (!barberFromData && data.barberId) {
-        barberFromData = barbersList.find(b => b.id === data.barberId);
+        barberFromData = currentBarbersList.find(b => b.id === data.barberId);
       }
 
       // 3. Se ainda não encontrou, usar o primeiro da lista (fallback)
-      if (!barberFromData && barbersList.length > 0) {
-        barberFromData = barbersList[0];
+      if (!barberFromData && currentBarbersList.length > 0) {
+        barberFromData = currentBarbersList[0];
       }
 
-      // ATUALIZAR O currentBarber
       if (barberFromData) {
         setCurrentBarber(barberFromData);
         setFormData(prev => ({
@@ -222,6 +224,9 @@ const BarberCaixa = () => {
           barbeiroId: barberFromData.id,
           barbeiroNome: barberFromData.name,
         }));
+        console.log('✅ Barbeiro definido:', barberFromData.name);
+      } else {
+        console.warn('⚠️ Nenhum barbeiro encontrado para definir.');
       }
 
       if (data.services && data.services.length > 0) {
@@ -284,14 +289,9 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== INICIALIZAÇÃO: CARREGAR BARBEIROS PRIMEIRO ==========
+  // ========== INICIALIZAÇÃO ==========
   useEffect(() => {
-    const init = async () => {
-      const barbers = await loadBarbersList();
-      // Agora que barbersList está carregado, carregar dados do caixa
-      await loadData();
-    };
-    init();
+    loadData();
   }, []);
 
   // ========== OUTROS EFFECTS ==========
@@ -633,7 +633,6 @@ const BarberCaixa = () => {
                 <Lock size={16} /> Caixa fechado
               </span>
             )}
-            {/* 🔥 SEMPRE MOSTRAR O BARBEIRO, MESMO QUE CAIXA FECHADO */}
             {currentBarber && (
               <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
             )}
