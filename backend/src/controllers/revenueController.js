@@ -358,40 +358,67 @@ const getByDate = async (req, res) => {
 const getServices = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    console.log('📥 Buscando serviços do caixa no período:', { startDate, endDate });
+    console.log('📥 Buscando histórico de serviços (unificado):', { startDate, endDate });
 
-    // 🔥 Buscar todos os caixas do período (abertos ou fechados)
-    const where = {};
+    const results = [];
+    const uniqueKeys = new Set();
+
+    // 1️⃣ BUSCAR REVENUES CONFIRMADOS
+    const revenueWhere = { status: 'confirmed' };
     if (startDate && endDate) {
-      where.date = { [Op.between]: [startDate, endDate] };
+      revenueWhere.date = { [Op.between]: [startDate, endDate] };
     }
-
-    const cashRegisters = await CashRegister.findAll({
-      where,
-      order: [['date', 'DESC']],
+    const revenues = await Revenue.findAll({
+      where: revenueWhere,
+      order: [['date', 'DESC'], ['createdAt', 'DESC']]
+    });
+    revenues.forEach(r => {
+      const key = `${r.date}|${r.clientName}|${r.barberName}|${r.total}|${r.service}`;
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        results.push({
+          id: r.id,
+          date: r.date,
+          time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+          clientName: r.clientName || 'Cliente',
+          barberName: r.barberName || 'Desconhecido',
+          service: r.service || 'Serviço',
+          serviceDescription: r.serviceDescription || '',
+          price: r.total || 0,
+          commission: r.commissions || 0,
+          status: 'completed',
+          notes: r.notes || '',
+          createdAt: r.createdAt,
+          source: 'revenue'
+        });
+      }
     });
 
-    const allServices = [];
-    const uniqueIds = new Set();
-
-    // Extrair serviços de cada caixa
+    // 2️⃣ BUSCAR SERVIÇOS DO CAIXA (ABERTOS E FECHADOS)
+    const cashWhere = {};
+    if (startDate && endDate) {
+      cashWhere.date = { [Op.between]: [startDate, endDate] };
+    }
+    const cashRegisters = await CashRegister.findAll({
+      where: cashWhere,
+      order: [['date', 'DESC']]
+    });
     cashRegisters.forEach(cash => {
       const services = cash.services || [];
       services.forEach(s => {
-        // Usar o ID do serviço para evitar duplicatas (caso o mesmo serviço esteja em mais de um caixa)
-        if (s.id && !uniqueIds.has(s.id)) {
-          uniqueIds.add(s.id);
-          const price = parseFloat(s.price) || parseFloat(s.valor) || 0;
-          const commission = parseFloat(s.commission) || parseFloat(s.comissao) || 0;
-          const client = s.client || s.cliente || 'Cliente';
-          const barber = s.barberName || s.barbeiro || 'Desconhecido';
-          const service = s.service || s.servico || 'Serviço';
-          const time = s.time || '00:00';
-          const date = s.date || cash.date;
-
-          allServices.push({
-            id: s.id,
-            date: date,
+        const price = parseFloat(s.price) || parseFloat(s.valor) || 0;
+        const commission = parseFloat(s.commission) || parseFloat(s.comissao) || 0;
+        const client = s.client || s.cliente || 'Cliente';
+        const barber = s.barberName || s.barbeiro || 'Desconhecido';
+        const service = s.service || s.servico || 'Serviço';
+        const serviceDate = s.date || cash.date;
+        const time = s.time || '00:00';
+        const key = `${serviceDate}|${client}|${barber}|${price}|${service}`;
+        if (!uniqueKeys.has(key)) {
+          uniqueKeys.add(key);
+          results.push({
+            id: s.id || `cash-${Date.now()}-${Math.random()}`,
+            date: serviceDate,
             time: time,
             clientName: client,
             barberName: barber,
@@ -402,23 +429,66 @@ const getServices = async (req, res) => {
             status: 'completed',
             notes: s.observacao || s.notes || '',
             createdAt: s.createdAt || new Date().toISOString(),
-            source: 'cash',
+            source: 'cash'
           });
         }
       });
     });
 
+    // 3️⃣ BUSCAR APPOINTMENTS CONCLUÍDOS (COM VALOR > 0, PARA EVITAR MENSALIDADES VAZIAS)
+    const appWhere = { status: 'completed' };
+    if (startDate && endDate) {
+      appWhere.date = { [Op.between]: [startDate, endDate] };
+    }
+    const appointments = await Appointment.findAll({
+      where: appWhere,
+      include: [
+        { model: Client, as: 'client', attributes: ['name'] },
+        { model: Barber, as: 'barber', attributes: ['name'] }
+      ],
+      order: [['date', 'DESC'], ['time', 'DESC']]
+    });
+    appointments.forEach(app => {
+      const price = app.price || 0;
+      // 🔥 PULAR APENAS SE FOR MENSALIDADE E VALOR 0
+      if (price === 0 && app.service && app.service.toLowerCase().includes('mensal')) {
+        return; // ignora mensalidades com valor 0
+      }
+      const clientName = app.client?.name || 'Cliente';
+      const barberName = app.barber?.name || 'Desconhecido';
+      const service = app.service || 'Serviço';
+      const key = `${app.date}|${clientName}|${barberName}|${price}|${service}`;
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        results.push({
+          id: app.id,
+          date: app.date,
+          time: app.time || '00:00',
+          clientName: clientName,
+          barberName: barberName,
+          service: service,
+          serviceDescription: app.serviceDescription || '',
+          price: price,
+          commission: app.commission || 0,
+          status: 'completed',
+          notes: app.notes || '',
+          createdAt: app.createdAt,
+          source: 'appointment'
+        });
+      }
+    });
+
     // Ordenar por data (mais recente primeiro)
-    allServices.sort((a, b) => {
+    results.sort((a, b) => {
       if (a.date !== b.date) return b.date.localeCompare(a.date);
       return (b.time || '').localeCompare(a.time || '');
     });
 
-    console.log(`📦 ${allServices.length} serviços únicos encontrados nos caixas`);
+    console.log(`📦 ${results.length} serviços únicos encontrados (revenues: ${revenues.length}, caixa: ${cashRegisters.reduce((acc, c) => acc + (c.services || []).length, 0)}, appointments: ${appointments.length})`);
 
     // Formatar datas para o frontend (DD/MM/YYYY)
-    const formatted = allServices.map(s => {
-      const dateStr = s.date; // YYYY-MM-DD
+    const formatted = results.map(s => {
+      const dateStr = s.date;
       const [year, month, day] = dateStr.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
       return {
@@ -431,8 +501,8 @@ const getServices = async (req, res) => {
 
     res.json(formatted);
   } catch (error) {
-    console.error('❌ Erro ao buscar serviços do caixa:', error);
-    res.status(500).json({ error: 'Erro ao buscar histórico de serviços' });
+    console.error('❌ Erro ao buscar histórico de serviços:', error);
+    res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 };
 
