@@ -117,7 +117,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen = false, onClose }) => {
         </div>
 
         {/* Navegação */}
-        <nav className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1">
+        <nav className="flex-1 p-3 md:p-4 space-y-1">
           {links.map((link) => (
             <NavLink
               key={link.to}
