@@ -88,7 +88,6 @@ const BarberCaixa = () => {
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
-  // Estado para o barbeiro selecionado na abertura
   const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -197,27 +196,31 @@ const BarberCaixa = () => {
       setCaixa(data);
 
       // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa (se houver)
+      let barberFromData = null;
+
+      // 1. Se o objeto já tiver um 'barber' populado (via include do backend)
       if (data.barber && data.barber.id) {
-        const barberFromCaixa = barbersList.find(b => b.id === data.barber.id);
-        if (barberFromCaixa) {
-          setCurrentBarber(barberFromCaixa);
-          setFormData(prev => ({
-            ...prev,
-            barbeiroId: barberFromCaixa.id,
-            barbeiroNome: barberFromCaixa.name,
-          }));
-        }
-      } else {
-        // Se não houver barbeiro associado, usar o primeiro da lista (fallback)
-        if (barbersList.length > 0 && !currentBarber) {
-          const first = barbersList[0];
-          setCurrentBarber(first);
-          setFormData(prev => ({
-            ...prev,
-            barbeiroId: first.id,
-            barbeiroNome: first.name,
-          }));
-        }
+        barberFromData = barbersList.find(b => b.id === data.barber.id);
+      }
+
+      // 2. Se não, tentar usar o barberId que está dentro do objeto (se existir)
+      if (!barberFromData && data.barberId) {
+        barberFromData = barbersList.find(b => b.id === data.barberId);
+      }
+
+      // 3. Se ainda não encontrou, usar o primeiro da lista (fallback)
+      if (!barberFromData && barbersList.length > 0) {
+        barberFromData = barbersList[0];
+      }
+
+      // ATUALIZAR O currentBarber
+      if (barberFromData) {
+        setCurrentBarber(barberFromData);
+        setFormData(prev => ({
+          ...prev,
+          barbeiroId: barberFromData.id,
+          barbeiroNome: barberFromData.name,
+        }));
       }
 
       if (data.services && data.services.length > 0) {
@@ -335,7 +338,6 @@ const BarberCaixa = () => {
   // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) ==========
   const handleOpenModal = (servico?: ServicoFaturamento) => {
     if (servico) {
-      // EDIÇÃO
       setEditingServico(servico);
       setClientName(servico.cliente);
       setClientPhone(servico.telefone || '');
@@ -376,7 +378,6 @@ const BarberCaixa = () => {
         setSelectedServices([]);
       }
     } else {
-      // CRIAÇÃO
       setEditingServico(null);
       setClientName('');
       setClientPhone('');
@@ -631,6 +632,7 @@ const BarberCaixa = () => {
                 <Lock size={16} /> Caixa fechado
               </span>
             )}
+            {/* 🔥 SEMPRE MOSTRAR O BARBEIRO, MESMO QUE CAIXA FECHADO */}
             {currentBarber && (
               <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
             )}
