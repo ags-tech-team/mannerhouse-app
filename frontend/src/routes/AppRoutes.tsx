@@ -25,6 +25,8 @@ import BarberHistorico from '../pages/barber/Historico';
 // 🔥 PÁGINA PÚBLICA
 import PublicSchedule from '../pages/public/Schedule';
 
+import AdminHorarios from '../pages/admin/Horarios';
+
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
 export const AppRoutes = () => {
@@ -69,7 +71,8 @@ export const AppRoutes = () => {
           <Route path="expenses" element={<AdminDespesas />} />
           <Route path="products" element={<AdminEstoque />} />
           <Route path="clients" element={<Clientes />} />
-          <Route path="mensalistas" element={<AdminMensalistas />} /> {/* 🔥 ADICIONADO */}
+          <Route path="mensalistas" element={<AdminMensalistas />} />
+          <Route path="horarios" element={<AdminHorarios />} />
         </Route>
 
         {/* 🔥 ROTAS DO BARBEIRO (PROTEGIDAS) */}

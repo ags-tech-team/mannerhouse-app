@@ -296,6 +296,49 @@ const resetAllWeeklyAdvances = async (req, res) => {
   }
 };
 
+const getSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const barber = await Barber.findByPk(id, {
+      attributes: ['id', 'name', 'schedule']
+    });
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+    res.json(barber);
+  } catch (error) {
+    console.error('❌ Erro ao buscar horários:', error);
+    res.status(500).json({ error: 'Erro ao buscar horários' });
+  }
+};
+
+// ========== UPDATE SCHEDULE ==========
+const updateSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { schedule } = req.body;
+    
+    const barber = await Barber.findByPk(id);
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+    
+    await barber.update({ schedule });
+    
+    res.json({
+      message: 'Horários atualizados com sucesso!',
+      barber: {
+        id: barber.id,
+        name: barber.name,
+        schedule: barber.schedule
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar horários:', error);
+    res.status(500).json({ error: 'Erro ao atualizar horários' });
+  }
+};
+
 // ========== EXPORTAR ==========
 module.exports = {
   getAll,
@@ -305,4 +348,6 @@ module.exports = {
   remove,
   updateWeeklyAdvance,  // 🔥 NOVO
   resetAllWeeklyAdvances, // 🔥 NOVO
+  updateSchedule,
+  getSchedule
 };

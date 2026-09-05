@@ -14,7 +14,8 @@ import {
   PiggyBank,
   ShoppingBag,
   CreditCard,
-  X
+  X,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types/auth.types';
@@ -53,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen = false, onClose }) => {
     { to: '/admin/clients', icon: User, label: 'Clientes' },
     { to: '/admin/mensalistas', icon: CreditCard, label: 'Mensalistas' },
     { to: '/admin/products', icon: Package, label: 'Estoque' },
+    { to: '/admin/horarios', icon: Clock, label: 'Horários' },
   ];
 
   const barberLinks = [
