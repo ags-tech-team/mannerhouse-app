@@ -63,14 +63,46 @@ const PublicSchedule = () => {
     clientPhone: '',
   });
 
-  // 🔥 Estado para controlar dias que já sabemos que NÃO têm horários
-  const [unavailableDays, setUnavailableDays] = useState<Set<string>>(new Set());
-  // Ref para evitar múltiplas requisições para o mesmo dia
-  const checkingRef = useRef<Set<string>>(new Set());
+  // 🔥 Estado para datas disponíveis (vindas do backend)
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const loadingDatesRef = useRef(false);
 
+  // Carregar barbeiros
   useEffect(() => {
     loadBarbers();
   }, []);
+
+  // 🔥 Carregar dias disponíveis quando barbeiro ou mês mudar
+  useEffect(() => {
+    if (!selectedBarber) return;
+    const loadAvailableDates = async () => {
+      if (loadingDatesRef.current) return;
+      loadingDatesRef.current = true;
+      const month = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+      try {
+        setLoading(true);
+        // 🔥 USAR ROTA PÚBLICA (criar no backend)
+        const response = await api.get('/public/available-dates', {
+          params: { barberId: selectedBarber, month }
+        });
+        const dates = response.data.dates || [];
+        setAvailableDates(new Set(dates));
+        // Limpar data selecionada se não estiver mais disponível
+        if (selectedDate && !dates.includes(selectedDate)) {
+          setSelectedDate('');
+          setAvailableTimes([]);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dias disponíveis:', error);
+        // Fallback: carregar horários apenas quando clicar (comportamento antigo)
+        setAvailableDates(new Set());
+      } finally {
+        setLoading(false);
+        loadingDatesRef.current = false;
+      }
+    };
+    loadAvailableDates();
+  }, [selectedBarber, currentMonth, selectedDate]);
 
   const loadBarbers = async () => {
     try {
@@ -85,14 +117,7 @@ const PublicSchedule = () => {
     }
   };
 
-  // 🔥 Quando o barbeiro ou o mês mudar, limpar o cache de dias indisponíveis
-  useEffect(() => {
-    setUnavailableDays(new Set());
-    checkingRef.current = new Set();
-    setSelectedDate('');
-    setAvailableTimes([]);
-  }, [selectedBarber, currentMonth]);
-
+  // Carregar horários disponíveis para uma data específica
   useEffect(() => {
     if (selectedBarber && selectedDate) {
       loadAvailableTimes();
@@ -107,16 +132,11 @@ const PublicSchedule = () => {
         params: { barberId: selectedBarber, date: selectedDate }
       });
       setAvailableTimes(response.data);
-      
-      // 🔥 Se não houver horários, marcar o dia como indisponível e desmarcar a data
       if (response.data.length === 0) {
-        setUnavailableDays(prev => new Set(prev).add(selectedDate));
-        setError('⚠️ Não há horários disponíveis para este dia. Escolha outra data.');
-        setSelectedDate(''); // desmarca a data
-        // Voltar para o passo 1 se estiver no passo 2
+        setError('⚠️ Não há horários disponíveis para este dia.');
+        setSelectedDate('');
         if (step === 2) setStep(1);
       } else {
-        // Se houver horários, limpar erro
         setError('');
       }
     } catch (error) {
@@ -127,34 +147,10 @@ const PublicSchedule = () => {
     }
   };
 
-  // 🔥 Função para verificar se um dia tem horários (usado no calendário)
-  const checkDayAvailability = async (dateStr: string) => {
-    // Se já sabemos que é indisponível, retorna false
-    if (unavailableDays.has(dateStr)) return false;
-    // Se já estamos verificando, retorna false para evitar múltiplas chamadas
-    if (checkingRef.current.has(dateStr)) return false;
-    
-    checkingRef.current.add(dateStr);
-    try {
-      const response = await api.get('/public/available-times', {
-        params: { barberId: selectedBarber, date: dateStr }
-      });
-      if (response.data.length === 0) {
-        setUnavailableDays(prev => new Set(prev).add(dateStr));
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error('Erro ao verificar disponibilidade:', error);
-      return false;
-    } finally {
-      checkingRef.current.delete(dateStr);
-    }
-  };
-
-  const isDayAllowedForBooking = (date: Date) => {
-    // Não bloqueia nenhum dia – o backend decide com base no schedule e agendamentos
-    return { allowed: true, reason: '' };
+  // 🔥 Função para verificar se um dia está disponível
+  const isDayAvailable = (dateStr: string) => {
+    if (!dateStr) return false;
+    return availableDates.has(dateStr);
   };
 
   const getDaysInMonth = () => {
@@ -175,19 +171,17 @@ const PublicSchedule = () => {
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const date = new Date(year, month, i);
       const isPast = date < today;
-      const dayInfo = isDayAllowedForBooking(date);
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      
-      // 🔥 Verificar se o dia está no cache de indisponíveis
-      const isUnavailable = unavailableDays.has(dateStr);
+      const isAvailable = isDayAvailable(dateStr);
+      const isUnavailable = !isAvailable && !isPast;
       
       days.push({
         day: i,
         date: dateStr,
         isPast,
         isToday: date.toDateString() === today.toDateString(),
-        allowed: dayInfo.allowed && !isPast && !isUnavailable,
-        reason: isUnavailable ? 'Sem horários' : dayInfo.reason,
+        allowed: isAvailable && !isPast,
+        reason: isUnavailable ? 'Sem horários' : '',
         isUnavailable,
       });
     }
@@ -286,32 +280,12 @@ const PublicSchedule = () => {
       clientName: '',
       clientPhone: '',
     });
-    setUnavailableDays(new Set());
-    checkingRef.current = new Set();
+    setAvailableDates(new Set());
+    loadingDatesRef.current = false;
   };
 
   const handleServicesChange = (services: SelectedService[]) => {
     setSelectedServices(services);
-  };
-
-  // 🔥 Função para selecionar data com verificação de disponibilidade
-  const handleDateSelect = async (dateStr: string) => {
-    if (!selectedBarber) {
-      setError('Selecione um barbeiro primeiro');
-      return;
-    }
-    
-    // Se o dia já está no cache de indisponíveis, não permite selecionar
-    if (unavailableDays.has(dateStr)) {
-      setError('⚠️ Este dia não possui horários disponíveis. Escolha outra data.');
-      return;
-    }
-    
-    // Tentar carregar os horários
-    setLoading(true);
-    setSelectedDate(dateStr);
-    // O useEffect vai chamar loadAvailableTimes automaticamente
-    // Mas precisamos esperar a resposta para saber se tem horários
   };
 
   if (success) {
@@ -450,7 +424,7 @@ const PublicSchedule = () => {
                             disabled={isDisabled}
                             onClick={() => {
                               if (day && !day.isPast && !day.isUnavailable) {
-                                handleDateSelect(day.date);
+                                setSelectedDate(day.date);
                               }
                             }}
                             className={`py-1.5 sm:py-2 md:py-3 rounded-lg text-xs sm:text-sm md:text-base transition relative ${

@@ -497,6 +497,65 @@ const checkAvailability = async (req, res) => {
   }
 };
 
+const getAvailableDates = async (req, res) => {
+  try {
+    const { barberId, month } = req.query;
+    if (!barberId || !month) {
+      return res.status(400).json({ error: 'barberId e month são obrigatórios' });
+    }
+
+    const barber = await Barber.findByPk(barberId);
+    if (!barber) {
+      return res.status(404).json({ error: 'Barbeiro não encontrado' });
+    }
+
+    const [year, mes] = month.split('-').map(Number);
+    if (!year || !mes || mes < 1 || mes > 12) {
+      return res.status(400).json({ error: 'Mês inválido' });
+    }
+
+    const schedule = barber.schedule || {};
+    const daysInMonth = new Date(year, mes, 0).getDate();
+    const availableDates = [];
+
+    // Para cada dia do mês, verificar se há horários disponíveis
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(mes).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      // Verificar se o dia está no schedule
+      const dateObj = new Date(year, mes - 1, day);
+      const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const daySchedule = schedule[dayOfWeek];
+      
+      if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) {
+        continue; // dia não configurado
+      }
+
+      // Buscar agendamentos já marcados para este dia
+      const appointments = await Appointment.findAll({
+        where: {
+          barberId,
+          date: dateStr,
+          status: { [Op.notIn]: ['cancelled'] }
+        },
+        attributes: ['time']
+      });
+      const bookedTimes = appointments.map(a => a.time);
+
+      // Verificar se há pelo menos um horário disponível
+      const hasAvailable = daySchedule.times.some(time => !bookedTimes.includes(time));
+      if (hasAvailable) {
+        availableDates.push(dateStr);
+      }
+    }
+
+    res.json({ dates: availableDates });
+  } catch (error) {
+    console.error('❌ Erro ao buscar dias disponíveis:', error);
+    res.status(500).json({ error: 'Erro ao buscar dias disponíveis' });
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -507,4 +566,5 @@ module.exports = {
   updateStatus,
   remove,
   searchClients,
+  getAvailableDates
 };

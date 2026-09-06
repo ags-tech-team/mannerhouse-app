@@ -1,6 +1,7 @@
 const express = require('express');
 const { Client } = require('../models');
 const { Op } = require('sequelize');
+const appointmentController = require('../controllers/appointmentController');
 const {
   getBarbers,
   getAvailableTimes,
@@ -13,6 +14,7 @@ const router = express.Router();
 router.get('/barbers', getBarbers);
 router.get('/available-times', getAvailableTimes);
 router.post('/appointments', createAppointment);
+router.get('/available-dates', appointmentController.getAvailableDates);
 
 router.get('/clients/search', async (req, res) => {
   try {
