@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../../api/client';
 import { useNavigate } from 'react-router-dom';
 import { useNumberInput } from '../../../hooks/useNumberInput';
@@ -63,6 +63,11 @@ const PublicSchedule = () => {
     clientPhone: '',
   });
 
+  // 🔥 Estado para controlar dias que já sabemos que NÃO têm horários
+  const [unavailableDays, setUnavailableDays] = useState<Set<string>>(new Set());
+  // Ref para evitar múltiplas requisições para o mesmo dia
+  const checkingRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     loadBarbers();
   }, []);
@@ -80,6 +85,14 @@ const PublicSchedule = () => {
     }
   };
 
+  // 🔥 Quando o barbeiro ou o mês mudar, limpar o cache de dias indisponíveis
+  useEffect(() => {
+    setUnavailableDays(new Set());
+    checkingRef.current = new Set();
+    setSelectedDate('');
+    setAvailableTimes([]);
+  }, [selectedBarber, currentMonth]);
+
   useEffect(() => {
     if (selectedBarber && selectedDate) {
       loadAvailableTimes();
@@ -94,6 +107,18 @@ const PublicSchedule = () => {
         params: { barberId: selectedBarber, date: selectedDate }
       });
       setAvailableTimes(response.data);
+      
+      // 🔥 Se não houver horários, marcar o dia como indisponível e desmarcar a data
+      if (response.data.length === 0) {
+        setUnavailableDays(prev => new Set(prev).add(selectedDate));
+        setError('⚠️ Não há horários disponíveis para este dia. Escolha outra data.');
+        setSelectedDate(''); // desmarca a data
+        // Voltar para o passo 1 se estiver no passo 2
+        if (step === 2) setStep(1);
+      } else {
+        // Se houver horários, limpar erro
+        setError('');
+      }
     } catch (error) {
       console.error('Erro ao carregar horários:', error);
       setError('Erro ao carregar horários disponíveis');
@@ -102,7 +127,31 @@ const PublicSchedule = () => {
     }
   };
 
-  // 🔥 AGORA TODOS OS DIAS SÃO PERMITIDOS (DEIXA O BACKEND DECIDIR)
+  // 🔥 Função para verificar se um dia tem horários (usado no calendário)
+  const checkDayAvailability = async (dateStr: string) => {
+    // Se já sabemos que é indisponível, retorna false
+    if (unavailableDays.has(dateStr)) return false;
+    // Se já estamos verificando, retorna false para evitar múltiplas chamadas
+    if (checkingRef.current.has(dateStr)) return false;
+    
+    checkingRef.current.add(dateStr);
+    try {
+      const response = await api.get('/public/available-times', {
+        params: { barberId: selectedBarber, date: dateStr }
+      });
+      if (response.data.length === 0) {
+        setUnavailableDays(prev => new Set(prev).add(dateStr));
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Erro ao verificar disponibilidade:', error);
+      return false;
+    } finally {
+      checkingRef.current.delete(dateStr);
+    }
+  };
+
   const isDayAllowedForBooking = (date: Date) => {
     // Não bloqueia nenhum dia – o backend decide com base no schedule e agendamentos
     return { allowed: true, reason: '' };
@@ -129,13 +178,17 @@ const PublicSchedule = () => {
       const dayInfo = isDayAllowedForBooking(date);
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       
+      // 🔥 Verificar se o dia está no cache de indisponíveis
+      const isUnavailable = unavailableDays.has(dateStr);
+      
       days.push({
         day: i,
         date: dateStr,
         isPast,
         isToday: date.toDateString() === today.toDateString(),
-        allowed: dayInfo.allowed,
-        reason: dayInfo.reason,
+        allowed: dayInfo.allowed && !isPast && !isUnavailable,
+        reason: isUnavailable ? 'Sem horários' : dayInfo.reason,
+        isUnavailable,
       });
     }
     
@@ -233,10 +286,32 @@ const PublicSchedule = () => {
       clientName: '',
       clientPhone: '',
     });
+    setUnavailableDays(new Set());
+    checkingRef.current = new Set();
   };
 
   const handleServicesChange = (services: SelectedService[]) => {
     setSelectedServices(services);
+  };
+
+  // 🔥 Função para selecionar data com verificação de disponibilidade
+  const handleDateSelect = async (dateStr: string) => {
+    if (!selectedBarber) {
+      setError('Selecione um barbeiro primeiro');
+      return;
+    }
+    
+    // Se o dia já está no cache de indisponíveis, não permite selecionar
+    if (unavailableDays.has(dateStr)) {
+      setError('⚠️ Este dia não possui horários disponíveis. Escolha outra data.');
+      return;
+    }
+    
+    // Tentar carregar os horários
+    setLoading(true);
+    setSelectedDate(dateStr);
+    // O useEffect vai chamar loadAvailableTimes automaticamente
+    // Mas precisamos esperar a resposta para saber se tem horários
   };
 
   if (success) {
@@ -367,39 +442,42 @@ const PublicSchedule = () => {
                         </div>
                       ))}
                       {days.map((day, index) => {
-                        const isDisabled = !day || day.isPast;
+                        const isDisabled = !day || day.isPast || day.isUnavailable;
                         return (
                           <button
                             key={index}
                             type="button"
                             disabled={isDisabled}
                             onClick={() => {
-                              if (day && !day.isPast) {
-                                setSelectedDate(day.date);
+                              if (day && !day.isPast && !day.isUnavailable) {
+                                handleDateSelect(day.date);
                               }
                             }}
                             className={`py-1.5 sm:py-2 md:py-3 rounded-lg text-xs sm:text-sm md:text-base transition relative ${
                               !day ? 'invisible' :
                               day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
+                              day.isUnavailable ? 'text-gray-400 cursor-not-allowed bg-gray-200 line-through' :
                               selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
                               'hover:bg-[#9c7f64]/10'
                             }`}
                           >
                             {day?.day}
+                            {day?.isUnavailable && (
+                              <span className="block text-[6px] sm:text-[8px] text-gray-500">🚫</span>
+                            )}
                           </button>
                         );
                       })}
                     </div>
                     
-                    {/* Legenda simplificada */}
                     <div className="mt-2 sm:mt-3 md:mt-4 flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-[10px] sm:text-xs md:text-sm text-[#7f7c7a] justify-center border-t pt-2 sm:pt-3 md:pt-4">
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
                         Disponível
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-200 border border-gray-300 rounded inline-block"></span>
-                        Indisponível (sem horários)
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-200 border border-gray-300 rounded inline-block line-through"></span>
+                        Sem horários
                       </span>
                       <span className="flex items-center gap-1 text-gray-400">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-200 rounded inline-block"></span>
@@ -430,7 +508,7 @@ const PublicSchedule = () => {
               </div>
             )}
 
-            {/* Step 2 (mantido igual) */}
+            {/* Step 2 */}
             {step === 2 && (
               <div className="space-y-4 sm:space-y-6 md:space-y-8">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#060606]">2. Escolha o horário e serviços</h2>
@@ -527,7 +605,7 @@ const PublicSchedule = () => {
               </div>
             )}
 
-            {/* Step 3 (mantido igual) */}
+            {/* Step 3 */}
             {step === 3 && (
               <div className="space-y-4 sm:space-y-6 md:space-y-8">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#060606]">3. Seus dados</h2>
