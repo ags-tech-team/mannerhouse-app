@@ -102,12 +102,9 @@ const PublicSchedule = () => {
     }
   };
 
+  // 🔥 AGORA TODOS OS DIAS SÃO PERMITIDOS (DEIXA O BACKEND DECIDIR)
   const isDayAllowedForBooking = (date: Date) => {
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0) return { allowed: false, reason: 'Fechado' };
-    if (dayOfWeek === 5 || dayOfWeek === 6) {
-      return { allowed: false, reason: 'Apenas ordem de chegada' };
-    }
+    // Não bloqueia nenhum dia – o backend decide com base no schedule e agendamentos
     return { allowed: true, reason: '' };
   };
 
@@ -370,50 +367,43 @@ const PublicSchedule = () => {
                         </div>
                       ))}
                       {days.map((day, index) => {
-                        const isDisabled = !day || day.isPast || !day.allowed;
-                        
+                        const isDisabled = !day || day.isPast;
                         return (
                           <button
                             key={index}
                             type="button"
                             disabled={isDisabled}
                             onClick={() => {
-                              if (day && !day.isPast && day.allowed) {
+                              if (day && !day.isPast) {
                                 setSelectedDate(day.date);
                               }
                             }}
                             className={`py-1.5 sm:py-2 md:py-3 rounded-lg text-xs sm:text-sm md:text-base transition relative ${
                               !day ? 'invisible' :
                               day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
-                              !day.allowed ? 'text-gray-400 cursor-not-allowed bg-gray-100' :
                               selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
                               'hover:bg-[#9c7f64]/10'
                             }`}
                           >
                             {day?.day}
-                            {day && !day.allowed && (
-                              <span className="block text-[6px] sm:text-[8px] md:text-[10px] leading-tight">
-                                {day.reason === 'Fechado' ? '🔴' : '🚶'}
-                              </span>
-                            )}
                           </button>
                         );
                       })}
                     </div>
                     
-                    {/* Legenda */}
+                    {/* Legenda simplificada */}
                     <div className="mt-2 sm:mt-3 md:mt-4 flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-[10px] sm:text-xs md:text-sm text-[#7f7c7a] justify-center border-t pt-2 sm:pt-3 md:pt-4">
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
                         Disponível
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-300 rounded inline-block"></span>
-                        🚶 Ordem de chegada
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-200 border border-gray-300 rounded inline-block"></span>
+                        Indisponível (sem horários)
                       </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-red-100 border border-red-300 rounded inline-block"></span>
-                        🔴 Fechado
+                      <span className="flex items-center gap-1 text-gray-400">
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-200 rounded inline-block"></span>
+                        Passado
                       </span>
                     </div>
                   </div>
@@ -440,7 +430,7 @@ const PublicSchedule = () => {
               </div>
             )}
 
-            {/* Step 2 */}
+            {/* Step 2 (mantido igual) */}
             {step === 2 && (
               <div className="space-y-4 sm:space-y-6 md:space-y-8">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#060606]">2. Escolha o horário e serviços</h2>
@@ -485,7 +475,6 @@ const PublicSchedule = () => {
                   )}
                 </div>
 
-                {/* 🔥 MULTI SERVICE SELECTOR COM hideMensalista */}
                 <div>
                   <label className="block text-sm sm:text-base font-medium text-[#060606] mb-2">
                     <Scissors size={16} className="inline mr-1" /> Serviços
@@ -538,7 +527,7 @@ const PublicSchedule = () => {
               </div>
             )}
 
-            {/* Step 3 */}
+            {/* Step 3 (mantido igual) */}
             {step === 3 && (
               <div className="space-y-4 sm:space-y-6 md:space-y-8">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#060606]">3. Seus dados</h2>
