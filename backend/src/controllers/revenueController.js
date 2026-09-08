@@ -6,7 +6,6 @@ const getFinancialDashboard = async (req, res) => {
   try {
     const { month, period, startDate: queryStart, endDate: queryEnd } = req.query;
     
-    // 🔥 CORRIGIDO: USAR DATEHELPER
     const hoje = dateHelper.getTodayLocal();
     const hojeDate = new Date(hoje + 'T00:00:00');
     let ano = hojeDate.getFullYear();
@@ -21,30 +20,27 @@ const getFinancialDashboard = async (req, res) => {
         endDate = queryEnd;
         console.log('📅 Usando datas enviadas:', startDate, 'até', endDate);
       } else {
-        // 🔥 CALCULAR A SEMANA ATUAL DE SEGUNDA A SÁBADO
+        // 🔥 Cálculo da semana: segunda a domingo
         const hojeObj = new Date(hoje + 'T00:00:00');
-        // Ajustar para segunda-feira (0=domingo, 1=segunda, ..., 6=sábado)
         let dayOfWeek = hojeObj.getDay(); // 0=domingo
-        // Se domingo, volta 6 dias para segunda (semana anterior)
         const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
         const monday = new Date(hojeObj);
         monday.setDate(hojeObj.getDate() + diffToMonday);
-        const saturday = new Date(monday);
-        saturday.setDate(monday.getDate() + 5); // +5 dias = sábado
-
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
         const formatDate = (date) => {
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
           return `${year}-${month}-${day}`;
         };
-
         startDate = formatDate(monday);
-        endDate = formatDate(saturday);
-        console.log(`📅 Calculando semana (segunda a sábado): ${startDate} até ${endDate}`);
+        endDate = formatDate(sunday);
+        console.log(`📅 Calculando semana (segunda a domingo): ${startDate} até ${endDate}`);
       }
       monthString = startDate.substring(0, 7);
     } else {
+      // Mês
       mes = month ? parseInt(month) : hojeDate.getMonth() + 1;
       ano = hojeDate.getFullYear();
       startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
@@ -54,7 +50,6 @@ const getFinancialDashboard = async (req, res) => {
       console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
     }
     
-    // ===== BUSCAR REVENUES =====
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] },
@@ -66,7 +61,6 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // ===== BUSCAR SALES =====
     const sales = await Sale.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -77,7 +71,6 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // ===== BUSCAR MONTHLY PAYMENTS =====
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         month: monthString,
@@ -100,7 +93,6 @@ const getFinancialDashboard = async (req, res) => {
     
     console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
-    // ===== CALCULAR TOTAIS =====
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
     const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
@@ -115,7 +107,6 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // ===== COMISSÕES POR BARBEIRO =====
     const commissionsByBarber = {};
 
     serviceRevenues.forEach(r => {
@@ -165,7 +156,6 @@ const getFinancialDashboard = async (req, res) => {
       commissionsByBarber[barberId].monthlyCommission += commission;
     });
     
-    // ===== BUSCAR EXPENSES =====
     const expenses = await Expense.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -181,7 +171,6 @@ const getFinancialDashboard = async (req, res) => {
     
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
-    // ===== MONTAR RESULTADO =====
     const result = {
       period: {
         type: period || 'month',
@@ -274,15 +263,14 @@ const getSummary = async (req, res) => {
         startDate = queryStart;
         endDate = queryEnd;
       } else {
-        // 🔥 CALCULAR A SEMANA ATUAL DE SEGUNDA A SÁBADO
+        // 🔥 Cálculo da semana: segunda a domingo
         const hojeObj = new Date(hoje + 'T00:00:00');
         let dayOfWeek = hojeObj.getDay();
         const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
         const monday = new Date(hojeObj);
         monday.setDate(hojeObj.getDate() + diffToMonday);
-        const saturday = new Date(monday);
-        saturday.setDate(monday.getDate() + 5);
-        
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
         const formatDate = (date) => {
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -290,8 +278,8 @@ const getSummary = async (req, res) => {
           return `${year}-${month}-${day}`;
         };
         startDate = formatDate(monday);
-        endDate = formatDate(saturday);
-        console.log(`📅 Resumo semana (segunda a sábado): ${startDate} até ${endDate}`);
+        endDate = formatDate(sunday);
+        console.log(`📅 Resumo semana (segunda a domingo): ${startDate} até ${endDate}`);
       }
     } else if (period === 'month') {
       startDate = hoje.substring(0, 7) + '-01';
@@ -397,187 +385,77 @@ const getByDate = async (req, res) => {
 
 const getServices = async (req, res) => {
   try {
-    const { month, startDate, endDate } = req.query;
-    let start, end;
-
-    // 🔥 Se receber month (YYYY-MM), calcular o intervalo no backend
-    if (month && /^\d{4}-\d{2}$/.test(month)) {
-      const [year, mes] = month.split('-').map(Number);
-      start = `${year}-${String(mes).padStart(2, '0')}-01`;
-      const lastDay = new Date(year, mes, 0).getDate();
-      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      console.log(`📅 Mês recebido: ${month} -> intervalo: ${start} até ${end}`);
-    } else if (startDate && endDate) {
-      start = startDate;
-      end = endDate;
-      console.log(`📅 Usando datas fornecidas: ${start} até ${end}`);
-    } else {
-      const hoje = dateHelper.getTodayLocal();
-      const [year, mes] = hoje.split('-').map(Number);
-      start = `${year}-${String(mes).padStart(2, '0')}-01`;
-      const lastDay = new Date(year, mes, 0).getDate();
-      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      console.log(`📅 Mês atual (fallback): ${start} até ${end}`);
-    }
-
-    console.log('📥 Buscando histórico de serviços (unificado):', { start, end });
-
-    const results = [];
-    const uniqueKeys = new Set();
-
-    // 1️⃣ REVENUES
-    const revenueWhere = { status: 'confirmed' };
-    if (start && end) revenueWhere.date = { [Op.between]: [start, end] };
-    const revenues = await Revenue.findAll({
-      where: revenueWhere,
-      order: [['date', 'DESC'], ['createdAt', 'DESC']]
-    });
-    revenues.forEach(r => {
-      const key = `${r.date}|${r.clientName}|${r.barberName}|${r.total}|${r.service}`;
-      if (!uniqueKeys.has(key)) {
-        uniqueKeys.add(key);
-        results.push({
-          id: r.id,
-          date: r.date,
-          time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
-          clientName: r.clientName || 'Cliente',
-          barberName: r.barberName || 'Desconhecido',
-          service: r.service || 'Serviço',
-          serviceDescription: r.serviceDescription || '',
-          price: r.total || 0,
-          commission: r.commissions || 0,
-          status: 'completed',
-          notes: r.notes || '',
-          createdAt: r.createdAt,
-          source: 'revenue'
-        });
+    const { startDate, endDate } = req.query;
+    
+    console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
+    
+    const where = {
+      status: 'completed'
+    };
+    
+    if (startDate && endDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.test(startDate) && dateRegex.test(endDate)) {
+        where.date = {
+          [Op.between]: [startDate, endDate]
+        };
       }
-    });
-
-    // 2️⃣ CAIXA
-    const cashWhere = {};
-    if (start && end) cashWhere.date = { [Op.between]: [start, end] };
-    const cashRegisters = await CashRegister.findAll({
-      where: cashWhere,
-      order: [['date', 'DESC']]
-    });
-    cashRegisters.forEach(cash => {
-      const services = cash.services || [];
-      services.forEach(s => {
-        const price = parseFloat(s.price) || parseFloat(s.valor) || 0;
-        const commission = parseFloat(s.commission) || parseFloat(s.comissao) || 0;
-        const client = s.client || s.cliente || 'Cliente';
-        const barber = s.barberName || s.barbeiro || 'Desconhecido';
-        const service = s.service || s.servico || 'Serviço';
-        const serviceDate = s.date || cash.date;
-        const time = s.time || '00:00';
-        const key = `${serviceDate}|${client}|${barber}|${price}|${service}`;
-        if (!uniqueKeys.has(key)) {
-          uniqueKeys.add(key);
-          results.push({
-            id: s.id || `cash-${Date.now()}-${Math.random()}`,
-            date: serviceDate,
-            time: time,
-            clientName: client,
-            barberName: barber,
-            service: service,
-            serviceDescription: s.serviceDescription || '',
-            price: price,
-            commission: commission,
-            status: 'completed',
-            notes: s.observacao || s.notes || '',
-            createdAt: s.createdAt || new Date().toISOString(),
-            source: 'cash'
-          });
-        }
-      });
-    });
-
-    // 3️⃣ APPOINTMENTS
-    const appWhere = { status: 'completed' };
-    if (start && end) appWhere.date = { [Op.between]: [start, end] };
+    }
+    
     const appointments = await Appointment.findAll({
-      where: appWhere,
+      where,
       include: [
-        { model: Client, as: 'client', attributes: ['name'] },
-        { model: Barber, as: 'barber', attributes: ['name'] }
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'], required: false },
+        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'], required: false }
       ],
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
-    appointments.forEach(app => {
-      const price = app.price || 0;
-      if (price === 0 && app.service && app.service.toLowerCase().includes('mensal')) return;
-      const clientName = app.client?.name || 'Cliente';
-      const barberName = app.barber?.name || 'Desconhecido';
-      const service = app.service || 'Serviço';
-      const key = `${app.date}|${clientName}|${barberName}|${price}|${service}`;
-      if (!uniqueKeys.has(key)) {
-        uniqueKeys.add(key);
-        results.push({
-          id: app.id,
-          date: app.date,
-          time: app.time || '00:00',
-          clientName: clientName,
-          barberName: barberName,
-          service: service,
-          serviceDescription: app.serviceDescription || '',
-          price: price,
-          commission: app.commission || 0,
-          status: 'completed',
-          notes: app.notes || '',
-          createdAt: app.createdAt,
-          source: 'appointment'
-        });
-      }
-    });
-
-    // 🔥 DEDUPLICAÇÃO POR CLIENTE + SERVIÇO + BARBEIRO + VALOR (mantém o mais antigo)
-    const grouped = new Map();
-    results.forEach(item => {
-      const groupKey = `${item.clientName}|${item.barberName}|${item.service}|${item.price}`;
-      if (!grouped.has(groupKey)) {
-        grouped.set(groupKey, item);
-      } else {
-        const existing = grouped.get(groupKey);
-        if (item.date < existing.date) {
-          grouped.set(groupKey, item);
-        }
-      }
-    });
-
-    let finalResults = Array.from(grouped.values());
-
-    // 🔥 FILTRO: REMOVER REGISTROS COM BARBEIRO "Desconhecido" OU SERVIÇO "Serviço"
-    finalResults = finalResults.filter(item => {
-      const barberOk = item.barberName !== 'Desconhecido';
-      const serviceOk = item.service !== 'Serviço' && item.serviceDescription !== 'Serviço';
-      return barberOk && serviceOk;
-    });
-
-    // Ordenar por data (mais recente primeiro)
-    finalResults.sort((a, b) => {
-      if (a.date !== b.date) return b.date.localeCompare(a.date);
-      return (b.time || '').localeCompare(a.time || '');
-    });
-
-    console.log(`📦 ${results.length} serviços brutos -> ${finalResults.length} após deduplicação e filtros`);
-
-    // Formatar datas para o frontend (DD/MM/YYYY)
-    const formatted = finalResults.map(s => {
-      const dateStr = s.date;
+    
+    console.log(`📦 ${appointments.length} serviços concluídos encontrados`);
+    
+    const formatted = appointments.map(app => {
+      const appData = app.toJSON();
+      
+      // 🔥 FORMATAR DATA MANUALMENTE (sem usar new Date())
+      const dateStr = appData.date; // "2026-09-02"
       const [year, month, day] = dateStr.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+      
+      // 🔥 FORMATAR HORA (se tiver)
+      let formattedTime = '';
+      if (appData.time) {
+        formattedTime = appData.time;
+      } else if (appData.createdAt) {
+        const createdDate = new Date(appData.createdAt);
+        const hours = String(createdDate.getHours()).padStart(2, '0');
+        const minutes = String(createdDate.getMinutes()).padStart(2, '0');
+        formattedTime = `${hours}:${minutes}`;
+      }
+      
       return {
-        ...s,
+        id: appData.id,
         date: formattedDate,
-        client: { name: s.clientName, phone: '' },
-        barber: { name: s.barberName },
+        time: formattedTime,
+        dateTime: formattedTime ? `${formattedDate} ${formattedTime}` : formattedDate,
+        client: appData.client || { name: 'Cliente removido', phone: '' },
+        barber: appData.barber || { name: 'Barbeiro removido' },
+        service: appData.service || 'Serviço',
+        serviceDescription: appData.serviceDescription || 'Serviço concluído',
+        price: appData.price || 0,
+        commission: appData.commission || 0,
+        status: appData.status,
+        notes: appData.notes || '',
+        createdAt: appData.createdAt,
+        updatedAt: appData.updatedAt,
+        clientName: appData.client?.name || 'Cliente removido',
+        total: appData.price || 0,
+        commissions: appData.commission || 0,
       };
     });
-
+    
     res.json(formatted);
   } catch (error) {
-    console.error('❌ Erro ao buscar histórico de serviços:', error);
+    console.error('❌ Erro ao buscar serviços concluídos:', error);
     res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 };

@@ -89,17 +89,19 @@ const AdminFaturamento = () => {
         params.period = 'week';
         const now = new Date();
         now.setDate(now.getDate() + weekOffset * 7);
-        const dayOfWeek = now.getDay();
+        const dayOfWeek = now.getDay(); // 0=domingo, 1=segunda, ..., 6=sábado
+        // 🔥 Calcular a segunda-feira da semana atual
         const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() + diffToMonday);
         startOfWeek.setHours(0, 0, 0, 0);
+        // 🔥 Calcular o domingo (início + 6 dias)
         const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 5);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
         endOfWeek.setHours(23, 59, 59, 999);
+        
         params.startDate = startOfWeek.toISOString().split('T')[0];
         params.endDate = endOfWeek.toISOString().split('T')[0];
-        console.log('📅 Semana (segunda a sábado):', params.startDate, 'até', params.endDate);
       } else {
         params.month = selectedMonth;
       }
