@@ -43,11 +43,12 @@ const DAYS = [
   { key: 'sunday', label: 'Domingo' },
 ];
 
-const ALL_TIMES = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'
-];
+// 🔥 HORÁRIOS DE 1 EM 1 HORA (DAS 9H ÀS 19H)
+const ALL_TIMES = Array.from({ length: 11 }, (_, i) => {
+  const hour = 9 + i;
+  return `${String(hour).padStart(2, '0')}:00`;
+});
+// Resultado: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']
 
 const AdminHorarios = () => {
   const [loading, setLoading] = useState(true);
