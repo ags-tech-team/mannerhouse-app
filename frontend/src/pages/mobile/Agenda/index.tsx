@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../api/client';
-import { useAuth } from '../../../contexts/AuthContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -32,7 +31,6 @@ interface Appointment {
 }
 
 const MobileAgenda = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,29 +39,24 @@ const MobileAgenda = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [user, setUser] = useState<any>(null); // 🔥 ADICIONADO
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
 
-
+  // 🔥 Verificar se o usuário está logado
   useEffect(() => {
-  const token = localStorage.getItem('@mannerhouse:token');
-  const userData = localStorage.getItem('@mannerhouse:user');
-  if (!token) {
-    navigate('/mobile/login');
-    return;
-  }
-  if (userData) {
-    setUser(JSON.parse(userData));
-  }
-  loadAppointments();
-}, []);
-
-  useEffect(() => {
-    if (user) {
-      loadAppointments();
+    const token = localStorage.getItem('@mannerhouse:token');
+    const userData = localStorage.getItem('@mannerhouse:user');
+    if (!token) {
+      navigate('/mobile/login');
+      return;
     }
-  }, [selectedDate, user]);
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+    loadAppointments();
+  }, [selectedDate]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -76,7 +69,8 @@ const MobileAgenda = () => {
     } catch (err: any) {
       setError('Erro ao carregar agenda');
       if (err.response?.status === 401) {
-        logout();
+        localStorage.removeItem('@mannerhouse:token');
+        localStorage.removeItem('@mannerhouse:user');
         navigate('/mobile/login');
       }
     } finally {
@@ -167,12 +161,12 @@ const MobileAgenda = () => {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
   if (!user) {
-    return null;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader size={32} className="animate-spin text-[#9c7f64]" />
+      </div>
+    );
   }
 
   return (
@@ -184,7 +178,14 @@ const MobileAgenda = () => {
             <h1 className="text-lg font-bold text-[#060606]">Minha Agenda</h1>
             <p className="text-xs text-[#7f7c7a]">Olá, {user.name}</p>
           </div>
-          <button onClick={logout} className="text-sm text-red-500">
+          <button 
+            onClick={() => {
+              localStorage.removeItem('@mannerhouse:token');
+              localStorage.removeItem('@mannerhouse:user');
+              navigate('/mobile/login');
+            }} 
+            className="text-sm text-red-500"
+          >
             Sair
           </button>
         </div>
