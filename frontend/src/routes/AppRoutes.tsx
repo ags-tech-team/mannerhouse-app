@@ -13,7 +13,7 @@ import AdminBarbers from '../pages/admin/Barbers';
 import AdminFaturamento from '../pages/admin/Faturamento';
 import AdminDespesas from '../pages/admin/Despesas';
 import AdminEstoque from '../pages/admin/Estoque';
-import AdminMensalistas from '../pages/admin/Mensalistas'; // 🔥 IMPORTAR
+import AdminMensalistas from '../pages/admin/Mensalistas';
 
 import BarberDashboard from '../pages/barber/Dashboard';
 import BarberLoja from '../pages/barber/Loja';
@@ -22,10 +22,12 @@ import BarberCaixa from '../pages/barber/Caixa';
 import Clientes from '../pages/shared/Clientes';
 import BarberHistorico from '../pages/barber/Historico';
 
-// 🔥 PÁGINA PÚBLICA
 import PublicSchedule from '../pages/public/Schedule';
-
 import AdminHorarios from '../pages/admin/Horarios';
+
+// 🔥 Importação dos componentes mobile
+import MobileLogin from '../pages/mobile/Login';
+import MobileAgenda from '../pages/mobile/Agenda';
 
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
@@ -50,11 +52,24 @@ export const AppRoutes = () => {
         <Route path="/" element={<PublicSchedule />} />
         <Route path="/agendar" element={<PublicSchedule />} />
 
+        {/* 🔥 ROTA PÚBLICA MOBILE LOGIN */}
+        <Route path="/mobile/login" element={<MobileLogin />} />
+
         {/* Rotas de autenticação */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
         </Route>
+
+        {/* 🔥 ROTA MOBILE AGENDA (PROTEGIDA APENAS BARBEIROS) */}
+        <Route
+          path="/mobile/agenda"
+          element={
+            <ProtectedRoute allowedRoles={['barber']}>
+              <MobileAgenda />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 🔥 ROTAS DO ADMIN (PROTEGIDAS) */}
         <Route
@@ -89,7 +104,7 @@ export const AppRoutes = () => {
           <Route path="schedule" element={<BarberAgenda />} />
           <Route path="shop" element={<BarberLoja />} />
           <Route path="clients" element={<Clientes />} />
-          <Route path="mensalistas" element={<AdminMensalistas />} /> {/* 🔥 ADICIONADO (reutilizando o mesmo componente) */}
+          <Route path="mensalistas" element={<AdminMensalistas />} />
           <Route path="historico" element={<BarberHistorico />} />
         </Route>
 

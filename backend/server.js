@@ -19,6 +19,7 @@ const commissionRoutes = require('./src/routes/commissionRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const monthlyRoutes = require('./src/routes/monthlyRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
+const mobileRoutes = require('./src/routes/mobileRoutes')
 
 const app = express();
 const PORT = process.env.PORT || 3000;
