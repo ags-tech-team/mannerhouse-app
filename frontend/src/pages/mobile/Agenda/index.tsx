@@ -52,7 +52,6 @@ const MobileAgenda = () => {
   const year = selectedMonth.getFullYear();
   const month = selectedMonth.getMonth() + 1;
 
-  // 🔥 Carregar barbeiros ao montar
   useEffect(() => {
     const token = localStorage.getItem('@mannerhouse:token');
     const userData = localStorage.getItem('@mannerhouse:user');
@@ -74,18 +73,14 @@ const MobileAgenda = () => {
       // Se o usuário tiver um barberId, pré-selecionar
       if (user?.barberId) {
         setSelectedBarberId(user.barberId);
+      } else if (active.length > 0) {
+        // 🔥 Selecionar o primeiro barbeiro ativo
+        setSelectedBarberId(active[0].id);
       }
     } catch (err) {
       console.error('Erro ao carregar barbeiros:', err);
     }
   };
-
-  // 🔥 Carregar agendamentos quando mês ou barbeiro mudar
-  useEffect(() => {
-    if (barbers.length > 0 || !selectedBarberId) {
-      loadAppointments();
-    }
-  }, [selectedMonth, selectedBarberId, barbers]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -108,6 +103,13 @@ const MobileAgenda = () => {
       setLoading(false);
     }
   };
+
+  // 🔥 Carregar agendamentos quando mês ou barbeiro mudar
+  useEffect(() => {
+    if (selectedBarberId !== undefined) {
+      loadAppointments();
+    }
+  }, [selectedMonth, selectedBarberId]);
 
   const getDaysInMonth = () => {
     const firstDay = new Date(year, month - 1, 1);
@@ -241,7 +243,7 @@ const MobileAgenda = () => {
           </button>
         </div>
 
-        {/* 🔥 SELETOR DE BARBEIRO */}
+        {/* Seletor de barbeiro */}
         <div className="mt-3">
           <select
             value={selectedBarberId}
