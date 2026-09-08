@@ -39,12 +39,11 @@ const MobileAgenda = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [user, setUser] = useState<any>(null); // 🔥 ADICIONADO
+  const [user, setUser] = useState<any>(null);
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
 
-  // 🔥 Verificar se o usuário está logado
   useEffect(() => {
     const token = localStorage.getItem('@mannerhouse:token');
     const userData = localStorage.getItem('@mannerhouse:user');

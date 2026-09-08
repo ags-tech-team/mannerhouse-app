@@ -54,14 +54,10 @@ const mobileLogin = async (req, res) => {
   }
 };
 
-// 📅 Listar agendamentos do barbeiro (com filtro de mês)
 const getMobileAppointments = async (req, res) => {
   try {
     const { month, year } = req.query;
     const barberId = req.user.barberId;
-    if (!barberId) {
-      return res.status(400).json({ error: 'Barbeiro não associado ao usuário' });
-    }
 
     let startDate, endDate;
     if (month && year) {
@@ -79,12 +75,19 @@ const getMobileAppointments = async (req, res) => {
       endDate = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
 
+    // 🔥 Construir cláusula WHERE
+    const where = {
+      date: { [Op.between]: [startDate, endDate] },
+      status: { [Op.notIn]: ['cancelled'] }
+    };
+
+    // Se tiver barberId, filtrar por ele; senão, buscar todos
+    if (barberId) {
+      where.barberId = barberId;
+    }
+
     const appointments = await Appointment.findAll({
-      where: {
-        barberId,
-        date: { [Op.between]: [startDate, endDate] },
-        status: { [Op.notIn]: ['cancelled'] }
-      },
+      where,
       include: [
         { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] },
         { model: Barber, as: 'barber', attributes: ['id', 'name'] }
