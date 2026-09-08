@@ -12,7 +12,6 @@ import {
   User,
   Phone,
   Scissors,
-  AlertCircle,
   Loader
 } from 'lucide-react';
 
@@ -30,12 +29,20 @@ interface Appointment {
   notes: string;
 }
 
+interface Barber {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 const MobileAgenda = () => {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
+  const [selectedBarberId, setSelectedBarberId] = useState<string>('');
   const [error, setError] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -45,6 +52,7 @@ const MobileAgenda = () => {
   const year = selectedMonth.getFullYear();
   const month = selectedMonth.getMonth() + 1;
 
+  // 🔥 Carregar barbeiros ao montar
   useEffect(() => {
     const token = localStorage.getItem('@mannerhouse:token');
     const userData = localStorage.getItem('@mannerhouse:user');
@@ -55,16 +63,39 @@ const MobileAgenda = () => {
     if (userData) {
       setUser(JSON.parse(userData));
     }
-    loadAppointments();
-  }, [selectedMonth]);
+    loadBarbers();
+  }, []);
+
+  const loadBarbers = async () => {
+    try {
+      const response = await api.get('/barbers');
+      const active = response.data.filter((b: Barber) => b.isActive);
+      setBarbers(active);
+      // Se o usuário tiver um barberId, pré-selecionar
+      if (user?.barberId) {
+        setSelectedBarberId(user.barberId);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar barbeiros:', err);
+    }
+  };
+
+  // 🔥 Carregar agendamentos quando mês ou barbeiro mudar
+  useEffect(() => {
+    if (barbers.length > 0 || !selectedBarberId) {
+      loadAppointments();
+    }
+  }, [selectedMonth, selectedBarberId, barbers]);
 
   const loadAppointments = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await api.get('/mobile/appointments', {
-        params: { month, year }
-      });
+      const params: any = { month, year };
+      if (selectedBarberId) {
+        params.barberId = selectedBarberId;
+      }
+      const response = await api.get('/mobile/appointments', { params });
       setAppointments(response.data);
     } catch (err: any) {
       setError('Erro ao carregar agenda');
@@ -107,7 +138,6 @@ const MobileAgenda = () => {
     const newDate = new Date(selectedMonth);
     newDate.setMonth(selectedMonth.getMonth() + delta);
     setSelectedMonth(newDate);
-    // Resetar o dia selecionado para o primeiro dia do mês ao mudar de mês
     setSelectedDay(1);
   };
 
@@ -209,6 +239,22 @@ const MobileAgenda = () => {
           >
             Sair
           </button>
+        </div>
+
+        {/* 🔥 SELETOR DE BARBEIRO */}
+        <div className="mt-3">
+          <select
+            value={selectedBarberId}
+            onChange={(e) => setSelectedBarberId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#9c7f64]"
+          >
+            <option value="">Todos os barbeiros</option>
+            {barbers.map(barber => (
+              <option key={barber.id} value={barber.id}>
+                {barber.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -312,7 +358,7 @@ const MobileAgenda = () => {
         </div>
       </div>
 
-      {/* Modal de detalhes */}
+      {/* Modal de detalhes (mantido igual) */}
       {showModal && selectedAppointment && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-t-2xl w-full max-w-md p-5 max-h-[80vh] overflow-y-auto animate-slide-up">

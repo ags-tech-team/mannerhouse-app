@@ -56,8 +56,8 @@ const mobileLogin = async (req, res) => {
 
 const getMobileAppointments = async (req, res) => {
   try {
-    const { month, year } = req.query;
-    const barberId = req.user.barberId;
+    const { month, year, barberId } = req.query; // 🔥 adicionar barberId
+    const userBarberId = req.user.barberId;
 
     let startDate, endDate;
     if (month && year) {
@@ -75,15 +75,15 @@ const getMobileAppointments = async (req, res) => {
       endDate = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
 
-    // 🔥 Construir cláusula WHERE
     const where = {
       date: { [Op.between]: [startDate, endDate] },
       status: { [Op.notIn]: ['cancelled'] }
     };
 
-    // Se tiver barberId, filtrar por ele; senão, buscar todos
-    if (barberId) {
-      where.barberId = barberId;
+    // 🔥 Prioridade: barberId da query > barberId do usuário > todos
+    const effectiveBarberId = barberId || userBarberId;
+    if (effectiveBarberId) {
+      where.barberId = effectiveBarberId;
     }
 
     const appointments = await Appointment.findAll({
@@ -102,7 +102,6 @@ const getMobileAppointments = async (req, res) => {
   }
 };
 
-// ✅ Atualizar status (confirmar)
 const updateMobileAppointmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
