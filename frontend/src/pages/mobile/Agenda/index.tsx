@@ -34,15 +34,16 @@ const MobileAgenda = () => {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
   const [error, setError] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-  const year = selectedDate.getFullYear();
-  const month = selectedDate.getMonth() + 1;
+  const year = selectedMonth.getFullYear();
+  const month = selectedMonth.getMonth() + 1;
 
   useEffect(() => {
     const token = localStorage.getItem('@mannerhouse:token');
@@ -55,7 +56,7 @@ const MobileAgenda = () => {
       setUser(JSON.parse(userData));
     }
     loadAppointments();
-  }, [selectedDate]);
+  }, [selectedMonth]);
 
   const loadAppointments = async () => {
     setLoading(true);
@@ -87,11 +88,13 @@ const MobileAgenda = () => {
       const date = new Date(year, month - 1, i);
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const dayAppointments = appointments.filter(a => a.date === dateStr);
+      const isSelected = i === selectedDay;
       days.push({
         day: i,
         date: dateStr,
         isPast: date < today,
         isToday: date.toDateString() === today.toDateString(),
+        isSelected,
         appointments: dayAppointments,
       });
     }
@@ -101,9 +104,20 @@ const MobileAgenda = () => {
   const days = getDaysInMonth();
 
   const changeMonth = (delta: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(selectedDate.getMonth() + delta);
-    setSelectedDate(newDate);
+    const newDate = new Date(selectedMonth);
+    newDate.setMonth(selectedMonth.getMonth() + delta);
+    setSelectedMonth(newDate);
+    // Resetar o dia selecionado para o primeiro dia do mês ao mudar de mês
+    setSelectedDay(1);
+  };
+
+  const handleDayClick = (day: number) => {
+    setSelectedDay(day);
+  };
+
+  const getAppointmentsForSelectedDay = () => {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    return appointments.filter(a => a.date === dateStr);
   };
 
   const handleAppointmentClick = (app: Appointment) => {
@@ -160,6 +174,14 @@ const MobileAgenda = () => {
     }
   };
 
+  const selectedDateStr = `${year}-${String(month).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+  const selectedDateDisplay = new Date(selectedDateStr).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+  const dayAppointments = getAppointmentsForSelectedDay();
+
   if (!user) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -198,7 +220,7 @@ const MobileAgenda = () => {
               <ChevronLeft size={20} />
             </button>
             <span className="font-semibold">
-              {selectedDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              {selectedMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
             </span>
             <button onClick={() => changeMonth(1)} className="p-2">
               <ChevronRight size={20} />
@@ -222,14 +244,17 @@ const MobileAgenda = () => {
               {days.map((day, idx) => {
                 const hasAppointments = day.appointments.length > 0;
                 const isToday = day.isToday;
+                const isSelected = day.isSelected;
                 return (
                   <div
                     key={idx}
-                    className={`aspect-square flex flex-col items-center justify-center rounded-lg border ${
+                    onClick={() => handleDayClick(day.day)}
+                    className={`aspect-square flex flex-col items-center justify-center rounded-lg border cursor-pointer transition ${
+                      isSelected ? 'border-[#9c7f64] bg-[#9c7f64]/20' :
                       isToday ? 'border-[#9c7f64] bg-[#9c7f64]/10' : 'border-gray-100'
                     } ${hasAppointments ? 'bg-[#9c7f64]/5' : ''}`}
                   >
-                    <span className={`text-sm font-medium ${isToday ? 'text-[#9c7f64]' : 'text-[#060606]'}`}>
+                    <span className={`text-sm font-medium ${isSelected ? 'text-[#9c7f64]' : isToday ? 'text-[#9c7f64]' : 'text-[#060606]'}`}>
                       {day.day}
                     </span>
                     {hasAppointments && (
@@ -244,37 +269,44 @@ const MobileAgenda = () => {
           )}
         </div>
 
-        {/* Lista de agendamentos do dia */}
+        {/* Lista de agendamentos do dia selecionado */}
         <div className="mt-4">
-          <h2 className="text-sm font-semibold text-[#060606] mb-2">Agendamentos do dia</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-[#060606]">
+              Agendamentos - {selectedDateDisplay}
+            </h2>
+            <button 
+              onClick={() => setSelectedDay(new Date().getDate())}
+              className="text-xs text-[#9c7f64] hover:underline"
+            >
+              Hoje
+            </button>
+          </div>
           {loading ? (
             <p className="text-sm text-[#7f7c7a]">Carregando...</p>
+          ) : dayAppointments.length === 0 ? (
+            <p className="text-sm text-[#7f7c7a]">Nenhum agendamento neste dia</p>
           ) : (
             <div className="space-y-2">
-              {appointments
-                .filter(a => a.date === `${year}-${String(month).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`)
-                .map(app => (
-                  <div
-                    key={app.id}
-                    onClick={() => handleAppointmentClick(app)}
-                    className="bg-white rounded-lg shadow p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                  >
-                    <div>
-                      <p className="font-medium text-sm text-[#060606]">{app.client.name}</p>
-                      <p className="text-xs text-[#7f7c7a]">{app.time} - {app.serviceDescription || app.service}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      app.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      app.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {app.status === 'completed' ? 'Concluído' : app.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
-                    </span>
+              {dayAppointments.map(app => (
+                <div
+                  key={app.id}
+                  onClick={() => handleAppointmentClick(app)}
+                  className="bg-white rounded-lg shadow p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-[#060606]">{app.client.name}</p>
+                    <p className="text-xs text-[#7f7c7a]">{app.time} - {app.serviceDescription || app.service}</p>
                   </div>
-                ))}
-              {appointments.filter(a => a.date === `${year}-${String(month).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`).length === 0 && (
-                <p className="text-sm text-[#7f7c7a]">Nenhum agendamento hoje</p>
-              )}
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    app.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    app.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {app.status === 'completed' ? 'Concluído' : app.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
