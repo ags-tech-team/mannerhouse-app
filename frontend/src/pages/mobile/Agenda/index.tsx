@@ -35,6 +35,14 @@ interface Barber {
   isActive: boolean;
 }
 
+// 🔥 Status disponíveis
+const STATUS_OPTIONS = [
+  { value: 'pending', label: '⏳ Pendente', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'confirmed', label: '✅ Confirmado', color: 'bg-blue-100 text-blue-800' },
+  { value: 'completed', label: '🎯 Concluído', color: 'bg-green-100 text-green-800' },
+  { value: 'cancelled', label: '❌ Cancelado', color: 'bg-red-100 text-red-800' },
+];
+
 const MobileAgenda = () => {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -70,11 +78,9 @@ const MobileAgenda = () => {
       const response = await api.get('/barbers');
       const active = response.data.filter((b: Barber) => b.isActive);
       setBarbers(active);
-      // Se o usuário tiver um barberId, pré-selecionar
       if (user?.barberId) {
         setSelectedBarberId(user.barberId);
       } else if (active.length > 0) {
-        // 🔥 Selecionar o primeiro barbeiro ativo
         setSelectedBarberId(active[0].id);
       }
     } catch (err) {
@@ -104,7 +110,6 @@ const MobileAgenda = () => {
     }
   };
 
-  // 🔥 Carregar agendamentos quando mês ou barbeiro mudar
   useEffect(() => {
     if (selectedBarberId !== undefined) {
       loadAppointments();
@@ -157,17 +162,22 @@ const MobileAgenda = () => {
     setShowModal(true);
   };
 
-  const handleConfirm = async () => {
+  // 🔥 FUNÇÃO GENÉRICA PARA ATUALIZAR STATUS
+  const handleStatusChange = async (newStatus: string) => {
     if (!selectedAppointment) return;
+    if (newStatus === selectedAppointment.status) {
+      alert(`O agendamento já está com status "${newStatus}"`);
+      return;
+    }
     setActionLoading(true);
     try {
       await api.put(`/mobile/appointments/${selectedAppointment.id}/status`, {
-        status: 'completed'
+        status: newStatus
       });
       await loadAppointments();
       setShowModal(false);
     } catch (err) {
-      alert('Erro ao confirmar agendamento');
+      alert('Erro ao atualizar status');
     } finally {
       setActionLoading(false);
     }
@@ -243,7 +253,6 @@ const MobileAgenda = () => {
           </button>
         </div>
 
-        {/* Seletor de barbeiro */}
         <div className="mt-3">
           <select
             value={selectedBarberId}
@@ -349,9 +358,10 @@ const MobileAgenda = () => {
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     app.status === 'completed' ? 'bg-green-100 text-green-700' :
                     app.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                    app.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {app.status === 'completed' ? 'Concluído' : app.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
+                    {app.status === 'completed' ? 'Concluído' : app.status === 'cancelled' ? 'Cancelado' : app.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                   </span>
                 </div>
               ))}
@@ -360,7 +370,7 @@ const MobileAgenda = () => {
         </div>
       </div>
 
-      {/* Modal de detalhes (mantido igual) */}
+      {/* Modal de detalhes */}
       {showModal && selectedAppointment && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-t-2xl w-full max-w-md p-5 max-h-[80vh] overflow-y-auto animate-slide-up">
@@ -397,16 +407,26 @@ const MobileAgenda = () => {
                   <p className="text-[#7f7c7a]">{selectedAppointment.notes}</p>
                 </div>
               )}
+              <div className="border-t pt-3">
+                <p className="text-sm font-medium text-[#060606] mb-2">Alterar Status</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {STATUS_OPTIONS.map((status) => (
+                    <button
+                      key={status.value}
+                      onClick={() => handleStatusChange(status.value)}
+                      disabled={actionLoading || selectedAppointment.status === status.value}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                        selectedAppointment.status === status.value
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : `hover:opacity-80 ${status.color}`
+                      }`}
+                    >
+                      {status.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="border-t pt-3 flex flex-col gap-2">
-                {selectedAppointment.status !== 'completed' && (
-                  <button
-                    onClick={handleConfirm}
-                    disabled={actionLoading}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle size={18} /> Confirmar (Concluído)
-                  </button>
-                )}
                 <button
                   onClick={handleEdit}
                   disabled={actionLoading}
