@@ -92,9 +92,6 @@ const getAvailableTimes = async (req, res) => {
   }
 };
 
-// ==========================================
-// CREATE APPOINTMENT - Criar agendamento público
-// ==========================================
 const createAppointment = async (req, res) => {
   try {
     const { 
@@ -124,7 +121,7 @@ const createAppointment = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // 🔥 VERIFICAR DISPONIBILIDADE
+    // 🔥 VERIFICAR DISPONIBILIDADE (horário ocupado)
     const existing = await Appointment.findOne({
       where: {
         barberId,
@@ -133,21 +130,60 @@ const createAppointment = async (req, res) => {
         status: { [Op.notIn]: ['cancelled'] }
       }
     });
-    
     if (existing) {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // 🔥 BUSCAR OU CRIAR CLIENTE
+    // 🔥 BUSCAR OU CRIAR CLIENTE (sempre pelo telefone)
     let client = await Client.findOne({
       where: { phone: clientPhone }
     });
-    
     if (!client) {
       client = await Client.create({
-        name: clientName,
+        name: clientName || 'Cliente sem nome',
         phone: clientPhone,
         isActive: true,
+      });
+    }
+    
+    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários na mesma semana (para o mesmo barbeiro)
+    const appointmentDateObj = new Date(date + 'T00:00:00');
+    const dayOfWeek = appointmentDateObj.getDay();
+    const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
+    const weekStart = new Date(appointmentDateObj);
+    weekStart.setDate(appointmentDateObj.getDate() - diffToMonday);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const existingAppointments = await Appointment.findAll({
+      where: {
+        clientId: client.id,
+        barberId: barberId,
+        date: { [Op.between]: [weekStartStr, weekEndStr] },
+        status: { [Op.notIn]: ['cancelled'] }
+      }
+    });
+    if (existingAppointments.length > 0) {
+      const dates = existingAppointments.map(a => `${a.date} ${a.time}`).join(', ');
+      return res.status(400).json({
+        error: `Este cliente já possui agendamento(s) na semana (${weekStartStr} a ${weekEndStr}): ${dates}. Não é permitido mais de um agendamento por semana para o mesmo barbeiro.`
+      });
+    }
+    
+    // 🔥 (OPCIONAL) VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários no mesmo dia
+    const sameDayAppointments = await Appointment.findAll({
+      where: {
+        clientId: client.id,
+        barberId: barberId,
+        date: date,
+        status: { [Op.notIn]: ['cancelled'] }
+      }
+    });
+    if (sameDayAppointments.length > 0) {
+      return res.status(400).json({
+        error: `Este cliente já possui um agendamento no dia ${date}. Não é permitido dois agendamentos no mesmo dia para o mesmo barbeiro.`
       });
     }
     
@@ -172,16 +208,8 @@ const createAppointment = async (req, res) => {
     
     const created = await Appointment.findByPk(appointment.id, {
       include: [
-        { 
-          model: Barber, 
-          as: 'barber',
-          attributes: ['id', 'name'] 
-        },
-        { 
-          model: Client, 
-          as: 'client',
-          attributes: ['id', 'name', 'phone'] 
-        }
+        { model: Barber, as: 'barber', attributes: ['id', 'name'] },
+        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
       ],
     });
     
