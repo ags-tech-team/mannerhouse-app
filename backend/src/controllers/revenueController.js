@@ -379,77 +379,62 @@ const getByDate = async (req, res) => {
 
 const getServices = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
-    
-    console.log('📥 Buscando histórico de serviços concluídos:', { startDate, endDate });
-    
-    const where = {
-      status: 'completed'
-    };
-    
-    if (startDate && endDate) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (dateRegex.test(startDate) && dateRegex.test(endDate)) {
-        where.date = {
-          [Op.between]: [startDate, endDate]
-        };
-      }
+    const { startDate, endDate, month } = req.query;
+    let start, end;
+
+    // 🔥 Calcular intervalo
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [year, mes] = month.split('-').map(Number);
+      start = `${year}-${String(mes).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, mes, 0).getDate();
+      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else if (startDate && endDate) {
+      start = startDate;
+      end = endDate;
+    } else {
+      const hoje = dateHelper.getTodayLocal();
+      const [year, mes] = hoje.split('-').map(Number);
+      start = `${year}-${String(mes).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, mes, 0).getDate();
+      end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
-    
-    const appointments = await Appointment.findAll({
-      where,
-      include: [
-        { model: Client, as: 'client', attributes: ['id', 'name', 'phone'], required: false },
-        { model: Barber, as: 'barber', attributes: ['id', 'name', 'email', 'phone'], required: false }
-      ],
-      order: [['date', 'DESC'], ['time', 'DESC']]
+
+    console.log('📥 Buscando histórico (apenas revenues):', { start, end });
+
+    // 🔥 Buscar apenas revenues confirmados
+    const revenues = await Revenue.findAll({
+      where: {
+        date: { [Op.between]: [start, end] },
+        status: 'confirmed'
+      },
+      order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
-    
-    console.log(`📦 ${appointments.length} serviços concluídos encontrados`);
-    
-    const formatted = appointments.map(app => {
-      const appData = app.toJSON();
-      
-      // 🔥 FORMATAR DATA MANUALMENTE (sem usar new Date())
-      const dateStr = appData.date; // "2026-09-02"
-      const [year, month, day] = dateStr.split('-').map(Number);
+
+    console.log(`📦 ${revenues.length} revenues encontrados`);
+
+    // Formatar para o frontend
+    const formatted = revenues.map(r => {
+      const [year, month, day] = r.date.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-      
-      // 🔥 FORMATAR HORA (se tiver)
-      let formattedTime = '';
-      if (appData.time) {
-        formattedTime = appData.time;
-      } else if (appData.createdAt) {
-        const createdDate = new Date(appData.createdAt);
-        const hours = String(createdDate.getHours()).padStart(2, '0');
-        const minutes = String(createdDate.getMinutes()).padStart(2, '0');
-        formattedTime = `${hours}:${minutes}`;
-      }
-      
       return {
-        id: appData.id,
+        id: r.id,
         date: formattedDate,
-        time: formattedTime,
-        dateTime: formattedTime ? `${formattedDate} ${formattedTime}` : formattedDate,
-        client: appData.client || { name: 'Cliente removido', phone: '' },
-        barber: appData.barber || { name: 'Barbeiro removido' },
-        service: appData.service || 'Serviço',
-        serviceDescription: appData.serviceDescription || 'Serviço concluído',
-        price: appData.price || 0,
-        commission: appData.commission || 0,
-        status: appData.status,
-        notes: appData.notes || '',
-        createdAt: appData.createdAt,
-        updatedAt: appData.updatedAt,
-        clientName: appData.client?.name || 'Cliente removido',
-        total: appData.price || 0,
-        commissions: appData.commission || 0,
+        time: r.createdAt ? new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        client: { name: r.clientName || 'Cliente', phone: '' },
+        barber: { name: r.barberName || 'Desconhecido' },
+        service: r.service || 'Serviço',
+        serviceDescription: r.serviceDescription || '',
+        price: r.total || 0,
+        commission: r.commissions || 0,
+        status: 'completed',
+        notes: r.notes || '',
+        createdAt: r.createdAt,
       };
     });
-    
+
     res.json(formatted);
   } catch (error) {
-    console.error('❌ Erro ao buscar serviços concluídos:', error);
+    console.error('❌ Erro ao buscar histórico (revenues):', error);
     res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 };
