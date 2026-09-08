@@ -61,11 +61,10 @@ export const AppRoutes = () => {
           <Route path="/register" element={<Register />} />
         </Route>
 
-        {/* 🔥 ROTA MOBILE AGENDA (PROTEGIDA APENAS BARBEIROS) */}
         <Route
           path="/mobile/agenda"
           element={
-            <ProtectedRoute allowedRoles={['barber']}>
+            <ProtectedRoute allowedRoles={['barber']} redirectPath="/mobile/login">
               <MobileAgenda />
             </ProtectedRoute>
           }
