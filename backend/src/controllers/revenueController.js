@@ -40,7 +40,6 @@ const getFinancialDashboard = async (req, res) => {
       }
       monthString = startDate.substring(0, 7);
     } else {
-      // Mês
       mes = month ? parseInt(month) : hojeDate.getMonth() + 1;
       ano = hojeDate.getFullYear();
       startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
@@ -50,6 +49,7 @@ const getFinancialDashboard = async (req, res) => {
       console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
     }
     
+    // 🔥 Revenues (serviços)
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] },
@@ -61,6 +61,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
+    // 🔥 Sales (produtos)
     const sales = await Sale.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -71,10 +72,13 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
+    // 🔥 CORREÇÃO: Mensalidades – filtrar por data de pagamento (paidAt)
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
-        month: monthString,
         paid: true,
+        paidAt: {
+          [Op.between]: [new Date(startDate + 'T00:00:00'), new Date(endDate + 'T23:59:59.999')]
+        }
       },
       include: [
         {
@@ -91,7 +95,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
+    console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades pagas no período`);
     
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
@@ -289,8 +293,7 @@ const getSummary = async (req, res) => {
       endDate = hoje;
     }
     
-    const monthString = startDate.substring(0, 7);
-    
+    // 🔥 CORREÇÃO: Filtrar mensalidades por data de pagamento (paidAt)
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] },
@@ -306,8 +309,10 @@ const getSummary = async (req, res) => {
     
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
-        month: monthString,
         paid: true,
+        paidAt: {
+          [Op.between]: [new Date(startDate + 'T00:00:00'), new Date(endDate + 'T23:59:59.999')]
+        }
       }
     });
     
