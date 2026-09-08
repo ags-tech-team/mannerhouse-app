@@ -35,7 +35,6 @@ interface Barber {
   isActive: boolean;
 }
 
-// 🔥 Status disponíveis
 const STATUS_OPTIONS = [
   { value: 'pending', label: '⏳ Pendente', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'confirmed', label: '✅ Confirmado', color: 'bg-blue-100 text-blue-800' },
@@ -78,6 +77,7 @@ const MobileAgenda = () => {
       const response = await api.get('/barbers');
       const active = response.data.filter((b: Barber) => b.isActive);
       setBarbers(active);
+      // 🔥 Seleciona o barbeiro do usuário ou o primeiro ativo
       if (user?.barberId) {
         setSelectedBarberId(user.barberId);
       } else if (active.length > 0) {
@@ -89,13 +89,11 @@ const MobileAgenda = () => {
   };
 
   const loadAppointments = async () => {
+    if (!selectedBarberId) return; // não carrega se não houver barbeiro
     setLoading(true);
     setError('');
     try {
-      const params: any = { month, year };
-      if (selectedBarberId) {
-        params.barberId = selectedBarberId;
-      }
+      const params: any = { month, year, barberId: selectedBarberId };
       const response = await api.get('/mobile/appointments', { params });
       setAppointments(response.data);
     } catch (err: any) {
@@ -111,7 +109,7 @@ const MobileAgenda = () => {
   };
 
   useEffect(() => {
-    if (selectedBarberId !== undefined) {
+    if (selectedBarberId) {
       loadAppointments();
     }
   }, [selectedMonth, selectedBarberId]);
@@ -162,7 +160,6 @@ const MobileAgenda = () => {
     setShowModal(true);
   };
 
-  // 🔥 FUNÇÃO GENÉRICA PARA ATUALIZAR STATUS
   const handleStatusChange = async (newStatus: string) => {
     if (!selectedAppointment) return;
     if (newStatus === selectedAppointment.status) {
@@ -253,13 +250,13 @@ const MobileAgenda = () => {
           </button>
         </div>
 
+        {/* 🔥 Seletor de barbeiro – sem "Todos os barbeiros" */}
         <div className="mt-3">
           <select
             value={selectedBarberId}
             onChange={(e) => setSelectedBarberId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#9c7f64]"
           >
-            <option value="">Todos os barbeiros</option>
             {barbers.map(barber => (
               <option key={barber.id} value={barber.id}>
                 {barber.name}
