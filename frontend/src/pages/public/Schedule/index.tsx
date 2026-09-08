@@ -81,20 +81,17 @@ const PublicSchedule = () => {
       const month = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
       try {
         setLoading(true);
-        // 🔥 USAR ROTA PÚBLICA (criar no backend)
         const response = await api.get('/public/available-dates', {
           params: { barberId: selectedBarber, month }
         });
         const dates = response.data.dates || [];
         setAvailableDates(new Set(dates));
-        // Limpar data selecionada se não estiver mais disponível
         if (selectedDate && !dates.includes(selectedDate)) {
           setSelectedDate('');
           setAvailableTimes([]);
         }
       } catch (error) {
         console.error('Erro ao carregar dias disponíveis:', error);
-        // Fallback: carregar horários apenas quando clicar (comportamento antigo)
         setAvailableDates(new Set());
       } finally {
         setLoading(false);
@@ -215,6 +212,7 @@ const PublicSchedule = () => {
     }));
   };
 
+  // 🔥 handleSubmit com mensagens amigáveis
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -256,11 +254,20 @@ const PublicSchedule = () => {
       setSuccess(true);
     } catch (error: any) {
       console.error('Erro ao agendar:', error);
-      if (error.response?.data?.error?.includes('já existe')) {
-        setError(error.response.data.error);
-      } else {
-        setError(error.response?.data?.error || 'Erro ao realizar agendamento');
+      const backendError = error.response?.data?.error || '';
+      let userMessage = 'Erro ao realizar agendamento. Tente novamente.';
+      
+      if (backendError.includes('horário que já passou')) {
+        userMessage = '⚠️ Não é possível agendar em um horário que já passou. Escolha um horário futuro.';
+      } else if (backendError.includes('já possui um agendamento na semana')) {
+        userMessage = '⚠️ Você já tem um agendamento agendado para esta semana. Escolha outra semana.';
+      } else if (backendError.includes('já ocupado')) {
+        userMessage = '⚠️ Este horário já está ocupado. Escolha outro horário.';
+      } else if (backendError.includes('já existe')) {
+        userMessage = backendError;
       }
+      
+      setError(userMessage);
     } finally {
       setSubmitting(false);
     }
@@ -286,6 +293,16 @@ const PublicSchedule = () => {
 
   const handleServicesChange = (services: SelectedService[]) => {
     setSelectedServices(services);
+  };
+
+  // 🔥 Função para verificar se um horário já passou (hoje)
+  const isTimePast = (time: string) => {
+    const today = new Date();
+    const isToday = selectedDate === today.toISOString().split('T')[0];
+    if (!isToday) return false;
+    const [hour, minute] = time.split(':').map(Number);
+    const now = new Date();
+    return hour < now.getHours() || (hour === now.getHours() && minute < now.getMinutes());
   };
 
   if (success) {
@@ -334,17 +351,11 @@ const PublicSchedule = () => {
 
         {/* Progresso */}
         <div className="flex justify-center items-center gap-1 sm:gap-2 md:gap-3 mb-6 sm:mb-8 md:mb-10">
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${
-            step >= 1 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'
-          }`}>1</div>
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${step >= 1 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'}`}>1</div>
           <div className={`w-8 sm:w-12 md:w-16 h-1 ${step >= 2 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${
-            step >= 2 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'
-          }`}>2</div>
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${step >= 2 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'}`}>2</div>
           <div className={`w-8 sm:w-12 md:w-16 h-1 ${step >= 3 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${
-            step >= 3 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'
-          }`}>3</div>
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${step >= 3 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'}`}>3</div>
         </div>
 
         {error && (
@@ -390,21 +401,13 @@ const PublicSchedule = () => {
                   </label>
                   <div className="bg-[#f5f0e8] rounded-lg p-3 sm:p-4 md:p-5">
                     <div className="flex justify-between items-center mb-3 sm:mb-4">
-                      <button
-                        type="button"
-                        onClick={() => changeMonth(-1)}
-                        className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition"
-                      >
+                      <button type="button" onClick={() => changeMonth(-1)} className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition">
                         <ChevronLeft size={18} className="sm:w-5 sm:h-5 md:w-6 md:h-6" />
                       </button>
                       <span className="font-semibold text-[#060606] text-sm sm:text-base md:text-lg">
                         {currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => changeMonth(1)}
-                        className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition"
-                      >
+                      <button type="button" onClick={() => changeMonth(1)} className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition">
                         <ChevronRight size={18} className="sm:w-5 sm:h-5 md:w-6 md:h-6" />
                       </button>
                     </div>
@@ -509,20 +512,27 @@ const PublicSchedule = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2">
-                      {availableTimes.map((time) => (
-                        <button
-                          key={time}
-                          type="button"
-                          onClick={() => setSelectedTime(time)}
-                          className={`py-2 sm:py-2.5 md:py-3 rounded-lg border-2 transition text-xs sm:text-sm md:text-base ${
-                            selectedTime === time
-                              ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64]'
-                              : 'border-gray-200 hover:border-[#9c7f64]'
-                          }`}
-                        >
-                          {time}
-                        </button>
-                      ))}
+                      {availableTimes.map((time) => {
+                        const isPastTime = isTimePast(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => !isPastTime && setSelectedTime(time)}
+                            disabled={isPastTime}
+                            className={`py-2 sm:py-2.5 md:py-3 rounded-lg border-2 transition text-xs sm:text-sm md:text-base ${
+                              selectedTime === time
+                                ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64]'
+                                : isPastTime
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                : 'border-gray-200 hover:border-[#9c7f64]'
+                            }`}
+                          >
+                            {time}
+                            {isPastTime && ' (passado)'}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -621,7 +631,6 @@ const PublicSchedule = () => {
                       required
                     />
                   </div>
-                  <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">

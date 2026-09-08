@@ -85,30 +85,27 @@ const getAvailableTimes = async (req, res) => {
   try {
     const { barberId } = req.params;
     const { date } = req.query;
-    
+
     if (!barberId || !date) {
       return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
     }
-    
+
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
-    
-    // 🔥 CORRIGIDO: USAR DATEHELPER
-    const dateObj = dateHelper.parseDateLocal(date);
-    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    
+
+    // 🔥 Obter o schedule do barbeiro
     const schedule = barber.schedule || {};
+    const dateObj = new Date(date + 'T00:00:00');
+    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const daySchedule = schedule[dayOfWeek];
-    
-    if (!daySchedule || !daySchedule.enabled) {
-      console.log(`📅 ${barber.name} não trabalha em ${dayOfWeek} (${date})`);
+
+    if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) {
       return res.json([]);
     }
-    
-    const barberTimes = daySchedule.times || [];
-    
+
+    // 🔥 Buscar horários já ocupados
     const appointments = await Appointment.findAll({
       where: {
         barberId,
@@ -117,12 +114,24 @@ const getAvailableTimes = async (req, res) => {
       },
       attributes: ['time']
     });
-    
-    const bookedTimes = appointments.map(app => app.time);
-    const availableTimes = barberTimes.filter(time => !bookedTimes.includes(time));
-    
+    const bookedTimes = appointments.map(a => a.time);
+
+    // 🔥 Filtrar horários disponíveis (não ocupados)
+    let availableTimes = daySchedule.times.filter(time => !bookedTimes.includes(time));
+
+    // 🔥 **NOVO: Remover horários passados (se for hoje)**
+    const today = new Date();
+    const isToday = date === today.toISOString().split('T')[0];
+    if (isToday) {
+      const currentHour = today.getHours();
+      const currentMinute = today.getMinutes();
+      availableTimes = availableTimes.filter(time => {
+        const [hour, minute] = time.split(':').map(Number);
+        return hour > currentHour || (hour === currentHour && minute > currentMinute);
+      });
+    }
+
     console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
-    
     res.json(availableTimes);
   } catch (error) {
     console.error('Erro ao buscar horários disponíveis:', error);
@@ -146,11 +155,13 @@ const create = async (req, res) => {
     
     console.log('📝 Criando agendamento:', { barberId, clientName, clientPhone, date, time });
     
+    // 🔥 VALIDAÇÃO 1: Barbeiro existe
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
+    // 🔥 VALIDAÇÃO 2: Horário já ocupado
     const existing = await Appointment.findOne({
       where: {
         barberId,
@@ -159,13 +170,19 @@ const create = async (req, res) => {
         status: { [Op.notIn]: ['cancelled'] }
       }
     });
-    
     if (existing) {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    let client = null;
+    // 🔥 VALIDAÇÃO 3: Horário passado (não pode agendar no passado)
+    const now = new Date();
+    const appointmentDate = new Date(date + 'T' + time + ':00');
+    if (appointmentDate < now) {
+      return res.status(400).json({ error: 'Não é possível agendar em um horário que já passou.' });
+    }
     
+    // 🔥 Buscar ou criar o cliente
+    let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
     } else if (clientPhone) {
@@ -176,13 +193,37 @@ const create = async (req, res) => {
       });
       client = result.client;
     }
-    
     if (!client) {
       return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
-    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
+    // 🔥 VALIDAÇÃO 4: Cliente não pode ter mais de um agendamento na mesma semana (para o mesmo barbeiro)
+    const appointmentDateObj = new Date(date + 'T00:00:00');
+    const dayOfWeek = appointmentDateObj.getDay(); // 0=domingo, 1=segunda, ...
+    const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
+    const weekStart = new Date(appointmentDateObj);
+    weekStart.setDate(appointmentDateObj.getDate() - diffToMonday);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
     
+    const existingAppointments = await Appointment.findAll({
+      where: {
+        clientId: client.id,
+        barberId: barberId,
+        date: { [Op.between]: [weekStartStr, weekEndStr] },
+        status: { [Op.notIn]: ['cancelled'] }
+      }
+    });
+    if (existingAppointments.length > 0) {
+      return res.status(400).json({
+        error: `Este cliente já possui um agendamento na semana de ${weekStartStr} a ${weekEndStr}. Não é permitido mais de um agendamento por semana para o mesmo barbeiro.`
+      });
+    }
+    
+    // ✅ Todas as validações passaram – criar o agendamento
+    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
     const appointment = await Appointment.create({
       barberId,
       clientId: client.id,
@@ -197,16 +238,15 @@ const create = async (req, res) => {
     
     console.log('✅ Agendamento criado:', appointment.id);
     
+    // Buscar dados completos para retornar
     const created = await Appointment.findByPk(appointment.id);
     const result = created.toJSON();
-    
     if (created.clientId) {
       const clientData = await Client.findByPk(created.clientId, {
         attributes: ['id', 'name', 'phone']
       });
       result.Client = clientData;
     }
-    
     if (created.barberId) {
       const barberData = await Barber.findByPk(created.barberId, {
         attributes: ['id', 'name']
