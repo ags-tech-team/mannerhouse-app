@@ -624,10 +624,6 @@ const PublicSchedule = () => {
                   <p className="text-[10px] sm:text-xs text-[#7f7c7a] mt-1">Usaremos para confirmar seu agendamento</p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs sm:text-sm text-blue-700">
-                  💡 Você receberá um lembrete 1 hora antes do horário agendado.
-                </div>
-
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
