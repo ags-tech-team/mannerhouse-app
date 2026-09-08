@@ -63,16 +63,14 @@ const PublicSchedule = () => {
     clientPhone: '',
   });
 
-  // 🔥 Estado para datas disponíveis (vindas do backend)
+  // Estado para datas disponíveis
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const loadingDatesRef = useRef(false);
 
-  // Carregar barbeiros
   useEffect(() => {
     loadBarbers();
   }, []);
 
-  // 🔥 Carregar dias disponíveis quando barbeiro ou mês mudar
   useEffect(() => {
     if (!selectedBarber) return;
     const loadAvailableDates = async () => {
@@ -114,7 +112,6 @@ const PublicSchedule = () => {
     }
   };
 
-  // Carregar horários disponíveis para uma data específica
   useEffect(() => {
     if (selectedBarber && selectedDate) {
       loadAvailableTimes();
@@ -144,7 +141,6 @@ const PublicSchedule = () => {
     }
   };
 
-  // 🔥 Função para verificar se um dia está disponível
   const isDayAvailable = (dateStr: string) => {
     if (!dateStr) return false;
     return availableDates.has(dateStr);
@@ -212,7 +208,6 @@ const PublicSchedule = () => {
     }));
   };
 
-  // 🔥 handleSubmit com mensagens amigáveis
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -254,20 +249,9 @@ const PublicSchedule = () => {
       setSuccess(true);
     } catch (error: any) {
       console.error('Erro ao agendar:', error);
-      const backendError = error.response?.data?.error || '';
-      let userMessage = 'Erro ao realizar agendamento. Tente novamente.';
-      
-      if (backendError.includes('horário que já passou')) {
-        userMessage = '⚠️ Não é possível agendar em um horário que já passou. Escolha um horário futuro.';
-      } else if (backendError.includes('já possui um agendamento na semana')) {
-        userMessage = '⚠️ Você já tem um agendamento agendado para esta semana. Escolha outra semana.';
-      } else if (backendError.includes('já ocupado')) {
-        userMessage = '⚠️ Este horário já está ocupado. Escolha outro horário.';
-      } else if (backendError.includes('já existe')) {
-        userMessage = backendError;
-      }
-      
-      setError(userMessage);
+      // 🔥 Mostrar a mensagem exata do backend
+      const backendError = error.response?.data?.error || 'Erro ao realizar agendamento. Tente novamente.';
+      setError(backendError);
     } finally {
       setSubmitting(false);
     }
@@ -295,7 +279,6 @@ const PublicSchedule = () => {
     setSelectedServices(services);
   };
 
-  // 🔥 Função para verificar se um horário já passou (hoje)
   const isTimePast = (time: string) => {
     const today = new Date();
     const isToday = selectedDate === today.toISOString().split('T')[0];
@@ -324,12 +307,7 @@ const PublicSchedule = () => {
             <p className="text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
             <p className="text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
           </div>
-          <button
-            onClick={resetForm}
-            className="w-full bg-[#9c7f64] hover:bg-[#544941] text-white py-3 rounded-lg transition text-sm md:text-base"
-          >
-            Novo Agendamento
-          </button>
+          {/* 🔥 Botão "Novo Agendamento" removido */}
         </div>
       </div>
     );
@@ -338,7 +316,6 @@ const PublicSchedule = () => {
   return (
     <div className="min-h-screen bg-[#f5f0e8] py-4 sm:py-6 md:py-8 px-3 sm:px-4 md:px-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-6 sm:mb-8 md:mb-10">
           <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold tracking-wider text-[#060606]">
             M<span className="text-[#9c7f64]">Ä</span>NNER HAUS
@@ -349,7 +326,6 @@ const PublicSchedule = () => {
           <p className="text-sm sm:text-base md:text-lg text-[#7f7c7a] mt-2 sm:mt-3 md:mt-4">Agende seu horário online</p>
         </div>
 
-        {/* Progresso */}
         <div className="flex justify-center items-center gap-1 sm:gap-2 md:gap-3 mb-6 sm:mb-8 md:mb-10">
           <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-bold ${step >= 1 ? 'bg-[#9c7f64] text-white' : 'bg-gray-200 text-gray-500'}`}>1</div>
           <div className={`w-8 sm:w-12 md:w-16 h-1 ${step >= 2 ? 'bg-[#9c7f64]' : 'bg-gray-200'}`} />
