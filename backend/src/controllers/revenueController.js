@@ -111,54 +111,51 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
+    // 🔥 Inicializar com todos os barbeiros ativos (zerados)
+    const activeBarbers = await Barber.findAll({ where: { isActive: true } });
     const commissionsByBarber = {};
-
+    activeBarbers.forEach(barber => {
+      commissionsByBarber[barber.id] = {
+        name: barber.name,
+        serviceCommission: 0,
+        productCommission: 0,
+        monthlyCommission: 0,
+      };
+    });
+    
+    // 🔥 Adicionar comissões de serviços (revenues)
     serviceRevenues.forEach(r => {
       const barberId = r.barberId;
-      const barberName = r.barber?.name || 'Sem Barbeiro';
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
+      if (barberId && commissionsByBarber[barberId]) {
+        commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
       }
-      commissionsByBarber[barberId].serviceCommission += r.commissions || 0;
     });
-
+    
+    // 🔥 Adicionar comissões de produtos (sales)
     sales.forEach(s => {
       const barberId = s.barberId || 'sem-barbeiro';
-      const barberName = s.barber?.name || 'Sem Barbeiro';
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
+      if (barberId !== 'sem-barbeiro' && commissionsByBarber[barberId]) {
+        commissionsByBarber[barberId].productCommission += s.commission || 0;
       }
-      commissionsByBarber[barberId].productCommission += s.commission || 0;
     });
-
+    
+    // 🔥 Adicionar comissões de mensalidades (monthlyPayments)
     monthlyPayments.forEach(mp => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
-      const barberName = mp.client?.barber?.name || 'Sem Barbeiro';
-      const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-      const commission = mp.amount * rate;
-      
-      if (!commissionsByBarber[barberId]) {
-        commissionsByBarber[barberId] = { 
-          name: barberName, 
-          serviceCommission: 0, 
-          productCommission: 0,
-          monthlyCommission: 0
-        };
+      if (barberId !== 'sem-barbeiro' && commissionsByBarber[barberId]) {
+        const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
+        commissionsByBarber[barberId].monthlyCommission += mp.amount * rate;
       }
-      commissionsByBarber[barberId].monthlyCommission += commission;
     });
+    
+    // 🔥 Montar a lista de barbeiros (SEM FILTRO – todos os ativos)
+    const byBarber = Object.values(commissionsByBarber).map(b => ({
+      name: b.name,
+      serviceCommission: b.serviceCommission,
+      productCommission: b.productCommission,
+      monthlyCommission: b.monthlyCommission,
+      total: b.serviceCommission + b.productCommission + b.monthlyCommission
+    }));
     
     const expenses = await Expense.findAll({
       where: {
@@ -198,15 +195,7 @@ const getFinancialDashboard = async (req, res) => {
         service: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.serviceCommission, 0),
         product: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.productCommission, 0),
         monthly: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.monthlyCommission, 0),
-        byBarber: Object.values(commissionsByBarber)
-          .filter(b => b.serviceCommission > 0 || b.productCommission > 0 || b.monthlyCommission > 0)
-          .map(b => ({
-            name: b.name,
-            serviceCommission: b.serviceCommission,
-            productCommission: b.productCommission,
-            monthlyCommission: b.monthlyCommission,
-            total: b.serviceCommission + b.productCommission + b.monthlyCommission
-          }))
+        byBarber: byBarber, // ← SEM FILTRO (todos os ativos aparecem)
       },
       expenses: {
         total: totalExpenses,
