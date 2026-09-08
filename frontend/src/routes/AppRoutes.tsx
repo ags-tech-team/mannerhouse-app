@@ -61,14 +61,8 @@ export const AppRoutes = () => {
           <Route path="/register" element={<Register />} />
         </Route>
 
-        <Route
-          path="/mobile/agenda"
-          element={
-            <ProtectedRoute allowedRoles={['barber']} redirectPath="/mobile/login">
-              <MobileAgenda />
-            </ProtectedRoute>
-          }
-        />
+        {/* 🔥 ROTA MOBILE AGENDA (sem ProtectedRoute) */}
+        <Route path="/mobile/agenda" element={<MobileAgenda />} />
 
         {/* 🔥 ROTAS DO ADMIN (PROTEGIDAS) */}
         <Route

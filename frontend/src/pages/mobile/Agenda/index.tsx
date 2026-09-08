@@ -45,6 +45,20 @@ const MobileAgenda = () => {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
 
+
+  useEffect(() => {
+  const token = localStorage.getItem('@mannerhouse:token');
+  const userData = localStorage.getItem('@mannerhouse:user');
+  if (!token) {
+    navigate('/mobile/login');
+    return;
+  }
+  if (userData) {
+    setUser(JSON.parse(userData));
+  }
+  loadAppointments();
+}, []);
+
   useEffect(() => {
     if (user) {
       loadAppointments();

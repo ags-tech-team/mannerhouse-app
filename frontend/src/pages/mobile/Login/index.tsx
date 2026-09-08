@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../api/client';
-import { useAuth } from '../../../contexts/AuthContext';
 import { Scissors, Lock, Mail } from 'lucide-react';
 
 const MobileLogin = () => {
@@ -10,7 +9,6 @@ const MobileLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,11 +17,12 @@ const MobileLogin = () => {
     try {
       const response = await api.post('/mobile/login', { email, password });
       const { token, user } = response.data;
-      // Salvar token e usuário no contexto (ou localStorage)
-      login(token, user);
+      // 🔥 Salvar diretamente no localStorage (sem usar o contexto)
+      localStorage.setItem('@mannerhouse:token', token);
+      localStorage.setItem('@mannerhouse:user', JSON.stringify(user));
       navigate('/mobile/agenda');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao fazer login');
+      setError(err.response?.data?.error || 'Credenciais inválidas');
     } finally {
       setLoading(false);
     }
@@ -33,13 +32,10 @@ const MobileLogin = () => {
     <div className="min-h-screen bg-[#f5f0e8] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-2">
-            <Scissors size={48} className="text-[#9c7f64]" />
-          </div>
+          <Scissors size={48} className="mx-auto text-[#9c7f64]" />
           <h1 className="text-2xl font-bold text-[#060606]">Acesso Barbeiro</h1>
           <p className="text-sm text-[#7f7c7a]">Gerencie sua agenda pelo celular</p>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[#060606]">E-mail</label>
