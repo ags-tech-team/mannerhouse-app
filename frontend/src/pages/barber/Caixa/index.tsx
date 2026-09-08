@@ -413,22 +413,37 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
-  // ========== SUBMIT (SALVAR) ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!caixa?.isOpen) {
       alert('O caixa precisa estar aberto para registrar serviços!');
       return;
     }
+
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId) {
       alert('Selecione um barbeiro');
       return;
     }
+
+    const barberExists = barbersList.some(b => b.id === barberId);
+    if (!barberExists) {
+      alert('Barbeiro selecionado não é válido');
+      return;
+    }
+
     if (selectedServices.length === 0) {
       alert('Selecione pelo menos um serviço');
       return;
     }
+
+    const hasEmptyService = selectedServices.some(s => !s.service.name || s.service.name.trim() === '');
+    if (hasEmptyService) {
+      alert('Um ou mais serviços não têm nome válido');
+      return;
+    }
+
     const clientNameFinal = isGuest 
       ? 'Cliente sem cadastro' 
       : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
@@ -436,6 +451,7 @@ const BarberCaixa = () => {
       alert('Digite o nome do cliente');
       return;
     }
+
     if (!selectedDate) {
       alert('Selecione uma data');
       return;

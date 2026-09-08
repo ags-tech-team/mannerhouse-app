@@ -320,20 +320,25 @@ const addService = async (req, res) => {
       time,
       phone
     } = req.body;
-    
+
     const today = date || dateHelper.getTodayLocal();
-    
-    console.log('📦 Adicionando serviço ao caixa:');
-    console.log('  client:', client);
-    console.log('  phone:', phone);
-    console.log('  barberId:', barberId);
-    console.log('  service:', service);
-    console.log('  price:', price);
-    
+
+    if (!barberId) {
+      return res.status(400).json({ error: 'Barbeiro é obrigatório' });
+    }
+    const barber = await Barber.findByPk(barberId);
+    if (!barber) {
+      return res.status(400).json({ error: 'Barbeiro não encontrado' });
+    }
+
+    if (!service || service.trim() === '') {
+      return res.status(400).json({ error: 'Serviço é obrigatório' });
+    }
+
     let clientRecord = null;
     let clientId = null;
     let clientName = client || 'Cliente';
-    
+
     if (client && client !== 'Cliente sem cadastro' && client !== '' && client !== 'Cliente') {
       try {
         const result = await findOrCreateClient({
@@ -351,17 +356,7 @@ const addService = async (req, res) => {
     } else {
       console.log('⚠️ Cliente não será criado (nome inválido ou "Cliente sem cadastro")');
     }
-    
-    let barber = null;
-    let barberName = 'Barbeiro';
-    
-    if (barberId) {
-      barber = await Barber.findByPk(barberId);
-      if (barber) {
-        barberName = barber.name;
-      }
-    }
-    
+
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -369,22 +364,22 @@ const addService = async (req, res) => {
         isOpen: true,
       },
     });
-    
+
     if (!cashRegister) {
       console.log('❌ Nenhum caixa aberto encontrado');
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
-    
-    const commissionRate = barber ? barber.serviceCommissionRate : 0.20;
+
+    const commissionRate = barber.serviceCommissionRate || 0.20;
     const commission = price * commissionRate;
-    
+
     const newService = {
       id: Date.now().toString(),
       client: clientName,
       clientId: clientId,
-      barberId: barber ? barber.id : barberId,
-      barberName: barberName,
-      service: service || 'Serviço',
+      barberId: barber.id,
+      barberName: barber.name,
+      service: service.trim(),
       serviceId: serviceId || '',
       price: price || 0,
       commission,
@@ -393,20 +388,22 @@ const addService = async (req, res) => {
       date: today,
       phone: phone || '',
     };
-    
+
     const services = [...(cashRegister.services || []), newService];
-    
+
     await cashRegister.update({
       services,
       totalRevenue: (cashRegister.totalRevenue || 0) + price,
       totalCommissions: (cashRegister.totalCommissions || 0) + commission,
       servicesCount: services.length,
     });
-    
+
     console.log('✅ Serviço adicionado com sucesso!');
     console.log(`   Cliente: ${newService.client} (ID: ${newService.clientId || 'N/A'})`);
     console.log(`   Telefone: ${newService.phone}`);
-    
+    console.log(`   Barbeiro: ${newService.barberName} (ID: ${newService.barberId})`);
+    console.log(`   Serviço: ${newService.service}`);
+
     res.status(201).json(newService);
   } catch (error) {
     console.error('❌ Erro ao adicionar serviço:', error);
