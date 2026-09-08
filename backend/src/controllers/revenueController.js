@@ -399,9 +399,9 @@ const getServices = async (req, res) => {
       end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
 
-    console.log('📥 Buscando histórico (apenas revenues):', { start, end });
+    console.log('📥 Buscando histórico (revenues com deduplicação):', { start, end });
 
-    // 🔥 Buscar apenas revenues confirmados
+    // 🔥 Buscar revenues confirmados
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [start, end] },
@@ -410,10 +410,24 @@ const getServices = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
 
-    console.log(`📦 ${revenues.length} revenues encontrados`);
+    console.log(`📦 ${revenues.length} revenues brutos encontrados`);
+
+    // 🔥 DEDUPLICAÇÃO (mesma lógica de antes)
+    const uniqueKeys = new Set();
+    const uniqueRevenues = [];
+
+    revenues.forEach(r => {
+      const key = `${r.date}|${r.clientName}|${r.barberName}|${r.total}|${r.service}`;
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        uniqueRevenues.push(r);
+      }
+    });
+
+    console.log(`✅ ${uniqueRevenues.length} revenues únicos (${revenues.length - uniqueRevenues.length} duplicados removidos)`);
 
     // Formatar para o frontend
-    const formatted = revenues.map(r => {
+    const formatted = uniqueRevenues.map(r => {
       const [year, month, day] = r.date.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
       return {
