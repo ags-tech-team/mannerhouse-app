@@ -45,6 +45,7 @@ app.use('/api/sales', saleRoutes);
 app.use('/api/commissions', commissionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/mobile', mobileRoutes)
 
 // 🔥 HEALTH CHECK
 app.get('/api/health', (req, res) => {
