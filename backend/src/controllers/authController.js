@@ -1,10 +1,11 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { User, Barber } = require('../models');
 
 const generateToken = (user) => {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'secret',
     { expiresIn: '7d' }
   );
 };
@@ -19,8 +20,8 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // Verificar senha
-    const isValid = await user.comparePassword(password);
+    // 🔥 Usar bcrypt.compare diretamente (igual ao mobile)
+    const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
@@ -53,16 +54,13 @@ const register = async (req, res) => {
   try {
     const { name, email, password, role = 'barber' } = req.body;
 
-    // Verificar se email já existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
-    // Criar usuário
     const user = await User.create({ name, email, password, role });
 
-    // Se for barbeiro, criar também na tabela Barber
     if (role === 'barber') {
       await Barber.create({
         userId: user.id,
@@ -131,7 +129,7 @@ const verifyPassword = async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    const isValid = await user.comparePassword(password);
+    const isValid = await bcrypt.compare(password, user.password);
 
     res.json({ valid: isValid });
   } catch (error) {
@@ -144,5 +142,5 @@ module.exports = {
   login,
   register,
   me,
-  verifyPassword, 
+  verifyPassword,
 };
