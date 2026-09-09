@@ -77,7 +77,6 @@ const MobileAgenda = () => {
       const response = await api.get('/barbers');
       const active = response.data.filter((b: Barber) => b.isActive);
       setBarbers(active);
-      // 🔥 Seleciona o barbeiro do usuário ou o primeiro ativo
       if (user?.barberId) {
         setSelectedBarberId(user.barberId);
       } else if (active.length > 0) {
@@ -89,7 +88,7 @@ const MobileAgenda = () => {
   };
 
   const loadAppointments = async () => {
-    if (!selectedBarberId) return; // não carrega se não houver barbeiro
+    if (!selectedBarberId) return;
     setLoading(true);
     setError('');
     try {
@@ -114,28 +113,28 @@ const MobileAgenda = () => {
     }
   }, [selectedMonth, selectedBarberId]);
 
+  // 🔥 Função corrigida – sem timezone, sem null errors
   const getDaysInMonth = () => {
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-01`;
-    const firstDay = new Date(dateStr + 'T00:00:00');
+    const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
     const days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // 🔥 Dias vazios antes do primeiro dia
+
+    // Dias vazios antes do primeiro dia do mês
     const firstDayOfWeek = firstDay.getDay(); // 0=domingo, 1=segunda, ...
     for (let i = 0; i < firstDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     for (let i = 1; i <= lastDay.getDate(); i++) {
-      const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}T00:00:00`);
-      const dateStr2 = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const dayAppointments = appointments.filter(a => a.date === dateStr2);
+      const date = new Date(year, month - 1, i);
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      const dayAppointments = appointments.filter(a => a.date === dateStr);
       const isSelected = i === selectedDay;
       days.push({
         day: i,
-        date: dateStr2,
+        date: dateStr,
         isPast: date < today,
         isToday: date.toDateString() === today.toDateString(),
         isSelected,
@@ -258,7 +257,6 @@ const MobileAgenda = () => {
           </button>
         </div>
 
-        {/* 🔥 Seletor de barbeiro – sem "Todos os barbeiros" */}
         <div className="mt-3">
           <select
             value={selectedBarberId}
@@ -304,6 +302,10 @@ const MobileAgenda = () => {
           ) : (
             <div className="grid grid-cols-7 gap-1">
               {days.map((day, idx) => {
+                // 🔥 Ignorar dias vazios (null) para evitar erro
+                if (day === null) {
+                  return <div key={idx} className="aspect-square" />;
+                }
                 const hasAppointments = day.appointments.length > 0;
                 const isToday = day.isToday;
                 const isSelected = day.isSelected;
