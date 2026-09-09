@@ -115,19 +115,27 @@ const MobileAgenda = () => {
   }, [selectedMonth, selectedBarberId]);
 
   const getDaysInMonth = () => {
-    const firstDay = new Date(year, month - 1, 1);
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-01`;
+    const firstDay = new Date(dateStr + 'T00:00:00');
     const lastDay = new Date(year, month, 0);
     const days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    // 🔥 Dias vazios antes do primeiro dia
+    const firstDayOfWeek = firstDay.getDay(); // 0=domingo, 1=segunda, ...
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      days.push(null);
+    }
+    
     for (let i = 1; i <= lastDay.getDate(); i++) {
-      const date = new Date(year, month - 1, i);
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const dayAppointments = appointments.filter(a => a.date === dateStr);
+      const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}T00:00:00`);
+      const dateStr2 = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      const dayAppointments = appointments.filter(a => a.date === dateStr2);
       const isSelected = i === selectedDay;
       days.push({
         day: i,
-        date: dateStr,
+        date: dateStr2,
         isPast: date < today,
         isToday: date.toDateString() === today.toDateString(),
         isSelected,
