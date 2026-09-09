@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-// 🔐 Login do barbeiro
+// 🔐 Login do barbeiro (agora também permite admin)
 const mobileLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -20,9 +20,9 @@ const mobileLogin = async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // Verificar se é um barbeiro (role 'barber')
-    if (user.role !== 'barber') {
-      return res.status(403).json({ error: 'Acesso permitido apenas para barbeiros' });
+    // 🔥 Permitir tanto barbeiros quanto administradores
+    if (user.role !== 'barber' && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Acesso permitido apenas para barbeiros ou administradores' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password);
@@ -32,7 +32,7 @@ const mobileLogin = async (req, res) => {
 
     // Gerar token JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, barberId: user.barber?.id },
+      { id: user.id, email: user.email, role: user.role, barberId: user.barber?.id || null },
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '7d' }
     );
@@ -44,8 +44,8 @@ const mobileLogin = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        barberId: user.barber?.id,
-        barberName: user.barber?.name
+        barberId: user.barber?.id || null,
+        barberName: user.barber?.name || null
       }
     });
   } catch (error) {
@@ -54,9 +54,10 @@ const mobileLogin = async (req, res) => {
   }
 };
 
+// 📅 Listar agendamentos (com filtro opcional por barbeiro)
 const getMobileAppointments = async (req, res) => {
   try {
-    const { month, year, barberId } = req.query; // 🔥 adicionar barberId
+    const { month, year, barberId } = req.query;
     const userBarberId = req.user.barberId;
 
     let startDate, endDate;
@@ -80,8 +81,9 @@ const getMobileAppointments = async (req, res) => {
       status: { [Op.notIn]: ['cancelled'] }
     };
 
-    // 🔥 Prioridade: barberId da query > barberId do usuário > todos
-    const effectiveBarberId = barberId || userBarberId;
+    // 🔥 Se for admin e não tiver barberId, buscar todos; caso contrário, filtrar
+    const isAdmin = req.user.role === 'admin';
+    const effectiveBarberId = barberId || (isAdmin ? null : userBarberId);
     if (effectiveBarberId) {
       where.barberId = effectiveBarberId;
     }
@@ -102,18 +104,21 @@ const getMobileAppointments = async (req, res) => {
   }
 };
 
+// ✅ Atualizar status (admin ou barbeiro dono)
 const updateMobileAppointmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // 'completed', 'cancelled', etc.
+    const { status } = req.body;
 
     const appointment = await Appointment.findByPk(id);
     if (!appointment) {
       return res.status(404).json({ error: 'Agendamento não encontrado' });
     }
 
-    // Verificar se o agendamento pertence ao barbeiro logado
-    if (appointment.barberId !== req.user.barberId) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = appointment.barberId === req.user.barberId;
+
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
@@ -125,7 +130,7 @@ const updateMobileAppointmentStatus = async (req, res) => {
   }
 };
 
-// ✏️ Editar agendamento (ex: notas)
+// ✏️ Editar agendamento (admin ou barbeiro dono)
 const updateMobileAppointment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -136,7 +141,10 @@ const updateMobileAppointment = async (req, res) => {
       return res.status(404).json({ error: 'Agendamento não encontrado' });
     }
 
-    if (appointment.barberId !== req.user.barberId) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = appointment.barberId === req.user.barberId;
+
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
@@ -153,7 +161,7 @@ const updateMobileAppointment = async (req, res) => {
   }
 };
 
-// 🗑️ Excluir agendamento
+// 🗑️ Excluir agendamento (admin ou barbeiro dono)
 const deleteMobileAppointment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -163,7 +171,10 @@ const deleteMobileAppointment = async (req, res) => {
       return res.status(404).json({ error: 'Agendamento não encontrado' });
     }
 
-    if (appointment.barberId !== req.user.barberId) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = appointment.barberId === req.user.barberId;
+
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
