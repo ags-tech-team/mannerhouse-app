@@ -19,6 +19,7 @@ const Revenue = require('./Revenue')(sequelize, DataTypes);
 const Expense = require('./Expense')(sequelize, DataTypes);
 const Sale = require('./Sale')(sequelize, DataTypes);
 const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
+const Service = require('./Service')(sequelize, DataTypes);
 
 // 🔥 ===== DEFINIÇÃO DE ASSOCIAÇÕES =====
 
@@ -72,6 +73,7 @@ const models = {
   Revenue,
   Expense,
   MonthlyPayment,
+  Service
 };
 
 // 🔥 FUNÇÃO PARA SYNC (SE NECESSÁRIO)
