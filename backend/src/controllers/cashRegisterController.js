@@ -3,12 +3,16 @@ const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
+// ============================================================
+// GET TODAY
+// ============================================================
 const getToday = async (req, res) => {
   try {
     const today = dateHelper.getTodayLocal();
     
     console.log('🔍 Buscando caixa do dia:', { userId: req.userId, date: today });
     
+    // 🔥 Priorizar caixa ABERTO; se não houver, pegar o mais recente
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -21,7 +25,7 @@ const getToday = async (req, res) => {
           attributes: ['id', 'name', 'email', 'phone'] 
         }
       ],
-      order: [['createdAt', 'DESC']],
+      order: [['isOpen', 'DESC'], ['createdAt', 'DESC']],
     });
     
     if (!cashRegister) {
@@ -48,6 +52,9 @@ const getToday = async (req, res) => {
   }
 };
 
+// ============================================================
+// OPEN CASH REGISTER
+// ============================================================
 const openCashRegister = async (req, res) => {
   try {
     const { initialCash, barberId } = req.body;
@@ -59,7 +66,6 @@ const openCashRegister = async (req, res) => {
     console.log('📌 initialCash:', initialCash);
     console.log('📌 barberId:', barberId);
     
-    // Validar se o barbeiro existe (opcional)
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) {
@@ -67,6 +73,7 @@ const openCashRegister = async (req, res) => {
       }
     }
     
+    // 🔥 Verificar QUALQUER caixa aberto (do usuário)
     const existingOpen = await CashRegister.findOne({
       where: {
         date: today,
@@ -80,6 +87,7 @@ const openCashRegister = async (req, res) => {
       return res.status(400).json({ error: 'Já existe um caixa aberto hoje' });
     }
     
+    // 🔥 Buscar caixa fechado para reabrir
     const existingClosed = await CashRegister.findOne({
       where: {
         date: today,
@@ -101,7 +109,7 @@ const openCashRegister = async (req, res) => {
         totalCommissions: 0,
         servicesCount: 0,
         closingTime: null,
-        barberId: barberId || null, // 🔥 ADICIONAR ESTA LINHA
+        barberId: barberId || existingClosed.barberId || null,
       });
       console.log('✅ Caixa reaberto com sucesso');
       return res.json(existingClosed);
@@ -128,6 +136,9 @@ const openCashRegister = async (req, res) => {
   }
 };
 
+// ============================================================
+// CLOSE CASH REGISTER
+// ============================================================
 const closeCashRegister = async (req, res) => {
   try {
     const today = dateHelper.getTodayLocal();
@@ -136,12 +147,14 @@ const closeCashRegister = async (req, res) => {
     console.log('📌 userId:', req.userId);
     console.log('📌 date:', today);
     
+    // 🔥 Ordenar para pegar o caixa mais recente
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
         userId: req.userId,
         isOpen: true,
       },
+      order: [['createdAt', 'DESC']],
     });
     
     if (!cashRegister) {
@@ -152,7 +165,7 @@ const closeCashRegister = async (req, res) => {
     const services = cashRegister.services || [];
     console.log('📋 Serviços no caixa:', services.length);
     
-    // 🔥 SEPARAR SERVIÇOS E MENSALIDADES
+    // Separar serviços e mensalidades
     const servicosReais = [];
     const mensalidades = [];
     
@@ -205,7 +218,6 @@ const closeCashRegister = async (req, res) => {
           if (client) {
             clientName = client.name;
             clientId = client.id;
-            console.log(`   ✅ Cliente encontrado por ID: ${clientName}`);
           }
         } catch (e) {
           console.log(`   ⚠️ Erro ao buscar cliente por ID: ${e.message}`);
@@ -214,13 +226,10 @@ const closeCashRegister = async (req, res) => {
       
       if (clientName === 'Cliente' && service.client && service.client !== '' && service.client !== 'Cliente sem cadastro' && service.client !== 'Cliente') {
         try {
-          const client = await Client.findOne({
-            where: { name: service.client }
-          });
+          const client = await Client.findOne({ where: { name: service.client } });
           if (client) {
             clientName = client.name;
             clientId = client.id;
-            console.log(`   ✅ Cliente encontrado por nome: ${clientName}`);
           } else {
             clientName = service.client;
           }
@@ -229,12 +238,7 @@ const closeCashRegister = async (req, res) => {
         }
       }
       
-      console.log(`   Cliente final: ${clientName}`);
-      console.log(`   Service: ${service.service}`);
-      console.log(`   Price: ${service.price}`);
-      console.log(`   Barber: ${barber?.name || 'Desconhecido'}`);
-      
-      // 🔥 VERIFICAR SE JÁ EXISTE REVENUE
+      // Verificar se já existe Revenue
       let revenue = await Revenue.findOne({
         where: {
           cashRegisterId: cashRegister.id,
@@ -274,12 +278,11 @@ const closeCashRegister = async (req, res) => {
       revenueCount++;
     }
     
-    // 🔥 ATUALIZAR REVENUES PENDENTES
+    // 🔥 CORRIGIDO: buscar revenues pendentes SEM filtrar por barberId (que estava errado)
     const pendingRevenues = await Revenue.findAll({
       where: {
         cashRegisterId: null,
         status: 'pending',
-        barberId: req.userId,
         date: today,
       }
     });
@@ -291,14 +294,12 @@ const closeCashRegister = async (req, res) => {
           cashRegisterId: cashRegister.id,
           status: 'confirmed',
         });
-        console.log(`   ✅ Revenue pendente confirmado: ${pendingRevenue.id}`);
       }
     }
     
     console.log(`✅ ${revenueCount} revenues processados!`);
     console.log(`   Total Revenue: R$ ${totalRevenue}`);
     console.log(`   Total Comissões: R$ ${totalCommissions}`);
-    console.log(`   📅 ${mensalidades.length} mensalidades ignoradas (já estão em monthly_payments)`);
     
     res.json(cashRegister);
   } catch (error) {
@@ -307,6 +308,9 @@ const closeCashRegister = async (req, res) => {
   }
 };
 
+// ============================================================
+// ADD SERVICE
+// ============================================================
 const addService = async (req, res) => {
   try {
     const { 
@@ -353,16 +357,16 @@ const addService = async (req, res) => {
       } catch (error) {
         console.error('❌ Erro ao buscar/criar cliente:', error);
       }
-    } else {
-      console.log('⚠️ Cliente não será criado (nome inválido ou "Cliente sem cadastro")');
     }
 
+    // 🔥 Ordenar para pegar o caixa mais recente (evita condição de corrida)
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
         userId: req.userId,
         isOpen: true,
       },
+      order: [['createdAt', 'DESC']],
     });
 
     if (!cashRegister) {
@@ -393,14 +397,13 @@ const addService = async (req, res) => {
 
     await cashRegister.update({
       services,
-      totalRevenue: (cashRegister.totalRevenue || 0) + price,
+      totalRevenue: (cashRegister.totalRevenue || 0) + (price || 0),
       totalCommissions: (cashRegister.totalCommissions || 0) + commission,
       servicesCount: services.length,
     });
 
     console.log('✅ Serviço adicionado com sucesso!');
     console.log(`   Cliente: ${newService.client} (ID: ${newService.clientId || 'N/A'})`);
-    console.log(`   Telefone: ${newService.phone}`);
     console.log(`   Barbeiro: ${newService.barberName} (ID: ${newService.barberId})`);
     console.log(`   Serviço: ${newService.service}`);
 
@@ -411,6 +414,9 @@ const addService = async (req, res) => {
   }
 };
 
+// ============================================================
+// REMOVE SERVICE
+// ============================================================
 const removeService = async (req, res) => {
   try {
     const { serviceId } = req.params;
@@ -422,6 +428,7 @@ const removeService = async (req, res) => {
         userId: req.userId,
         isOpen: true,
       },
+      order: [['createdAt', 'DESC']],
     });
     
     if (!cashRegister) {
@@ -430,7 +437,17 @@ const removeService = async (req, res) => {
     
     const services = (cashRegister.services || []).filter(s => s.id !== serviceId);
     
-    await cashRegister.update({ services });
+    // 🔥 Recalcular totais após remoção
+    const totalRevenue = services.reduce((sum, s) => sum + (s.price || 0), 0);
+    const totalCommissions = services.reduce((sum, s) => sum + (s.commission || 0), 0);
+    
+    await cashRegister.update({ 
+      services,
+      totalRevenue,
+      totalCommissions,
+      servicesCount: services.length,
+    });
+    
     res.status(204).send();
   } catch (error) {
     console.error('❌ Erro ao remover serviço:', error);
@@ -438,10 +455,13 @@ const removeService = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE SERVICES
+// ============================================================
 const updateServices = async (req, res) => {
   try {
     const { services } = req.body;
-    const today = dateHelper.getTodayLocal(); // 🔥 corrigido para usar dateHelper
+    const today = dateHelper.getTodayLocal();
     
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -449,24 +469,26 @@ const updateServices = async (req, res) => {
         userId: req.userId,
         isOpen: true,
       },
+      order: [['createdAt', 'DESC']],
     });
     
     if (!cashRegister) {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    // 🔥 MERGE: só atualiza os serviços que vieram, mantendo os campos originais
+    // MERGE: mantém campos originais e sobrescreve apenas o que veio
     const currentServices = cashRegister.services || [];
     const updatedServices = currentServices.map(s => {
       const updated = services.find(service => service.id === s.id);
       if (updated) {
-        return { ...s, ...updated }; // Mantém tudo e sobrescreve só o que veio
+        return { ...s, ...updated };
       }
       return s;
     });
     
-    const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.valor || 0), 0);
-    const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.comissao || 0), 0);
+    // 🔥 CORRIGIDO: usar price/commission (inglês) em vez de valor/comissao
+    const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || s.valor || 0), 0);
+    const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || s.comissao || 0), 0);
     
     await cashRegister.update({
       services: updatedServices,
@@ -482,6 +504,9 @@ const updateServices = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET HISTORY
+// ============================================================
 const getHistory = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -504,7 +529,7 @@ const getHistory = async (req, res) => {
           attributes: ['id', 'name'] 
         }
       ],
-      order: [['date', 'DESC']],
+      order: [['date', 'DESC'], ['createdAt', 'DESC']],
     });
     
     res.json(registers);
