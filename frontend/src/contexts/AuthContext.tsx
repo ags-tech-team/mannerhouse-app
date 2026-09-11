@@ -2,6 +2,7 @@
 import { api } from '../api/client';
 import { authService } from '../services/auth.service';
 import type { User } from '../types/auth.types';
+import { loadServices } from '../utils/services'; // 🔥 IMPORTAR
 
 interface AuthContextData {
   user: User | null;
@@ -22,20 +23,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('@mannerhouse:token');
-    const storedUser = localStorage.getItem('@mannerhouse:user');
-
-    if (storedToken && storedUser) {
+    const initializeApp = async () => {
+      // 🔥 1. Carregar serviços da API (para o caixa/agenda)
       try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
+        const services = await loadServices();
+        console.log(`✅ ${services.length} serviços carregados`);
       } catch (error) {
-        localStorage.removeItem('@mannerhouse:token');
-        localStorage.removeItem('@mannerhouse:user');
+        console.error('❌ Erro ao carregar serviços:', error);
       }
-    }
-    setIsLoading(false);
+
+      // 🔥 2. Restaurar sessão do localStorage
+      const storedToken = localStorage.getItem('@mannerhouse:token');
+      const storedUser = localStorage.getItem('@mannerhouse:user');
+
+      if (storedToken && storedUser) {
+        try {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+          setIsAuthenticated(true);
+        } catch (error) {
+          localStorage.removeItem('@mannerhouse:token');
+          localStorage.removeItem('@mannerhouse:user');
+        }
+      }
+      
+      setIsLoading(false);
+    };
+
+    initializeApp();
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {

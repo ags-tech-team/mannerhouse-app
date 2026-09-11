@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { SERVICES, getServiceById } from '../../utils/services';
+import { useState, useEffect } from 'react';
+import { getServices, loadServices, getServiceById } from '../../utils/services';
+import type { Service } from '../../utils/services';
 import { Plus, X, Scissors } from 'lucide-react';
 
 interface SelectedService {
@@ -16,21 +17,34 @@ interface MultiServiceSelectorProps {
   selectedServices: SelectedService[];
   onChange: (services: SelectedService[]) => void;
   maxServices?: number;
-  hideMensalista?: boolean; // 🔥 NOVA PROP PARA ESCONDER O MENSALISTA
+  hideMensalista?: boolean;
 }
 
 const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   selectedServices,
   onChange,
   maxServices = 10,
-  hideMensalista = false, // 🔥 PADRÃO: false
+  hideMensalista = false,
 }) => {
   const [selectedId, setSelectedId] = useState('');
+  // 🔥 Estado local para re-renderizar quando os serviços carregarem
+  const [allServices, setAllServices] = useState<Service[]>(getServices());
 
-  // 🔥 FILTRAR SERVIÇOS - REMOVER MENSALISTA SE hideMensalista = true
+  // 🔥 Carregar serviços da API e atualizar o estado
+  useEffect(() => {
+    let mounted = true;
+    loadServices().then((services) => {
+      if (mounted) setAllServices([...services]);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 🔥 Filtrar mensalista se necessário
   const availableServices = hideMensalista
-    ? SERVICES.filter(s => s.id !== 'mensalista')
-    : SERVICES;
+    ? allServices.filter((s) => s.id !== 'mensalista')
+    : allServices;
 
   const handleAddService = () => {
     if (!selectedId) return;
@@ -42,7 +56,9 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
     const service = getServiceById(selectedId);
     if (!service) return;
 
-    const uniqueId = `${selectedId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const uniqueId = `${selectedId}-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 4)}`;
     onChange([...selectedServices, { id: uniqueId, service }]);
     setSelectedId('');
   };
@@ -53,30 +69,30 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   };
 
   const getTotal = () => {
-    // 🔥 SE TIVER MENSALISTA, TOTAL = 0
-    if (selectedServices.some(s => s.service.id === 'mensalista')) {
+    if (selectedServices.some((s) => s.service.id === 'mensalista')) {
       return 0;
     }
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
-  // 🔥 AGRUPAR SERVIÇOS PARA MOSTRAR O CONTADOR
   const getGroupedServices = () => {
-    const groups: { [key: string]: { service: any; count: number; indices: number[] } } = {};
-    
+    const groups: {
+      [key: string]: { service: any; count: number; indices: number[] };
+    } = {};
+
     selectedServices.forEach((item, index) => {
       const key = item.service.id;
       if (!groups[key]) {
         groups[key] = {
           service: item.service,
           count: 0,
-          indices: []
+          indices: [],
         };
       }
       groups[key].count++;
       groups[key].indices.push(index);
     });
-    
+
     return groups;
   };
 
@@ -116,7 +132,13 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
         <div className="bg-[#f5f0e8] rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
           <div className="flex justify-between items-center text-sm font-medium text-[#060606]">
             <span>Serviços adicionados ({selectedServices.length})</span>
-            <span className={selectedServices.some(s => s.service.id === 'mensalista') ? 'text-green-600 font-bold' : ''}>
+            <span
+              className={
+                selectedServices.some((s) => s.service.id === 'mensalista')
+                  ? 'text-green-600 font-bold'
+                  : ''
+              }
+            >
               Total: R$ {getTotal().toFixed(2)}
             </span>
           </div>
@@ -124,15 +146,26 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             {Object.entries(groupedServices).map(([key, group]) => {
               const firstIndex = group.indices[0];
               const isMensalista = key === 'mensalista';
-              
+
               return (
                 <div
                   key={key}
-                  className={`flex items-center justify-between bg-white p-2 rounded-lg ${isMensalista ? 'border-2 border-purple-300 bg-purple-50' : ''}`}
+                  className={`flex items-center justify-between bg-white p-2 rounded-lg ${
+                    isMensalista ? 'border-2 border-purple-300 bg-purple-50' : ''
+                  }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Scissors size={14} className={`flex-shrink-0 ${isMensalista ? 'text-purple-600' : 'text-[#9c7f64]'}`} />
-                    <span className={`text-sm truncate ${isMensalista ? 'font-bold text-purple-700' : 'text-[#060606]'}`}>
+                    <Scissors
+                      size={14}
+                      className={`flex-shrink-0 ${
+                        isMensalista ? 'text-purple-600' : 'text-[#9c7f64]'
+                      }`}
+                    />
+                    <span
+                      className={`text-sm truncate ${
+                        isMensalista ? 'font-bold text-purple-700' : 'text-[#060606]'
+                      }`}
+                    >
                       {group.service.name}
                       {isMensalista && (
                         <span className="ml-2 text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
@@ -140,7 +173,13 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
                         </span>
                       )}
                     </span>
-                    <span className={`text-xs flex-shrink-0 ${isMensalista ? 'text-purple-600 font-bold' : 'text-[#9c7f64]'}`}>
+                    <span
+                      className={`text-xs flex-shrink-0 ${
+                        isMensalista
+                          ? 'text-purple-600 font-bold'
+                          : 'text-[#9c7f64]'
+                      }`}
+                    >
                       R$ {isMensalista ? '0,00' : group.service.price.toFixed(2)}
                     </span>
                     {group.count > 1 && (
@@ -163,7 +202,7 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
         </div>
       )}
 
-      {/* 🔥 INDICAÇÃO QUE PERMITE REPETIR SERVIÇOS */}
+      {/* Indicação de repetição */}
       {selectedServices.length > 0 && (
         <p className="text-[10px] text-[#7f7c7a] text-center">
           💡 Você pode adicionar o mesmo serviço várias vezes para múltiplas pessoas
