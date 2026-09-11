@@ -25,6 +25,8 @@ export const SERVICES: Service[] = [
   { id: 'spa-face', name: 'SPA Face (Rejuvenescimento da Pele)', price: 60.00, category: 'tratamento' },
   { id: 'microagulhamento-1', name: 'Microagulhamento Capilar (1 Sessão)', price: 180.00, category: 'tratamento' },
   { id: 'microagulhamento-10', name: 'Microagulhamento Capilar (10 Sessões)', price: 1450.00, category: 'tratamento' },
+  { id: 'corte-kids', name: 'Corte Kids', price: 55.00, category: 'corte' },
+  { id: 'lavagem capilar', name: 'Lavagem e higienização Capilar', price: 5.00, category: 'tratamento' },
 ];
 
 export const getServiceById = (id: string): Service | undefined => {
