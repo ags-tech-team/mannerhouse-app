@@ -28,6 +28,7 @@ import AdminHorarios from '../pages/admin/Horarios';
 // 🔥 Importação dos componentes mobile
 import MobileLogin from '../pages/mobile/Login';
 import MobileAgenda from '../pages/mobile/Agenda';
+import AdminServicos from '../pages/admin/Servicos';
 
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
@@ -81,6 +82,7 @@ export const AppRoutes = () => {
           <Route path="clients" element={<Clientes />} />
           <Route path="mensalistas" element={<AdminMensalistas />} />
           <Route path="horarios" element={<AdminHorarios />} />
+          <Route path="servicos" element={<AdminServicos />} />
         </Route>
 
         {/* 🔥 ROTAS DO BARBEIRO (PROTEGIDAS) */}

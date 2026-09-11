@@ -55,6 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen = false, onClose }) => {
     { to: '/admin/mensalistas', icon: CreditCard, label: 'Mensalistas' },
     { to: '/admin/products', icon: Package, label: 'Estoque' },
     { to: '/admin/horarios', icon: Clock, label: 'Horários' },
+    { to: '/admin/servicos', icon: Scissors, label: 'Serviços' },
   ];
 
   const barberLinks = [
