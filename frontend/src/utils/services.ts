@@ -8,14 +8,13 @@ export interface Service {
   isActive?: boolean;
 }
 
-// 🔥 Fallback: usado enquanto a API carrega ou se falhar
 const FALLBACK_SERVICES: Service[] = [
   { id: 'mensalista', name: '📋 Mensalista', price: 0.00, category: 'outro' },
   { id: 'corte-masculino', name: 'Corte Masculino', price: 35.00, category: 'corte' },
   { id: 'corte-navalhado', name: 'Corte Navalhado', price: 40.00, category: 'corte' },
   { id: 'barba-terapia', name: 'Barba Terapia', price: 40.00, category: 'barba' },
   { id: 'barba-maquina', name: 'Barba só Máquina', price: 25.00, category: 'barba' },
-  { id: 'bigode', name: 'Bigode', price: 5.00, category: 'barba' },
+  { id: 'bigode', name: 'Bigode', price: 5.00, category: 'barba' }, // 🔥 NOVO
   { id: 'cabelo-barba', name: 'Cabelo e Barba', price: 70.00, category: 'corte' },
   { id: 'platinado-corte', name: 'Platinado com Corte', price: 160.00, category: 'cabelo' },
   { id: 'luzes-corte', name: 'Luzes com Corte', price: 140.00, category: 'cabelo' },
@@ -29,6 +28,8 @@ const FALLBACK_SERVICES: Service[] = [
   { id: 'spa-face', name: 'SPA Face (Rejuvenescimento da Pele)', price: 60.00, category: 'tratamento' },
   { id: 'microagulhamento-1', name: 'Microagulhamento Capilar (1 Sessão)', price: 180.00, category: 'tratamento' },
   { id: 'microagulhamento-10', name: 'Microagulhamento Capilar (10 Sessões)', price: 1450.00, category: 'tratamento' },
+  { id: 'corte-kids', name: 'Corte Kids', price: 55.00, category: 'corte' },
+  { id: 'lavagem capilar', name: 'Lavagem e higienização Capilar', price: 145.00, category: 'tratamento' },
 ];
 
 // 🔥 Cache interno (começa com o fallback, é atualizado pela API)

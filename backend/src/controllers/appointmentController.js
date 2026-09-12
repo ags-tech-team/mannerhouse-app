@@ -3,6 +3,9 @@ const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
+// ============================================================
+// GET ALL
+// ============================================================
 const getAll = async (req, res) => {
   try {
     const { startDate, endDate, barberId, status } = req.query;
@@ -48,6 +51,9 @@ const getAll = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET BY BARBER
+// ============================================================
 const getByBarber = async (req, res) => {
   try {
     const { barberId } = req.params;
@@ -81,6 +87,9 @@ const getByBarber = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET AVAILABLE TIMES
+// ============================================================
 const getAvailableTimes = async (req, res) => {
   try {
     const { barberId } = req.params;
@@ -116,10 +125,10 @@ const getAvailableTimes = async (req, res) => {
     });
     const bookedTimes = appointments.map(a => a.time);
 
-    // 🔥 Filtrar horários disponíveis (não ocupados)
+    // 🔥 Filtrar horários disponíveis
     let availableTimes = daySchedule.times.filter(time => !bookedTimes.includes(time));
 
-    // 🔥 **NOVO: Remover horários passados (se for hoje)**
+    // 🔥 Remover horários passados (se for hoje)
     const today = new Date();
     const isToday = date === today.toISOString().split('T')[0];
     if (isToday) {
@@ -139,6 +148,9 @@ const getAvailableTimes = async (req, res) => {
   }
 };
 
+// ============================================================
+// CREATE
+// ============================================================
 const create = async (req, res) => {
   try {
     const { 
@@ -155,13 +167,13 @@ const create = async (req, res) => {
     
     console.log('📝 Criando agendamento:', { barberId, clientName, clientPhone, date, time });
     
-    // 🔥 VALIDAÇÃO 1: Barbeiro existe
+    // VALIDAÇÃO 1: Barbeiro existe
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // 🔥 VALIDAÇÃO 2: Horário já ocupado
+    // VALIDAÇÃO 2: Horário já ocupado
     const existing = await Appointment.findOne({
       where: {
         barberId,
@@ -174,14 +186,14 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Horário já ocupado' });
     }
     
-    // 🔥 VALIDAÇÃO 3: Horário passado (não pode agendar no passado)
+    // VALIDAÇÃO 3: Horário passado
     const now = new Date();
     const appointmentDate = new Date(date + 'T' + time + ':00');
     if (appointmentDate < now) {
       return res.status(400).json({ error: 'Não é possível agendar em um horário que já passou.' });
     }
     
-    // 🔥 Buscar ou criar o cliente
+    // Buscar ou criar cliente
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
@@ -197,9 +209,9 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
-    // 🔥 VALIDAÇÃO 4: Cliente não pode ter mais de um agendamento na mesma semana (para o mesmo barbeiro)
+    // VALIDAÇÃO 4: Um agendamento por semana (por barbeiro)
     const appointmentDateObj = new Date(date + 'T00:00:00');
-    const dayOfWeek = appointmentDateObj.getDay(); // 0=domingo, 1=segunda, ...
+    const dayOfWeek = appointmentDateObj.getDay();
     const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
     const weekStart = new Date(appointmentDateObj);
     weekStart.setDate(appointmentDateObj.getDate() - diffToMonday);
@@ -222,7 +234,7 @@ const create = async (req, res) => {
       });
     }
     
-    // ✅ Todas as validações passaram – criar o agendamento
+    // Criar agendamento
     const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
     const appointment = await Appointment.create({
       barberId,
@@ -238,7 +250,6 @@ const create = async (req, res) => {
     
     console.log('✅ Agendamento criado:', appointment.id);
     
-    // Buscar dados completos para retornar
     const created = await Appointment.findByPk(appointment.id);
     const result = created.toJSON();
     if (created.clientId) {
@@ -261,6 +272,9 @@ const create = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE STATUS  (com correção do barbeiro/serviço)
+// ============================================================
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -280,15 +294,15 @@ const updateStatus = async (req, res) => {
     let revenueCreated = false;
     
     if (status === 'completed' && oldStatus !== 'completed') {
-      // 🔥 CORRIGIDO: USAR DATEHELPER
       const hoje = dateHelper.getTodayLocal();
       
-      // 🔥 ATUALIZAR A DATA DO APPOINTMENT PARA HOJE
+      // Atualizar data do appointment para hoje
       if (appointment.date !== hoje) {
         await appointment.update({ date: hoje });
         console.log(`📅 Data do agendamento atualizada de ${appointment.date} para ${hoje}`);
       }
       
+      // Buscar caixa aberto
       cashRegister = await CashRegister.findOne({
         where: {
           date: hoje,
@@ -297,9 +311,15 @@ const updateStatus = async (req, res) => {
         }
       });
       
+      // 🔥 Buscar o barbeiro do agendamento (nunca usar req.user)
       const barber = await Barber.findByPk(appointment.barberId);
+      const barberName = barber?.name || 'Barbeiro';
       const commission = (appointment.price || 0) * (barber?.serviceCommissionRate || 0.50);
       const client = await Client.findByPk(appointment.clientId);
+      const clientName = client?.name || 'Cliente';
+      
+      // 🔥 Nome do serviço: preferir serviceDescription, depois service, com fallback seguro
+      const serviceName = appointment.serviceDescription || appointment.service || 'Serviço';
       
       if (cashRegister) {
         cashRegisterStatus = 'open';
@@ -308,16 +328,23 @@ const updateStatus = async (req, res) => {
         const totalRevenue = cashRegister.totalRevenue || 0;
         const totalCommissions = cashRegister.totalCommissions || 0;
         
+        // 🔥 Adicionar serviço ao caixa com TODOS os campos preenchidos
         services.push({
           id: appointment.id,
           type: 'service',
-          client: client?.name || 'Cliente',
+          client: clientName,
           clientId: appointment.clientId,
           barberId: appointment.barberId,
-          barberName: barber?.name || 'Barbeiro',
-          service: appointment.service,
+          barberName: barberName,
+          barbeiro: barberName,               // duplicata pt-BR
+          barbeiroId: appointment.barberId,   // duplicata pt-BR
+          service: serviceName,
+          servico: serviceName,               // duplicata pt-BR
+          serviceDescription: appointment.serviceDescription || '',
+          serviceId: appointment.service || '',
           price: appointment.price || 0,
           commission,
+          comissao: commission,               // duplicata pt-BR
           paymentMethod: 'dinheiro',
           time: appointment.time,
           date: hoje,
@@ -330,7 +357,7 @@ const updateStatus = async (req, res) => {
           servicesCount: services.length,
         });
         
-        // 🔥 CRIAR REVENUE CONFIRMADO
+        // Criar Revenue confirmado
         try {
           const revenue = await Revenue.create({
             cashRegisterId: cashRegister.id,
@@ -340,10 +367,10 @@ const updateStatus = async (req, res) => {
             total: appointment.price || 0,
             commissions: commission,
             servicesCount: 1,
-            clientName: client?.name || 'Cliente',
-            barberName: barber?.name || 'Barbeiro',
-            service: appointment.service,
-            serviceDescription: appointment.serviceDescription,
+            clientName: clientName,
+            barberName: barberName,
+            service: serviceName,
+            serviceDescription: appointment.serviceDescription || '',
             status: 'confirmed',
           });
           revenueCreated = true;
@@ -354,7 +381,7 @@ const updateStatus = async (req, res) => {
         
         console.log(`✅ Serviço ${id} adicionado ao caixa.`);
       } else {
-        // 🔥 CAIXA FECHADO - CRIA REVENUE PENDENTE
+        // Caixa fechado – criar Revenue pendente
         console.log(`ℹ️ Caixa fechado, criando revenue pendente.`);
         
         try {
@@ -366,10 +393,10 @@ const updateStatus = async (req, res) => {
             total: appointment.price || 0,
             commissions: commission,
             servicesCount: 1,
-            clientName: client?.name || 'Cliente',
-            barberName: barber?.name || 'Barbeiro',
-            service: appointment.service,
-            serviceDescription: appointment.serviceDescription,
+            clientName: clientName,
+            barberName: barberName,
+            service: serviceName,
+            serviceDescription: appointment.serviceDescription || '',
             status: 'pending',
           });
           revenueCreated = true;
@@ -407,6 +434,9 @@ const updateStatus = async (req, res) => {
   }
 };
 
+// ============================================================
+// REMOVE
+// ============================================================
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
@@ -424,6 +454,9 @@ const remove = async (req, res) => {
   }
 };
 
+// ============================================================
+// SEARCH CLIENTS
+// ============================================================
 const searchClients = async (req, res) => {
   try {
     const { q } = req.query;
@@ -450,6 +483,9 @@ const searchClients = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET BY ID
+// ============================================================
 const getById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -469,14 +505,12 @@ const getById = async (req, res) => {
       client = await Client.findByPk(appointment.clientId, {
         attributes: ['id', 'name', 'phone']
       });
-      console.log('👤 Cliente encontrado manualmente:', client?.name);
     }
     
     if (appointment.barberId) {
       barber = await Barber.findByPk(appointment.barberId, {
         attributes: ['id', 'name', 'email', 'phone']
       });
-      console.log('✂️ Barbeiro encontrado manualmente:', barber?.name);
     }
     
     const result = {
@@ -492,6 +526,9 @@ const getById = async (req, res) => {
   }
 };
 
+// ============================================================
+// CHECK AVAILABILITY
+// ============================================================
 const checkAvailability = async (req, res) => {
   try {
     const { barberId, date } = req.query;
@@ -499,8 +536,6 @@ const checkAvailability = async (req, res) => {
     if (!barberId || !date) {
       return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
     }
-    
-    console.log('🔍 Verificando disponibilidade:', { barberId, date });
     
     const appointments = await Appointment.findAll({
       where: {
@@ -528,8 +563,6 @@ const checkAvailability = async (req, res) => {
     const bookedFromAppointments = appointments.map((a) => a.time);
     const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
     
-    console.log('📅 Horários ocupados:', allBooked);
-    
     res.json({ times: allBooked });
   } catch (error) {
     console.error('❌ Erro ao verificar disponibilidade:', error);
@@ -537,6 +570,9 @@ const checkAvailability = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET AVAILABLE DATES
+// ============================================================
 const getAvailableDates = async (req, res) => {
   try {
     const { barberId, month } = req.query;
@@ -558,20 +594,17 @@ const getAvailableDates = async (req, res) => {
     const daysInMonth = new Date(year, mes, 0).getDate();
     const availableDates = [];
 
-    // Para cada dia do mês, verificar se há horários disponíveis
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(mes).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       
-      // Verificar se o dia está no schedule
       const dateObj = new Date(year, mes - 1, day);
       const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       const daySchedule = schedule[dayOfWeek];
       
       if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) {
-        continue; // dia não configurado
+        continue;
       }
 
-      // Buscar agendamentos já marcados para este dia
       const appointments = await Appointment.findAll({
         where: {
           barberId,
@@ -582,7 +615,6 @@ const getAvailableDates = async (req, res) => {
       });
       const bookedTimes = appointments.map(a => a.time);
 
-      // Verificar se há pelo menos um horário disponível
       const hasAvailable = daySchedule.times.some(time => !bookedTimes.includes(time));
       if (hasAvailable) {
         availableDates.push(dateStr);

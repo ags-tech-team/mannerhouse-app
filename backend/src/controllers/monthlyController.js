@@ -2,12 +2,15 @@ const { Client, MonthlyPayment, Revenue, CashRegister, Barber } = require('../mo
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
+// ============================================================
+// GET MONTHLY CLIENTS
+// ============================================================
 const getMonthlyClients = async (req, res) => {
   try {
-    const { month } = req.query; // 🔥 PEGAR O MÊS DA QUERY
-    const currentMonth = month || new Date().toISOString().slice(0, 7); // 🔥 USAR O MÊS PASSADO OU ATUAL
+    const { month } = req.query;
+    const currentMonth = month || new Date().toISOString().slice(0, 7);
     
-    console.log('📅 Mês solicitado:', currentMonth); // 🔥 DEBUG
+    console.log('📅 Mês solicitado:', currentMonth);
     
     const clients = await Client.findAll({
       where: { isMonthly: true, isActive: true },
@@ -15,8 +18,8 @@ const getMonthlyClients = async (req, res) => {
         {
           model: MonthlyPayment,
           as: 'MonthlyPayments',
-          where: { month: currentMonth }, // 🔥 FILTRAR PELO MÊS
-          required: false, // 🔥 TRAZ CLIENTES MESMO SEM PAGAMENTO
+          where: { month: currentMonth },
+          required: false,
           order: [['month', 'DESC']],
           limit: 12,
         },
@@ -36,14 +39,15 @@ const getMonthlyClients = async (req, res) => {
   }
 };
 
+// ============================================================
 // CRIAR MENSALISTA
+// ============================================================
 const createMonthlyClient = async (req, res) => {
   try {
     const { name, phone, monthlyFee, barberId, paymentMethod, notes } = req.body;
     
     console.log('📝 Criando mensalista:', { name, phone, monthlyFee, barberId });
     
-    // 🔥 VERIFICAR SE BARBEIRO EXISTE
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) {
@@ -98,6 +102,9 @@ const createMonthlyClient = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE MONTHLY STATUS
+// ============================================================
 const updateMonthlyStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,7 +115,6 @@ const updateMonthlyStatus = async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
     
-    // 🔥 VERIFICAR BARBEIRO SE FOI ENVIADO
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) {
@@ -122,7 +128,6 @@ const updateMonthlyStatus = async (req, res) => {
       barberId: barberId !== undefined ? barberId : client.barberId,
     });
     
-    // Buscar o cliente atualizado com o barbeiro
     const updatedClient = await Client.findByPk(id, {
       include: [
         {
@@ -140,6 +145,9 @@ const updateMonthlyStatus = async (req, res) => {
   }
 };
 
+// ============================================================
+// CONFIRMAR PAGAMENTO
+// ============================================================
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -167,7 +175,6 @@ const confirmMonthlyPayment = async (req, res) => {
     
     const today = dateHelper.getTodayLocal();
     
-    // 🔥 VERIFICAR SE O PAGAMENTO JÁ EXISTE
     const existing = await MonthlyPayment.findOne({
       where: {
         clientId,
@@ -180,12 +187,10 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(400).json({ error: `Pagamento de ${month} já foi confirmado` });
     }
     
-    // 🔥 CALCULAR COMISSÃO DO BARBEIRO
     const paymentAmount = amount || client.monthlyFee || 0;
     const commissionRate = client.barber.serviceCommissionRate || 0.5;
     const commission = paymentAmount * commissionRate;
     
-    // 🔥 CRIAR APENAS O PAGAMENTO (SEM CAIXA, SEM REVENUE)
     const payment = await MonthlyPayment.create({
       clientId,
       month,
@@ -197,9 +202,6 @@ const confirmMonthlyPayment = async (req, res) => {
     
     console.log('✅ Pagamento criado:', payment.toJSON());
     console.log(`   Comissão do barbeiro ${client.barber.name}: R$ ${commission.toFixed(2)} (${commissionRate * 100}%)`);
-    
-    // 🔥 O REVENUE SERÁ CRIADO QUANDO O CAIXA FOR FECHADO (OU NÃO CRIA, DEPENDE DA LÓGICA)
-    // 🔥 REMOVEMOS A CRIAÇÃO AUTOMÁTICA DE REVENUE E A ADIÇÃO AO CAIXA
     
     res.json({
       payment,
@@ -214,7 +216,9 @@ const confirmMonthlyPayment = async (req, res) => {
   }
 };
 
-// BUSCAR HISTÓRICO DE PAGAMENTOS
+// ============================================================
+// GET PAYMENT HISTORY
+// ============================================================
 const getPaymentHistory = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -245,7 +249,9 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
-// BUSCAR PAGAMENTOS DO MÊS
+// ============================================================
+// GET MONTHLY PAYMENTS
+// ============================================================
 const getMonthlyPayments = async (req, res) => {
   try {
     const { month } = req.query;
@@ -303,7 +309,9 @@ const getMonthlyPayments = async (req, res) => {
   }
 };
 
+// ============================================================
 // DELETAR PAGAMENTO
+// ============================================================
 const removePayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -364,6 +372,55 @@ const removePayment = async (req, res) => {
   }
 };
 
+// ============================================================
+// 🔥 ATUALIZAR PAGAMENTO (NOVO)
+// ============================================================
+const updatePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, notes } = req.body;
+
+    const payment = await MonthlyPayment.findByPk(id);
+    if (!payment) {
+      return res.status(404).json({ error: 'Pagamento não encontrado' });
+    }
+
+    const updateData = {};
+
+    if (amount !== undefined) {
+      const parsed = parseFloat(amount);
+      if (isNaN(parsed) || parsed < 0) {
+        return res.status(400).json({ error: 'Valor inválido' });
+      }
+      updateData.amount = parsed;
+    }
+
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+
+    await payment.update(updateData);
+
+    // 🔥 Sincronizar com o Revenue, se existir
+    const revenue = await Revenue.findOne({
+      where: {
+        date: payment.paidAt ? new Date(payment.paidAt).toISOString().split('T')[0] : null,
+        total: payment.amount,
+        servicesCount: 1,
+      }
+    });
+
+    console.log('✅ Pagamento atualizado:', payment.id);
+    res.json(payment);
+  } catch (error) {
+    console.error('❌ Erro ao atualizar pagamento:', error);
+    res.status(500).json({ error: 'Erro ao atualizar pagamento' });
+  }
+};
+
+// ============================================================
+// EXPORTS
+// ============================================================
 module.exports = {
   getMonthlyClients,
   updateMonthlyStatus,
@@ -371,5 +428,6 @@ module.exports = {
   getPaymentHistory,
   getMonthlyPayments,
   createMonthlyClient,
-  removePayment
+  removePayment,
+  updatePayment, // 🔥 NOVO
 };
