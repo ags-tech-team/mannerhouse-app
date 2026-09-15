@@ -59,12 +59,14 @@ interface Barber {
 }
 
 interface SelectedService {
-  id: string;
+  id: string;        
   service: {
     id: string;
     name: string;
     price: number;
-    category: string;
+    category: 'corte' | 'barba' | 'cabelo' | 'tratamento' | 'outro';
+    isCommissioned?: boolean; 
+    isActive?: boolean;
   };
 }
 
@@ -474,13 +476,23 @@ const BarberCaixa = () => {
         ? '00000000000' 
         : (formData.clienteTelefone || clientPhone || (editingServico ? editingServico.telefone : ''));
       const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
+      
+      // 💰 FATURAMENTO: soma TODOS os serviços (comissionados ou não)
       const total = hasMensalista ? 0 : getTotalServices();
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
 
       const barber = barbersList.find(b => b.id === barberId);
       const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
-      const comissaoServico = hasMensalista ? 0 : (total * taxaComissaoServico);
+
+      // 🔥 NOVO: Comissão calculada apenas sobre serviços COMISSIONADOS
+      // Serviços com isCommissioned === false NÃO entram na base de comissão.
+      // Serviços sem a flag definida (undefined) são tratados como comissionados (padrão seguro).
+      const totalComissionavel = selectedServices
+        .filter(s => s.service.isCommissioned !== false)
+        .reduce((sum, s) => sum + (s.service.price || 0), 0);
+
+      const comissaoServico = hasMensalista ? 0 : (totalComissionavel * taxaComissaoServico);
 
       let comissaoProduto = 0;
       for (const service of selectedServices) {

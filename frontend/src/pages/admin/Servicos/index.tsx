@@ -17,6 +17,7 @@ interface Service {
   name: string;
   price: number;
   category: 'corte' | 'barba' | 'cabelo' | 'tratamento' | 'outro';
+  isCommissioned: boolean;
   isActive: boolean;
 }
 
@@ -39,6 +40,7 @@ const AdminServicos = () => {
   const [newService, setNewService] = useState<Partial<Service>>({
     category: 'corte',
     isActive: true,
+    isCommissioned: true, // 🔥 NOVO
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -86,6 +88,7 @@ const AdminServicos = () => {
         price: parseFloat(String(editData.price)),
         category: editData.category,
         isActive: editData.isActive,
+        isCommissioned: editData.isCommissioned, // 🔥 NOVO
       });
       await loadServices();
       setEditingId(null);
@@ -105,7 +108,6 @@ const AdminServicos = () => {
     }
     setSaving(true);
     try {
-      // 🔥 Gerar ID slug a partir do nome
       const generatedId = newService.name
         .toLowerCase()
         .normalize('NFD')
@@ -118,10 +120,11 @@ const AdminServicos = () => {
         name: newService.name,
         price: parseFloat(String(newService.price)),
         category: newService.category,
+        isCommissioned: newService.isCommissioned ?? true, // 🔥 NOVO
       });
       await loadServices();
       setShowNewModal(false);
-      setNewService({ category: 'corte', isActive: true });
+      setNewService({ category: 'corte', isActive: true, isCommissioned: true });
       showMessage('success', '✅ Serviço criado!');
     } catch (error: any) {
       showMessage('error', error.response?.data?.error || 'Erro ao criar serviço');
@@ -149,7 +152,6 @@ const AdminServicos = () => {
     s.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Agrupar por categoria
   const groupedByCategory = filteredServices.reduce((acc, s) => {
     if (!acc[s.category]) acc[s.category] = [];
     acc[s.category].push(s);
@@ -215,6 +217,7 @@ const AdminServicos = () => {
                   <th className="px-3 py-2 text-left font-medium text-[#544941] uppercase text-xs">Categoria</th>
                   <th className="px-3 py-2 text-right font-medium text-[#544941] uppercase text-xs">Preço</th>
                   <th className="px-3 py-2 text-center font-medium text-[#544941] uppercase text-xs">Ativo</th>
+                  <th className="px-3 py-2 text-center font-medium text-[#544941] uppercase text-xs">Comissão</th>
                   <th className="px-3 py-2 text-right font-medium text-[#544941] uppercase text-xs">Ações</th>
                 </tr>
               </thead>
@@ -260,6 +263,15 @@ const AdminServicos = () => {
                             className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
                           />
                         </td>
+                        {/* 🔥 NOVO - checkbox de comissão em modo edição */}
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={editData.isCommissioned ?? true}
+                            onChange={(e) => setEditData({ ...editData, isCommissioned: e.target.checked })}
+                            className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
+                          />
+                        </td>
                         <td className="px-3 py-2 text-right space-x-1">
                           <button
                             onClick={handleSaveEdit}
@@ -295,6 +307,14 @@ const AdminServicos = () => {
                             <span className="text-gray-400 text-xs">❌</span>
                           )}
                         </td>
+                        {/* 🔥 NOVO - exibição da comissão */}
+                        <td className="px-3 py-2 text-center">
+                          {service.isCommissioned ? (
+                            <span className="text-blue-600 text-xs">💰 Sim</span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">❌ Não</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-right space-x-1">
                           <button
                             onClick={() => handleStartEdit(service)}
@@ -318,7 +338,8 @@ const AdminServicos = () => {
                 ))}
                 {filteredServices.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-[#7f7c7a]">
+                    {/* 🔥 colSpan atualizado de 6 para 7 */}
+                    <td colSpan={7} className="px-3 py-8 text-center text-[#7f7c7a]">
                       Nenhum serviço encontrado
                     </td>
                   </tr>
@@ -389,6 +410,21 @@ const AdminServicos = () => {
                   placeholder="0,00"
                 />
               </div>
+
+              {/* 🔥 NOVO - checkbox de comissão no modal de criação */}
+              <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="isCommissioned"
+                  checked={newService.isCommissioned ?? true}
+                  onChange={(e) => setNewService({ ...newService, isCommissioned: e.target.checked })}
+                  className="w-4 h-4 text-[#9c7f64] focus:ring-[#9c7f64]"
+                />
+                <label htmlFor="isCommissioned" className="text-sm text-[#060606] cursor-pointer flex items-center gap-2">
+                  💰 Serviço comissionado
+                </label>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleCreate}
@@ -400,7 +436,7 @@ const AdminServicos = () => {
                 <button
                   onClick={() => {
                     setShowNewModal(false);
-                    setNewService({ category: 'corte', isActive: true });
+                    setNewService({ category: 'corte', isActive: true, isCommissioned: true });
                   }}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-lg transition"
                 >

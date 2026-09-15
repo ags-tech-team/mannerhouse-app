@@ -22,6 +22,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'outro',
     },
+    isCommissioned: {                    
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
+      field: 'is_commissioned',
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,

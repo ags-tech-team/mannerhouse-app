@@ -35,12 +35,9 @@ const getById = async (req, res) => {
   }
 };
 
-// ============================================================
-// CREATE – Criar novo serviço
-// ============================================================
 const create = async (req, res) => {
   try {
-    const { id, name, price, category } = req.body;
+    const { id, name, price, category, isCommissioned } = req.body;
 
     if (!id || !name || price === undefined || !category) {
       return res.status(400).json({
@@ -59,6 +56,7 @@ const create = async (req, res) => {
       name: name.trim(),
       price: parseFloat(price),
       category,
+      isCommissioned: isCommissioned !== undefined ? isCommissioned : true, // 🔥 NOVO
       isActive: true,
     });
 
@@ -70,13 +68,10 @@ const create = async (req, res) => {
   }
 };
 
-// ============================================================
-// UPDATE – Atualizar serviço
-// ============================================================
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, isActive } = req.body;
+    const { name, price, category, isActive, isCommissioned } = req.body;
 
     const service = await Service.findByPk(id);
     if (!service) {
@@ -88,6 +83,7 @@ const update = async (req, res) => {
     if (price !== undefined) updateData.price = parseFloat(price);
     if (category !== undefined) updateData.category = category;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (isCommissioned !== undefined) updateData.isCommissioned = isCommissioned;
 
     await service.update(updateData);
 
