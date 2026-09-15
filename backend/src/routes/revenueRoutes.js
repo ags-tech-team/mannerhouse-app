@@ -6,20 +6,22 @@ const {
   getAll,
   getByDate,
   getServices,
-  deleteRevenue, // 🔥 IMPORTAR
+  deleteRevenue,
+  updateRevenue, // 🔥 ADICIONAR
 } = require('../controllers/revenueController');
 const { authMiddleware } = require('../middlewares/auth');
 
 router.use(authMiddleware);
 
-// 🔥 ROTAS ESPECÍFICAS
+// 🔥 ROTAS ESPECÍFICAS (PRIMEIRO)
 router.get('/services', getServices);
 router.get('/dashboard', getFinancialDashboard);
 router.get('/summary', getSummary);
 
 // 🔥 ROTAS COM PARÂMETROS
+router.put('/:id', updateRevenue);    // 🔥 NOVA
+router.delete('/:id', deleteRevenue); // ✅ Já existia
 router.get('/:date', getByDate);
-router.delete('/:id', deleteRevenue); // 🔥 NOVA ROTA DELETE
 
 // 🔥 ROTAS GERAIS
 router.get('/', getAll);

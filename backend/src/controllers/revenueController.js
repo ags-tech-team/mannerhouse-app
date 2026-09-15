@@ -456,42 +456,78 @@ const getServices = async (req, res) => {
 const deleteRevenue = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    console.log('🗑️ Tentando excluir serviço do histórico:', id);
-    
-    const appointment = await Appointment.findByPk(id);
-    if (!appointment) {
-      console.log('❌ Serviço não encontrado');
+
+    console.log('🗑️ Tentando excluir revenue:', id);
+
+    const revenue = await Revenue.findByPk(id);
+    if (!revenue) {
+      console.log('❌ Revenue não encontrado');
       return res.status(404).json({ error: 'Serviço não encontrado' });
     }
-    
-    if (appointment.status !== 'completed') {
-      return res.status(400).json({ error: 'Apenas serviços concluídos podem ser removidos do histórico' });
-    }
-    
-    await appointment.update({ 
-      status: 'pending',
-      notes: `Serviço removido do histórico em ${new Date().toLocaleString('pt-BR')}`
-    });
-    
-    console.log('✅ Serviço removido do histórico:', id);
-    
-    res.json({ 
-      message: 'Serviço removido do histórico com sucesso!', 
+
+    await revenue.destroy();
+    console.log('✅ Revenue removido:', id);
+
+    res.json({
+      message: 'Serviço removido do histórico com sucesso!',
       id,
-      newStatus: 'pending'
     });
   } catch (error) {
-    console.error('❌ Erro ao remover serviço:', error);
+    console.error('❌ Erro ao remover revenue:', error);
     res.status(500).json({ error: 'Erro ao remover serviço' });
   }
 };
 
+const updateRevenue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { total, commissions, serviceDescription, service, clientName, barberName } = req.body;
+
+    console.log('✏️ Atualizando revenue:', id);
+
+    const revenue = await Revenue.findByPk(id);
+    if (!revenue) {
+      return res.status(404).json({ error: 'Serviço não encontrado' });
+    }
+
+    const updateData = {};
+
+    if (total !== undefined) {
+      const parsed = parseFloat(total);
+      if (isNaN(parsed) || parsed < 0) {
+        return res.status(400).json({ error: 'Valor inválido' });
+      }
+      updateData.total = parsed;
+    }
+
+    if (commissions !== undefined) {
+      const parsed = parseFloat(commissions);
+      if (!isNaN(parsed) && parsed >= 0) {
+        updateData.commissions = parsed;
+      }
+    }
+
+    if (serviceDescription !== undefined) updateData.serviceDescription = serviceDescription;
+    if (service !== undefined) updateData.service = service;
+    if (clientName !== undefined) updateData.clientName = clientName;
+    if (barberName !== undefined) updateData.barberName = barberName;
+
+    await revenue.update(updateData);
+
+    console.log('✅ Revenue atualizado:', revenue.id);
+    res.json(revenue);
+  } catch (error) {
+    console.error('❌ Erro ao atualizar revenue:', error);
+    res.status(500).json({ error: 'Erro ao atualizar revenue' });
+  }
+};
+
 module.exports = {
-  getFinancialDashboard,
+   getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,
   getServices,
-  deleteRevenue
+  deleteRevenue,
+  updateRevenue,
 };
