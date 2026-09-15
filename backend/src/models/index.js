@@ -45,10 +45,9 @@ Barber.hasMany(Sale, { foreignKey: 'barberId', as: 'sales' });
 Client.hasMany(Sale, { foreignKey: 'clientId', as: 'sales' });
 Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales' });
 
-// CashRegister -> User e Barber (NOVO)
 CashRegister.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 CashRegister.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
-CashRegister.belongsTo(models.Barber, {
+CashRegister.belongsTo(Barber, {   
   foreignKey: 'closedByBarberId',
   as: 'closedByBarber',
 });
