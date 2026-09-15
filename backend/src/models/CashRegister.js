@@ -42,6 +42,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'closing_time',
     },
+    closedByBarberId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'barbers',
+        key: 'id',
+      },
+      field: 'closed_by_barber_id',
+    },
     initialCash: {
       type: DataTypes.FLOAT,
       defaultValue: 0,

@@ -4,6 +4,42 @@ const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
 // ============================================================
+// 🔥 HELPER: calcular totais por forma de pagamento
+// ============================================================
+const calcularTotaisPorPagamento = (services = []) => {
+  const totais = {
+    dinheiro: 0,
+    credito: 0,
+    debito: 0,
+    pix: 0,
+    outros: 0,
+  };
+
+  services.forEach((s) => {
+    // Ignorar mensalidades (não entram nos totais)
+    const isMensalidade = s.service && (
+      s.service.toLowerCase().includes('mensal') ||
+      s.service.toLowerCase().includes('mensalista') ||
+      s.type === 'monthly'
+    );
+    if (isMensalidade) return;
+
+    const price = s.price || s.valor || 0;
+    const method = (s.paymentMethod || s.formaPagamento || 'dinheiro').toLowerCase();
+
+    if (totais[method] !== undefined) {
+      totais[method] += price;
+    } else if (method === 'cartao' || method === 'cartão') {
+      totais.credito += price; // legado: cartão = crédito
+    } else {
+      totais.outros += price;
+    }
+  });
+
+  return totais;
+};
+
+// ============================================================
 // GET TODAY
 // ============================================================
 const getToday = async (req, res) => {
@@ -12,7 +48,6 @@ const getToday = async (req, res) => {
     
     console.log('🔍 Buscando caixa do dia:', { userId: req.userId, date: today });
     
-    // 🔥 Priorizar caixa ABERTO; se não houver, pegar o mais recente
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -23,7 +58,13 @@ const getToday = async (req, res) => {
           model: Barber, 
           as: 'barber', 
           attributes: ['id', 'name', 'email', 'phone'] 
-        }
+        },
+        {
+          model: Barber,
+          as: 'closedByBarber',
+          attributes: ['id', 'name'],
+          required: false,
+        },
       ],
       order: [['isOpen', 'DESC'], ['createdAt', 'DESC']],
     });
@@ -42,10 +83,16 @@ const getToday = async (req, res) => {
         totalCommissions: 0,
         servicesCount: 0,
         barber: null,
+        closedByBarber: null,
+        totalsByPayment: { dinheiro: 0, credito: 0, debito: 0, pix: 0, outros: 0 },
       });
     }
     
-    res.json(cashRegister);
+    // 🔥 Calcular totais por forma de pagamento
+    const data = cashRegister.toJSON();
+    data.totalsByPayment = calcularTotaisPorPagamento(data.services || []);
+    
+    res.json(data);
   } catch (error) {
     console.error('❌ Erro ao buscar caixa do dia:', error);
     res.status(500).json({ error: 'Erro ao buscar caixa do dia' });
@@ -73,7 +120,6 @@ const openCashRegister = async (req, res) => {
       }
     }
     
-    // 🔥 Verificar QUALQUER caixa aberto (do usuário)
     const existingOpen = await CashRegister.findOne({
       where: {
         date: today,
@@ -87,7 +133,6 @@ const openCashRegister = async (req, res) => {
       return res.status(400).json({ error: 'Já existe um caixa aberto hoje' });
     }
     
-    // 🔥 Buscar caixa fechado para reabrir
     const existingClosed = await CashRegister.findOne({
       where: {
         date: today,
@@ -110,6 +155,7 @@ const openCashRegister = async (req, res) => {
         servicesCount: 0,
         closingTime: null,
         barberId: barberId || existingClosed.barberId || null,
+        closedByBarberId: null, // 🔥 limpar quem fechou
       });
       console.log('✅ Caixa reaberto com sucesso');
       return res.json(existingClosed);
@@ -137,17 +183,26 @@ const openCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// CLOSE CASH REGISTER
+// CLOSE CASH REGISTER  (com barbeiro que fecha)
 // ============================================================
 const closeCashRegister = async (req, res) => {
   try {
+    const { barberId } = req.body; // 🔥 barbeiro que está fechando
     const today = dateHelper.getTodayLocal();
     
     console.log('🔒 ===== FECHANDO CAIXA =====');
     console.log('📌 userId:', req.userId);
     console.log('📌 date:', today);
+    console.log('📌 closedByBarberId:', barberId);
     
-    // 🔥 Ordenar para pegar o caixa mais recente
+    // 🔥 Validar barbeiro se enviado
+    if (barberId) {
+      const barber = await Barber.findByPk(barberId);
+      if (!barber) {
+        return res.status(400).json({ error: 'Barbeiro que está fechando não encontrado' });
+      }
+    }
+    
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -194,6 +249,9 @@ const closeCashRegister = async (req, res) => {
     const servicesCount = servicosReais.length;
     const finalCash = cashRegister.initialCash + totalRevenue + mensalidades.reduce((sum, s) => sum + (s.price || 0), 0);
     
+    // 🔥 Calcular totais por forma de pagamento
+    const totalsByPayment = calcularTotaisPorPagamento(services);
+    
     await cashRegister.update({
       isOpen: false,
       closingTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -201,6 +259,7 @@ const closeCashRegister = async (req, res) => {
       totalRevenue,
       totalCommissions,
       servicesCount,
+      closedByBarberId: barberId || null, // 🔥 NOVO
     });
     
     console.log(`📝 Criando ${servicosReais.length} revenues...`);
@@ -278,7 +337,7 @@ const closeCashRegister = async (req, res) => {
       revenueCount++;
     }
     
-    // 🔥 CORRIGIDO: buscar revenues pendentes SEM filtrar por barberId (que estava errado)
+    // Atualizar revenues pendentes
     const pendingRevenues = await Revenue.findAll({
       where: {
         cashRegisterId: null,
@@ -300,8 +359,13 @@ const closeCashRegister = async (req, res) => {
     console.log(`✅ ${revenueCount} revenues processados!`);
     console.log(`   Total Revenue: R$ ${totalRevenue}`);
     console.log(`   Total Comissões: R$ ${totalCommissions}`);
+    console.log(`   💰 Dinheiro: R$ ${totalsByPayment.dinheiro.toFixed(2)} | Crédito: R$ ${totalsByPayment.credito.toFixed(2)} | Débito: R$ ${totalsByPayment.debito.toFixed(2)} | PIX: R$ ${totalsByPayment.pix.toFixed(2)}`);
     
-    res.json(cashRegister);
+    // Retornar com totais calculados
+    const result = cashRegister.toJSON();
+    result.totalsByPayment = totalsByPayment;
+    
+    res.json(result);
   } catch (error) {
     console.error('❌ Erro ao fechar caixa:', error);
     res.status(500).json({ error: 'Erro ao fechar caixa' });
@@ -359,7 +423,6 @@ const addService = async (req, res) => {
       }
     }
 
-    // 🔥 Ordenar para pegar o caixa mais recente (evita condição de corrida)
     const cashRegister = await CashRegister.findOne({
       where: {
         date: today,
@@ -437,7 +500,6 @@ const removeService = async (req, res) => {
     
     const services = (cashRegister.services || []).filter(s => s.id !== serviceId);
     
-    // 🔥 Recalcular totais após remoção
     const totalRevenue = services.reduce((sum, s) => sum + (s.price || 0), 0);
     const totalCommissions = services.reduce((sum, s) => sum + (s.commission || 0), 0);
     
@@ -476,7 +538,6 @@ const updateServices = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
     
-    // MERGE: mantém campos originais e sobrescreve apenas o que veio
     const currentServices = cashRegister.services || [];
     const updatedServices = currentServices.map(s => {
       const updated = services.find(service => service.id === s.id);
@@ -486,7 +547,6 @@ const updateServices = async (req, res) => {
       return s;
     });
     
-    // 🔥 CORRIGIDO: usar price/commission (inglês) em vez de valor/comissao
     const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || s.valor || 0), 0);
     const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || s.comissao || 0), 0);
     
@@ -527,7 +587,13 @@ const getHistory = async (req, res) => {
           model: Barber, 
           as: 'barber', 
           attributes: ['id', 'name'] 
-        }
+        },
+        {
+          model: Barber,
+          as: 'closedByBarber',
+          attributes: ['id', 'name'],
+          required: false,
+        },
       ],
       order: [['date', 'DESC'], ['createdAt', 'DESC']],
     });

@@ -47,7 +47,11 @@ Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales' });
 
 // CashRegister -> User e Barber (NOVO)
 CashRegister.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-CashRegister.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' }); // 🔥 ADICIONADO
+CashRegister.belongsTo(Barber, { foreignKey: 'barberId', as: 'barber' });
+CashRegister.belongsTo(models.Barber, {
+  foreignKey: 'closedByBarberId',
+  as: 'closedByBarber',
+});
 User.hasMany(CashRegister, { foreignKey: 'userId', as: 'cashRegisters' });
 Barber.hasMany(CashRegister, { foreignKey: 'barberId', as: 'cashRegisters' }); // 🔥 ADICIONADO
 

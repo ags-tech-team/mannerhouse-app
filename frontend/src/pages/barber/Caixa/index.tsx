@@ -19,6 +19,9 @@ import {
   User,
   Phone,
   Scissors,
+  Banknote,
+  CreditCard,
+  QrCode,
   Calendar as CalendarIcon,
   Clock as ClockIcon
 } from 'lucide-react';
@@ -88,7 +91,10 @@ const BarberCaixa = () => {
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
+  // 🔥 Barbeiro selecionado para abrir o caixa
   const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
+  // 🔥 Barbeiro selecionado para FECHAR o caixa
+  const [selectedBarberForClosing, setSelectedBarberForClosing] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
     cliente: '',
@@ -191,7 +197,6 @@ const BarberCaixa = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 🔥 SEMPRE RECARREGAR A LISTA DE BARBEIROS ANTES DE PROCESSAR
       const currentBarbersList = await loadBarbersList();
       console.log('📦 Barbeiros carregados:', currentBarbersList.map(b => b.name));
 
@@ -202,17 +207,14 @@ const BarberCaixa = () => {
       // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa
       let barberFromData = null;
 
-      // 1. Se o objeto já tiver um 'barber' populado (via include do backend)
       if (data.barber && data.barber.id) {
         barberFromData = currentBarbersList.find(b => b.id === data.barber.id);
       }
 
-      // 2. Se não, tentar usar o barberId que está dentro do objeto (se existir)
       if (!barberFromData && data.barberId) {
         barberFromData = currentBarbersList.find(b => b.id === data.barberId);
       }
 
-      // 3. Se ainda não encontrou, usar o primeiro da lista (fallback)
       if (!barberFromData && currentBarbersList.length > 0) {
         barberFromData = currentBarbersList[0];
       }
@@ -232,24 +234,22 @@ const BarberCaixa = () => {
       if (data.services && data.services.length > 0) {
         console.log(`📋 ${data.services.length} serviços encontrados`);
         const servicosFormatados = data.services.map((s: any, index: number) => {
-          console.log(`🔍 Serviço ${index + 1}:`, s);
           const formatted = {
             id: s.id || Date.now().toString(),
             cliente: s.cliente || s.client || 'Cliente',
             telefone: s.telefone || s.phone || '',
-            barbeiro: s.barbeiro || s.barberName || s.barber || user?.name || 'Barbeiro',
-            barbeiroId: s.barbeiroId || s.barberId || user?.id || '',
+            barbeiro: s.barbeiro || s.barberName || s.barber || 'Sem barbeiro',
+            barbeiroId: s.barbeiroId || s.barberId || '',
             servico: s.servico || s.service || 'Serviço',
             servicoId: s.servicoId || s.serviceId || '',
             valor: s.valor || s.price || 0,
             comissao: s.comissao || s.commission || 0,
             data: s.data || s.date || new Date().toISOString().split('T')[0],
             hora: s.hora || s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            status: 'concluido',
+            status: 'concluido' as const,
             formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
             observacao: s.observacao || '',
           };
-          console.log(`✅ Serviço formatado ${index + 1}:`, formatted);
           return formatted;
         });
         setServicos(servicosFormatados);
@@ -258,7 +258,6 @@ const BarberCaixa = () => {
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
-      // Fallback para localStorage
       try {
         const hoje = new Date().toISOString().split('T')[0];
         const caixaSalvo = localStorage.getItem(`@caixa_${hoje}`);
@@ -315,6 +314,7 @@ const BarberCaixa = () => {
       await loadData();
       setShowModalAbrirCaixa(false);
       valorInicial.reset();
+      setSelectedBarberForOpening(null);
       alert('✅ Caixa aberto com sucesso!');
     } catch (error: any) {
       console.error('Erro ao abrir caixa:', error);
@@ -324,10 +324,15 @@ const BarberCaixa = () => {
 
   // ========== FECHAR CAIXA ==========
   const handleFecharCaixa = async () => {
+    if (!selectedBarberForClosing) {
+      alert('Selecione o barbeiro que está fechando o caixa');
+      return;
+    }
     try {
-      await cashRegisterService.close();
+      await cashRegisterService.close(selectedBarberForClosing.id);
       await loadData();
       setShowModalFecharCaixa(false);
+      setSelectedBarberForClosing(null);
       alert('✅ Caixa fechado com sucesso!');
       window.location.reload();
     } catch (error: any) {
@@ -370,7 +375,6 @@ const BarberCaixa = () => {
             if (service) {
               return { id: trimmedId, service };
             }
-            console.warn(`⚠️ Serviço não encontrado para ID: ${baseId}`);
             return null;
           })
           .filter(Boolean) as SelectedService[];
@@ -487,8 +491,6 @@ const BarberCaixa = () => {
       }
       const comissaoTotal = hasMensalista ? 0 : (comissaoServico + comissaoProduto);
 
-      console.log('📤 ENVIANDO SERVIÇO:', { clientNameFinal, barberId, serviceNames, total });
-
       if (editingServico) {
         const updatedServicos = servicos.map(s => {
           if (s.id === editingServico.id) {
@@ -582,6 +584,26 @@ const BarberCaixa = () => {
   const totalServicos = servicos.filter(s => s.status === 'concluido').length;
   const ticketMedio = totalServicos > 0 ? totalVendas / totalServicos : 0;
 
+  // 🔥 TOTAIS POR FORMA DE PAGAMENTO (calculado localmente para fallback)
+  const totalsByPayment = (() => {
+    // Se o backend já enviou, usar
+    if (caixa?.totalsByPayment) return caixa.totalsByPayment;
+    // Senão, calcular localmente
+    const totais = { dinheiro: 0, credito: 0, debito: 0, pix: 0, outros: 0 };
+    servicos.filter(s => s.status === 'concluido').forEach(s => {
+      const price = s.valor || 0;
+      const method = (s.formaPagamento || 'dinheiro').toLowerCase();
+      if (totais[method] !== undefined) {
+        totais[method] += price;
+      } else if (method === 'cartao') {
+        totais.credito += price;
+      } else {
+        totais.outros += price;
+      }
+    });
+    return totais;
+  })();
+
   const getStatusColor = (status: string) => {
     switch(status) {
       case 'concluido': return 'bg-green-100 text-green-800';
@@ -632,6 +654,10 @@ const BarberCaixa = () => {
     });
   };
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
   // ==================== RENDER ====================
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -651,6 +677,12 @@ const BarberCaixa = () => {
             )}
             {currentBarber && (
               <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
+            )}
+            {/* 🔥 Mostrar quem fechou */}
+            {!caixa?.isOpen && caixa?.closedByBarber && (
+              <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">
+                🔒 Fechado por {caixa.closedByBarber.name}
+              </span>
             )}
           </p>
         </div>
@@ -747,6 +779,67 @@ const BarberCaixa = () => {
               <div className="p-2 sm:p-3 bg-purple-100 rounded-full"><Clock size={16} className="sm:w-5 sm:h-5 text-purple-600" /></div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 🔥 CARDS POR FORMA DE PAGAMENTO */}
+      {(caixa?.isOpen || servicos.length > 0) && (
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-[#060606] mb-3 sm:mb-4 flex items-center gap-2">
+            <DollarSign size={18} className="sm:w-5 sm:h-5 text-[#9c7f64]" />
+            Faturamento por Forma de Pagamento
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* DINHEIRO */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Banknote size={18} className="text-green-600" />
+                <p className="text-xs sm:text-sm font-medium text-green-800">Dinheiro</p>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-green-700">
+                {formatCurrency(totalsByPayment.dinheiro)}
+              </p>
+            </div>
+
+            {/* CRÉDITO */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard size={18} className="text-blue-600" />
+                <p className="text-xs sm:text-sm font-medium text-blue-800">Crédito</p>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-blue-700">
+                {formatCurrency(totalsByPayment.credito)}
+              </p>
+            </div>
+
+            {/* DÉBITO */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard size={18} className="text-purple-600" />
+                <p className="text-xs sm:text-sm font-medium text-purple-800">Débito</p>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-purple-700">
+                {formatCurrency(totalsByPayment.debito)}
+              </p>
+            </div>
+
+            {/* PIX */}
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <QrCode size={18} className="text-teal-600" />
+                <p className="text-xs sm:text-sm font-medium text-teal-800">PIX</p>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-teal-700">
+                {formatCurrency(totalsByPayment.pix)}
+              </p>
+            </div>
+          </div>
+          {/* Mostrar "outros" se houver */}
+          {totalsByPayment.outros > 0 && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-600">Outros: {formatCurrency(totalsByPayment.outros)}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -916,11 +1009,66 @@ const BarberCaixa = () => {
               <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
+              {/* Resumo financeiro */}
               <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-yellow-800">Valor Inicial</span><span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span></div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2 text-sm"><span className="text-yellow-800">Vendas do Dia</span><span className="font-medium">R$ {totalVendas.toFixed(2)}</span></div>
-                <div className="flex justify-between border-t border-yellow-200 pt-2"><span className="text-sm font-bold text-yellow-800">Total em Caixa</span><span className="font-bold text-base sm:text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-yellow-800">Valor Inicial</span>
+                  <span className="font-medium">R$ {caixa.initialCash.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2 text-sm">
+                  <span className="text-yellow-800">Vendas do Dia</span>
+                  <span className="font-medium">R$ {totalVendas.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-yellow-200 pt-2">
+                  <span className="text-sm font-bold text-yellow-800">Total em Caixa</span>
+                  <span className="font-bold text-base sm:text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span>
+                </div>
               </div>
+
+              {/* 🔥 Resumo por forma de pagamento */}
+              <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg space-y-2">
+                <p className="text-xs font-semibold text-[#544941] uppercase mb-2">Por Forma de Pagamento</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[#7f7c7a]">💵 Dinheiro:</span>
+                    <span className="font-medium">{formatCurrency(totalsByPayment.dinheiro)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#7f7c7a]">💳 Crédito:</span>
+                    <span className="font-medium">{formatCurrency(totalsByPayment.credito)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#7f7c7a]">💳 Débito:</span>
+                    <span className="font-medium">{formatCurrency(totalsByPayment.debito)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#7f7c7a]">📱 PIX:</span>
+                    <span className="font-medium">{formatCurrency(totalsByPayment.pix)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 🔥 Select do barbeiro que está fechando */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1">
+                  Barbeiro que está fechando *
+                </label>
+                <select
+                  value={selectedBarberForClosing?.id || ''}
+                  onChange={(e) => {
+                    const barber = barbersList.find(b => b.id === e.target.value);
+                    setSelectedBarberForClosing(barber || null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  required
+                >
+                  <option value="">Selecione um barbeiro</option>
+                  {barbersList.map((barber) => (
+                    <option key={barber.id} value={barber.id}>{barber.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <button 
                 onClick={handleFecharCaixa} 
                 className="w-full bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
