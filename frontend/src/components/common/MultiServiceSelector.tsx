@@ -10,6 +10,8 @@ interface SelectedService {
     name: string;
     price: number;
     category: string;
+    isCommissioned?: boolean; // 🔥 NOVO
+    isActive?: boolean;
   };
 }
 
@@ -27,10 +29,8 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
   hideMensalista = false,
 }) => {
   const [selectedId, setSelectedId] = useState('');
-  // 🔥 Estado local para re-renderizar quando os serviços carregarem
   const [allServices, setAllServices] = useState<Service[]>(getServices());
 
-  // 🔥 Carregar serviços da API e atualizar o estado
   useEffect(() => {
     let mounted = true;
     loadServices().then((services) => {
@@ -41,7 +41,6 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
     };
   }, []);
 
-  // 🔥 Filtrar mensalista se necessário
   const availableServices = hideMensalista
     ? allServices.filter((s) => s.id !== 'mensalista')
     : allServices;
@@ -55,6 +54,9 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
 
     const service = getServiceById(selectedId);
     if (!service) return;
+
+    // 🔍 Log para debug
+    console.log('🔍 Adicionando serviço:', service.name, '| isCommissioned:', service.isCommissioned);
 
     const uniqueId = `${selectedId}-${Date.now()}-${Math.random()
       .toString(36)
@@ -100,7 +102,6 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Selector de Serviços */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1">
           <select
@@ -112,6 +113,7 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             {availableServices.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name} - R$ {service.price.toFixed(2)}
+                {service.isCommissioned === false ? ' (sem comissão)' : ''}
               </option>
             ))}
           </select>
@@ -127,7 +129,6 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
         </button>
       </div>
 
-      {/* Lista de Serviços Selecionados */}
       {selectedServices.length > 0 && (
         <div className="bg-[#f5f0e8] rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
           <div className="flex justify-between items-center text-sm font-medium text-[#060606]">
@@ -146,6 +147,7 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
             {Object.entries(groupedServices).map(([key, group]) => {
               const firstIndex = group.indices[0];
               const isMensalista = key === 'mensalista';
+              const semComissao = group.service.isCommissioned === false;
 
               return (
                 <div
@@ -170,6 +172,11 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
                       {isMensalista && (
                         <span className="ml-2 text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
                           Zera valor
+                        </span>
+                      )}
+                      {semComissao && !isMensalista && (
+                        <span className="ml-2 text-[10px] bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                          Sem comissão
                         </span>
                       )}
                     </span>
@@ -202,7 +209,6 @@ const MultiServiceSelector: React.FC<MultiServiceSelectorProps> = ({
         </div>
       )}
 
-      {/* Indicação de repetição */}
       {selectedServices.length > 0 && (
         <p className="text-[10px] text-[#7f7c7a] text-center">
           💡 Você pode adicionar o mesmo serviço várias vezes para múltiplas pessoas
