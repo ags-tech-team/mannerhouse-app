@@ -280,11 +280,16 @@ const PublicSchedule = () => {
   };
 
   const isTimePast = (time: string) => {
-    const today = new Date();
-    const isToday = selectedDate === today.toISOString().split('T')[0];
-    if (!isToday) return false;
-    const [hour, minute] = time.split(':').map(Number);
+   
     const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayLocal = `${y}-${m}-${d}`;
+
+    if (selectedDate !== todayLocal) return false;
+
+    const [hour, minute] = time.split(':').map(Number);
     return hour < now.getHours() || (hour === now.getHours() && minute < now.getMinutes());
   };
 
