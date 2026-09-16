@@ -1,11 +1,10 @@
-const { CashRegister, User, Revenue, Barber, Client, Service } = require('../models');
+const { CashRegister, User, Revenue, Barber, Client, Service, Product } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
 // ============================================================
-// 🔥 HELPER: buscar serviço por ID ou nome (id pode estar salvo
-// como slug, nome ou nome com emoji em outros lugares do sistema)
+// 🔥 HELPER: buscar serviço por ID ou nome
 // ============================================================
 const findServiceByIdentifier = async (identifier) => {
   if (!identifier) return null;
@@ -41,13 +40,25 @@ const calcularTotaisPorPagamento = (services = []) => {
 };
 
 // ============================================================
+// 🔥 HELPER: monta texto agregado dos itens (compat com frontend)
+// ============================================================
+const buildAggregatedName = (items = []) => {
+  return items
+    .map((it) => {
+      if (it.type === 'product' && it.quantity > 1) {
+        return `${it.name} x${it.quantity}`;
+      }
+      return it.name;
+    })
+    .join(' + ');
+};
+
+// ============================================================
 // GET TODAY
 // ============================================================
 const getToday = async (req, res) => {
   try {
     const today = dateHelper.getTodayLocal();
-    console.log('🔍 Buscando caixa do dia:', { userId: req.userId, date: today });
-
     const cashRegister = await CashRegister.findOne({
       where: { date: today, userId: req.userId },
       include: [
@@ -84,9 +95,6 @@ const openCashRegister = async (req, res) => {
     const { initialCash, barberId } = req.body;
     const today = dateHelper.getTodayLocal();
 
-    console.log('🔓 ===== ABRINDO CAIXA =====');
-    console.log('📌 userId:', req.userId, '| date:', today, '| initialCash:', initialCash, '| barberId:', barberId);
-
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) return res.status(400).json({ error: 'Barbeiro não encontrado' });
@@ -95,9 +103,7 @@ const openCashRegister = async (req, res) => {
     const existingOpen = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: true },
     });
-    if (existingOpen) {
-      return res.status(400).json({ error: 'Já existe um caixa aberto hoje' });
-    }
+    if (existingOpen) return res.status(400).json({ error: 'Já existe um caixa aberto hoje' });
 
     const existingClosed = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: false },
@@ -142,9 +148,6 @@ const closeCashRegister = async (req, res) => {
   try {
     const { barberId } = req.body;
     const today = dateHelper.getTodayLocal();
-
-    console.log('🔒 ===== FECHANDO CAIXA =====');
-    console.log('📌 userId:', req.userId, '| date:', today, '| closedByBarberId:', barberId);
 
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
@@ -259,13 +262,15 @@ const closeCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// ADD SERVICE
+// 🔥 ADD SERVICE (agora aceita items[] misto: serviços + produtos)
 // ============================================================
 const addService = async (req, res) => {
   try {
-    const { 
-      client, barberId, service, serviceId, price, commission: commissionFromBody,
-      paymentMethod, date, time, phone
+    const {
+      client, barberId,
+      service, serviceId, price, commission: commissionFromBody,
+      paymentMethod, date, time, phone,
+      items, // 🔥 NOVO
     } = req.body;
 
     const today = date || dateHelper.getTodayLocal();
@@ -273,8 +278,135 @@ const addService = async (req, res) => {
     if (!barberId) return res.status(400).json({ error: 'Barbeiro é obrigatório' });
     const barber = await Barber.findByPk(barberId);
     if (!barber) return res.status(400).json({ error: 'Barbeiro não encontrado' });
-    if (!service || service.trim() === '') return res.status(400).json({ error: 'Serviço é obrigatório' });
 
+    // ============================================================
+    // 🔥 NORMALIZAR ITEMS (formato novo OU antigo)
+    // ============================================================
+    let normalizedItems = [];
+    let finalPrice = 0;
+    let finalCommission = 0;
+    let aggregatedServiceNames = '';
+    let aggregatedServiceIds = '';
+    const productStockUpdates = []; // { product, quantityToDecrement }
+
+    if (items && Array.isArray(items) && items.length > 0) {
+      // ========== FORMATO NOVO ==========
+      console.log(`📦 Recebendo ${items.length} item(s) misto(s)`);
+      const serviceCommissionRate = barber.serviceCommissionRate || 0.50;
+      const productCommissionRate = barber.productCommissionRate || 0.50;
+
+      for (const item of items) {
+        if (item.type === 'service') {
+          let svc = null;
+          if (item.serviceId) svc = await findServiceByIdentifier(item.serviceId);
+          if (!svc && item.name) svc = await findServiceByIdentifier(item.name);
+
+          const isCommissioned = !(svc && svc.isCommissioned === false);
+          const itemPrice = Number(item.price) || 0;
+          const itemCommission = isCommissioned ? itemPrice * serviceCommissionRate : 0;
+
+          normalizedItems.push({
+            type: 'service',
+            serviceId: item.serviceId || (svc ? svc.id : ''),
+            name: item.name || (svc ? svc.name : 'Serviço'),
+            price: itemPrice,
+            commission: itemCommission,
+            isCommissioned,
+          });
+
+          finalPrice += itemPrice;
+          finalCommission += itemCommission;
+          aggregatedServiceNames = aggregatedServiceNames
+            ? `${aggregatedServiceNames} + ${item.name}`
+            : item.name;
+          if (item.serviceId) {
+            aggregatedServiceIds = aggregatedServiceIds
+              ? `${aggregatedServiceIds},${item.serviceId}`
+              : item.serviceId;
+          }
+        } else if (item.type === 'product') {
+          const product = await Product.findByPk(item.productId);
+          if (!product) {
+            console.warn(`⚠️ Produto não encontrado: ${item.productId}`);
+            continue;
+          }
+          if (product.isActive === false) {
+            return res.status(400).json({ error: `Produto "${product.name}" está inativo` });
+          }
+
+          const qty = Math.max(1, parseInt(item.quantity) || 1);
+          if (product.stock < qty) {
+            return res.status(400).json({
+              error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, solicitado: ${qty}`,
+            });
+          }
+
+          const unitPrice = product.price;
+          const unitCost = product.costPrice;
+          const itemPrice = unitPrice * qty;
+          const profit = (unitPrice - unitCost) * qty;
+          const itemCommission = product.hasCommission !== false ? profit * productCommissionRate : 0;
+
+          normalizedItems.push({
+            type: 'product',
+            productId: product.id,
+            name: product.name,
+            quantity: qty,
+            unitPrice,
+            costPrice: unitCost,
+            price: itemPrice,
+            commission: itemCommission,
+            hasCommission: product.hasCommission !== false,
+          });
+
+          finalPrice += itemPrice;
+          finalCommission += itemCommission;
+          productStockUpdates.push({ product, quantityToDecrement: qty });
+        }
+      }
+
+      if (normalizedItems.length === 0) {
+        return res.status(400).json({ error: 'Nenhum item válido recebido' });
+      }
+    } else {
+      // ========== FORMATO ANTIGO (compat) ==========
+      if (!service || service.trim() === '') {
+        return res.status(400).json({ error: 'Serviço é obrigatório' });
+      }
+
+      let commission;
+      if (commissionFromBody !== undefined && commissionFromBody !== null) {
+        commission = Number(commissionFromBody);
+      } else {
+        const commissionRate = barber.serviceCommissionRate || 0.50;
+        let isCommissioned = true;
+        if (serviceId) {
+          const ids = serviceId.split(',').map((s) => s.trim()).filter(Boolean);
+          for (const id of ids) {
+            const svc = await findServiceByIdentifier(id);
+            if (svc && svc.isCommissioned === false) { isCommissioned = false; break; }
+          }
+        }
+        commission = isCommissioned ? (price || 0) * commissionRate : 0;
+      }
+
+      normalizedItems.push({
+        type: 'service',
+        serviceId: serviceId || '',
+        name: service,
+        price: Number(price) || 0,
+        commission,
+        isCommissioned: commission > 0,
+      });
+      finalPrice = Number(price) || 0;
+      finalCommission = commission;
+      aggregatedServiceNames = service;
+      aggregatedServiceIds = serviceId || '';
+    }
+
+    // ============================================================
+    // CLIENTE
+    // ============================================================
     let clientRecord = null;
     let clientId = null;
     let clientName = client || 'Cliente';
@@ -294,6 +426,9 @@ const addService = async (req, res) => {
       }
     }
 
+    // ============================================================
+    // CAIXA ABERTO
+    // ============================================================
     const cashRegister = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: true },
       order: [['createdAt', 'DESC']],
@@ -301,58 +436,40 @@ const addService = async (req, res) => {
     if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
 
     // ============================================================
-    // 🔥 CÁLCULO DE COMISSÃO — respeita isCommissioned
+    // BAIXAR ESTOQUE (antes de salvar — se der erro aqui, nada é commitado)
     // ============================================================
-    // Estratégia em camadas:
-    // 1) Se o frontend mandou `commission` já calculado → usa ele (o BarberCaixa
-    //    já filtra por isCommissioned antes de enviar)
-    // 2) Senão, calcula aqui checando isCommissioned por serviceId
-    // 3) Fallback final: assume comissionado (padrão antigo)
-    let commission;
-
-    if (commissionFromBody !== undefined && commissionFromBody !== null) {
-      commission = Number(commissionFromBody);
-      console.log(`💰 Comissão recebida do frontend: R$ ${commission.toFixed(2)}`);
-    } else {
-      // Não veio do frontend → backend tenta validar sozinho
-      const commissionRate = barber.serviceCommissionRate || 0.50;
-      let isCommissioned = true;
-
-      // serviceId pode conter múltiplos IDs separados por vírgula
-      if (serviceId) {
-        const ids = serviceId.split(',').map(s => s.trim()).filter(Boolean);
-        // Se pelo menos um serviço NÃO for comissionado, aplica regra conservadora:
-        // assume que o pacote inteiro é não-comissionado (evita pagar comissão indevida)
-        for (const id of ids) {
-          const svc = await findServiceByIdentifier(id);
-          if (svc && svc.isCommissioned === false) {
-            isCommissioned = false;
-            break;
-          }
-        }
-      } else {
-        // Sem serviceId, tenta pelo nome
-        const svc = await findServiceByIdentifier(service);
-        if (svc && svc.isCommissioned === false) isCommissioned = false;
-      }
-
-      commission = isCommissioned ? (price || 0) * commissionRate : 0;
-      console.log(`💰 Comissão calculada no backend: R$ ${commission.toFixed(2)} | comissionado: ${isCommissioned}`);
+    for (const { product, quantityToDecrement } of productStockUpdates) {
+      await product.update({ stock: product.stock - quantityToDecrement });
+      console.log(`📦 Estoque baixado: ${product.name} -${quantityToDecrement} (novo: ${product.stock - quantityToDecrement})`);
     }
 
+    // ============================================================
+    // MONTAR ITEM DO CAIXA
+    // ============================================================
     const newService = {
       id: Date.now().toString(),
+      type: 'combined',
       client: clientName,
-      clientId: clientId,
+      clientId,
       barberId: barber.id,
       barberName: barber.name,
-      service: service.trim(),
-      serviceId: serviceId || '',
-      price: price || 0,
-      commission,
+      barbeiro: barber.name,
+      barbeiroId: barber.id,
+      // Campos agregados (compat com frontend atual)
+      service: aggregatedServiceNames,
+      servico: aggregatedServiceNames,
+      serviceId: aggregatedServiceIds,
+      price: finalPrice,
+      commission: finalCommission,
+      comissao: finalCommission,
+      // 🔥 Detalhamento
+      items: normalizedItems,
       paymentMethod: paymentMethod || 'dinheiro',
+      formaPagamento: paymentMethod || 'dinheiro',
       time: time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      hora: time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       date: today,
+      data: today,
       phone: phone || '',
     };
 
@@ -360,12 +477,17 @@ const addService = async (req, res) => {
 
     await cashRegister.update({
       services,
-      totalRevenue: (cashRegister.totalRevenue || 0) + (price || 0),
-      totalCommissions: (cashRegister.totalCommissions || 0) + commission,
+      totalRevenue: (cashRegister.totalRevenue || 0) + finalPrice,
+      totalCommissions: (cashRegister.totalCommissions || 0) + finalCommission,
       servicesCount: services.length,
     });
 
-    console.log(`✅ Serviço adicionado: ${newService.service} | R$ ${newService.price} | comissão R$ ${newService.commission}`);
+    console.log(`✅ Item adicionado ao caixa:`);
+    console.log(`   Cliente: ${newService.client}`);
+    console.log(`   Barbeiro: ${newService.barberName}`);
+    console.log(`   Total: R$ ${finalPrice.toFixed(2)} | Comissão: R$ ${finalCommission.toFixed(2)}`);
+    console.log(`   Itens: ${normalizedItems.map((i) => `${i.name}${i.quantity ? ` x${i.quantity}` : ''}`).join(', ')}`);
+
     res.status(201).json(newService);
   } catch (error) {
     console.error('❌ Erro ao adicionar serviço:', error);
@@ -374,7 +496,7 @@ const addService = async (req, res) => {
 };
 
 // ============================================================
-// REMOVE SERVICE
+// 🔥 REMOVE SERVICE (restaura estoque de produtos)
 // ============================================================
 const removeService = async (req, res) => {
   try {
@@ -387,13 +509,39 @@ const removeService = async (req, res) => {
     });
     if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
 
-    const services = (cashRegister.services || []).filter(s => s.id !== serviceId);
-    const totalRevenue = services.reduce((sum, s) => sum + (s.price || 0), 0);
-    const totalCommissions = services.reduce((sum, s) => sum + (s.commission || 0), 0);
+    const services = cashRegister.services || [];
+    const itemToRemove = services.find((s) => s.id === serviceId);
+
+    // 🔥 Restaurar estoque dos produtos do item
+    if (itemToRemove && Array.isArray(itemToRemove.items)) {
+      for (const it of itemToRemove.items) {
+        if (it.type === 'product' && it.productId && it.quantity) {
+          const product = await Product.findByPk(it.productId);
+          if (product) {
+            await product.update({ stock: product.stock + it.quantity });
+            console.log(`📦 Estoque restaurado: ${product.name} +${it.quantity}`);
+          }
+        }
+      }
+    } else if (itemToRemove && itemToRemove.type === 'product' && itemToRemove.productId) {
+      // Compat com itens do saleController antigo
+      const product = await Product.findByPk(itemToRemove.productId);
+      if (product) {
+        const qty = itemToRemove.quantity || 1;
+        await product.update({ stock: product.stock + qty });
+        console.log(`📦 Estoque restaurado: ${product.name} +${qty}`);
+      }
+    }
+
+    const updatedServices = services.filter((s) => s.id !== serviceId);
+    const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+    const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || 0), 0);
 
     await cashRegister.update({
-      services, totalRevenue, totalCommissions,
-      servicesCount: services.length,
+      services: updatedServices,
+      totalRevenue,
+      totalCommissions,
+      servicesCount: updatedServices.length,
     });
 
     res.status(204).send();
@@ -404,7 +552,7 @@ const removeService = async (req, res) => {
 };
 
 // ============================================================
-// UPDATE SERVICES
+// UPDATE SERVICES (ajusta estoque pelo diff de quantidade)
 // ============================================================
 const updateServices = async (req, res) => {
   try {
@@ -418,8 +566,58 @@ const updateServices = async (req, res) => {
     if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
 
     const currentServices = cashRegister.services || [];
-    const updatedServices = currentServices.map(s => {
-      const updated = services.find(service => service.id === s.id);
+
+    // 🔥 Ajustar estoque pelo diff de quantidade de produtos
+    for (const updated of services) {
+      const original = currentServices.find((s) => s.id === updated.id);
+      if (!original) continue;
+
+      const originalProducts = (original.items || []).filter((it) => it.type === 'product');
+      const updatedProducts = (updated.items || []).filter((it) => it.type === 'product');
+
+      // Caso: quantidade mudou em produtos que existiam
+      for (const origP of originalProducts) {
+        const newP = updatedProducts.find((p) => p.productId === origP.productId);
+        const oldQty = origP.quantity || 0;
+        const newQty = newP ? newP.quantity || 0 : 0;
+        const diff = newQty - oldQty;
+
+        if (diff !== 0) {
+          const product = await Product.findByPk(origP.productId);
+          if (product) {
+            const newStock = product.stock - diff;
+            if (newStock < 0) {
+              return res.status(400).json({
+                error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock + oldQty}`,
+              });
+            }
+            await product.update({ stock: newStock });
+            console.log(`📦 Estoque ajustado: ${product.name} ${diff > 0 ? '-' : '+'}${Math.abs(diff)}`);
+          }
+        }
+      }
+
+      // Caso: produtos novos adicionados via edição
+      for (const newP of updatedProducts) {
+        const existedBefore = originalProducts.find((p) => p.productId === newP.productId);
+        if (!existedBefore) {
+          const product = await Product.findByPk(newP.productId);
+          if (product) {
+            const qty = newP.quantity || 1;
+            if (product.stock < qty) {
+              return res.status(400).json({
+                error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}`,
+              });
+            }
+            await product.update({ stock: product.stock - qty });
+            console.log(`📦 Estoque baixado (novo item via edição): ${product.name} -${qty}`);
+          }
+        }
+      }
+    }
+
+    const updatedServices = currentServices.map((s) => {
+      const updated = services.find((u) => u.id === s.id);
       if (updated) return { ...s, ...updated };
       return s;
     });
@@ -429,7 +627,8 @@ const updateServices = async (req, res) => {
 
     await cashRegister.update({
       services: updatedServices,
-      totalRevenue, totalCommissions,
+      totalRevenue,
+      totalCommissions,
       servicesCount: updatedServices.length,
     });
 

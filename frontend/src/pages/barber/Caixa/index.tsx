@@ -1,38 +1,34 @@
 import { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Plus,
-  X,
-  Check,
-  DollarSign,
-  TrendingUp,
-  Users,
-  Clock,
-  Lock,
-  Unlock,
-  AlertCircle,
-  Eye,
-  Printer,
-  RefreshCw,
-  UserX,
-  User,
-  Phone,
-  Scissors,
-  Banknote,
-  CreditCard,
-  QrCode,
-  Calendar as CalendarIcon,
-  Clock as ClockIcon
+import {
+  Search, Filter, Plus, X, Check, DollarSign, TrendingUp, Users, Clock,
+  Lock, Unlock, AlertCircle, Eye, Printer, Banknote, CreditCard, QrCode,
+  UserX, Phone, Package, Scissors,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { cashRegisterService } from '../../../services/cashRegister.service';
 import type { CashRegister } from '../../../services/cashRegister.service';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { api } from '../../../api/client';
-import { SERVICES, getServiceById } from '../../../utils/services';
+import { getServiceById } from '../../../utils/services';
+import { productService } from '../../../services/product.service';
 import MultiServiceSelector from '../../../components/common/MultiServiceSelector';
+import MultiProductSelector from '../../../components/common/MultiProductSelector';
+import type { SelectedProduct } from '../../../components/common/MultiProductSelector';
 import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
+
+interface ServicoItem {
+  type: 'service' | 'product';
+  serviceId?: string;
+  productId?: string;
+  name: string;
+  quantity?: number;
+  unitPrice?: number;
+  costPrice?: number;
+  price: number;
+  commission: number;
+  isCommissioned?: boolean;
+  hasCommission?: boolean;
+}
 
 interface ServicoFaturamento {
   id: string;
@@ -49,6 +45,7 @@ interface ServicoFaturamento {
   status: 'concluido' | 'pendente' | 'cancelado';
   formaPagamento: 'dinheiro' | 'credito' | 'pix' | 'debito';
   observacao?: string;
+  items?: ServicoItem[]; // 🔥 NOVO
 }
 
 interface Barber {
@@ -59,13 +56,13 @@ interface Barber {
 }
 
 interface SelectedService {
-  id: string;        
+  id: string;
   service: {
     id: string;
     name: string;
     price: number;
     category: 'corte' | 'barba' | 'cabelo' | 'tratamento' | 'outro';
-    isCommissioned?: boolean; 
+    isCommissioned?: boolean;
     isActive?: boolean;
   };
 }
@@ -85,17 +82,16 @@ const BarberCaixa = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [barbersList, setBarbersList] = useState<Barber[]>([]);
   const [isGuest, setIsGuest] = useState(false);
-  
+
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]); // 🔥 NOVO
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
-  // 🔥 Barbeiro selecionado para abrir o caixa
   const [selectedBarberForOpening, setSelectedBarberForOpening] = useState<Barber | null>(null);
-  // 🔥 Barbeiro selecionado para FECHAR o caixa
   const [selectedBarberForClosing, setSelectedBarberForClosing] = useState<Barber | null>(null);
 
   const [formData, setFormData] = useState({
@@ -111,47 +107,66 @@ const BarberCaixa = () => {
   const valorInicial = useNumberInput();
 
   const handleSelectClient = (client: any) => {
-    console.log('🔍 Cliente selecionado:', client);
     setClientName(client.name);
     setClientPhone(client.phone);
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       cliente: client.name,
       clienteTelefone: client.phone,
     }));
   };
 
+  // ========== CÁLCULO DE TOTAIS ==========
+  const hasMensalista = selectedServices.some((s) => s.service.id === 'mensalista');
+
   const getTotalServices = () => {
-    if (selectedServices.some(s => s.service.id === 'mensalista')) {
-      return 0;
-    }
+    if (hasMensalista) return 0;
     return selectedServices.reduce((sum, s) => sum + s.service.price, 0);
   };
 
+  const getTotalProducts = () => {
+    return selectedProducts.reduce((sum, p) => sum + p.product.price * p.quantity, 0);
+  };
+
+  const getGrandTotal = () => getTotalServices() + getTotalProducts();
+
+  const getCommissionServices = () => {
+    if (hasMensalista) return 0;
+    const barberId = formData.barbeiroId || currentBarber?.id;
+    const barber = barbersList.find((b) => b.id === barberId);
+    const rate = barber?.serviceCommissionRate || 0.5;
+    const totalComissionavel = selectedServices
+      .filter((s) => s.service.isCommissioned !== false)
+      .reduce((sum, s) => sum + (s.service.price || 0), 0);
+    return totalComissionavel * rate;
+  };
+
+  const getCommissionProducts = () => {
+    const barberId = formData.barbeiroId || currentBarber?.id;
+    const barber = barbersList.find((b) => b.id === barberId);
+    const rate = barber?.productCommissionRate || 0.5;
+    return selectedProducts.reduce((sum, p) => {
+      if (p.product.hasCommission === false) return sum;
+      const profit = (p.product.price - p.product.costPrice) * p.quantity;
+      return sum + profit * rate;
+    }, 0);
+  };
+
+  const getCommissionTotal = () => getCommissionServices() + getCommissionProducts();
+
   const getServiceNames = () => {
-    return selectedServices.map(s => s.service.name).join(' + ');
+    const servNames = selectedServices.map((s) => s.service.name);
+    const prodNames = selectedProducts.map((p) =>
+      p.quantity > 1 ? `${p.product.name} x${p.quantity}` : p.product.name
+    );
+    return [...servNames, ...prodNames].join(' + ');
   };
 
   const getServiceIds = () => {
-    return selectedServices.map(s => s.id).join(',');
+    return selectedServices.map((s) => s.service.id).join(',');
   };
 
-  const calcularComissaoProduto = async (productId: string, price: number) => {
-    try {
-      const response = await api.get(`/products/${productId}`);
-      const product = response.data;
-      if (!product.hasCommission) return 0;
-      const barberId = formData.barbeiroId || currentBarber?.id;
-      const barber = barbersList.find(b => b.id === barberId);
-      const taxaComissao = barber?.productCommissionRate || 0.50;
-      const lucro = product.price - product.costPrice;
-      return lucro * taxaComissao;
-    } catch (error) {
-      console.error('Erro ao calcular comissão do produto:', error);
-      return 0;
-    }
-  };
-
+  // ========== HORÁRIOS OCUPADOS ==========
   const loadOccupiedTimes = async () => {
     const barberId = formData.barbeiroId || currentBarber?.id;
     if (!barberId || !selectedDate) {
@@ -161,7 +176,7 @@ const BarberCaixa = () => {
     setLoadingTimes(true);
     try {
       const response = await api.get('/appointments/check-availability', {
-        params: { barberId, date: selectedDate }
+        params: { barberId, date: selectedDate },
       });
       const bookedFromAppointments = response.data.times || [];
       const caixaAtual = await cashRegisterService.getToday();
@@ -178,9 +193,7 @@ const BarberCaixa = () => {
     }
   };
 
-  const isTimeOccupied = (time: string) => {
-    return occupiedTimes.includes(time);
-  };
+  const isTimeOccupied = (time: string) => occupiedTimes.includes(time);
 
   // ========== LOAD BARBERS ==========
   const loadBarbersList = async () => {
@@ -195,107 +208,66 @@ const BarberCaixa = () => {
     }
   };
 
-  // ========== LOAD DATA (CAIXA) ==========
+  // ========== LOAD DATA ==========
   const loadData = async () => {
     setLoading(true);
     try {
       const currentBarbersList = await loadBarbersList();
-      console.log('📦 Barbeiros carregados:', currentBarbersList.map(b => b.name));
-
       const data = await cashRegisterService.getToday();
-      console.log('📦 Dados do caixa (RAW):', data);
       setCaixa(data);
 
-      // 🔥 ATUALIZAR currentBarber com o barbeiro do caixa
       let barberFromData = null;
-
       if (data.barber && data.barber.id) {
-        barberFromData = currentBarbersList.find(b => b.id === data.barber.id);
+        barberFromData = currentBarbersList.find((b) => b.id === data.barber.id);
       }
-
       if (!barberFromData && data.barberId) {
-        barberFromData = currentBarbersList.find(b => b.id === data.barberId);
+        barberFromData = currentBarbersList.find((b) => b.id === data.barberId);
       }
-
       if (!barberFromData && currentBarbersList.length > 0) {
         barberFromData = currentBarbersList[0];
       }
-
       if (barberFromData) {
         setCurrentBarber(barberFromData);
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           barbeiroId: barberFromData.id,
           barbeiroNome: barberFromData.name,
         }));
-        console.log('✅ Barbeiro definido:', barberFromData.name);
-      } else {
-        console.warn('⚠️ Nenhum barbeiro encontrado para definir.');
       }
 
       if (data.services && data.services.length > 0) {
-        console.log(`📋 ${data.services.length} serviços encontrados`);
-        const servicosFormatados = data.services.map((s: any, index: number) => {
-          const formatted = {
-            id: s.id || Date.now().toString(),
-            cliente: s.cliente || s.client || 'Cliente',
-            telefone: s.telefone || s.phone || '',
-            barbeiro: s.barbeiro || s.barberName || s.barber || 'Sem barbeiro',
-            barbeiroId: s.barbeiroId || s.barberId || '',
-            servico: s.servico || s.service || 'Serviço',
-            servicoId: s.servicoId || s.serviceId || '',
-            valor: s.valor || s.price || 0,
-            comissao: s.comissao || s.commission || 0,
-            data: s.data || s.date || new Date().toISOString().split('T')[0],
-            hora: s.hora || s.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            status: 'concluido' as const,
-            formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
-            observacao: s.observacao || '',
-          };
-          return formatted;
-        });
+        const servicosFormatados: ServicoFaturamento[] = data.services.map((s: any) => ({
+          id: s.id || Date.now().toString(),
+          cliente: s.cliente || s.client || 'Cliente',
+          telefone: s.telefone || s.phone || '',
+          barbeiro: s.barbeiro || s.barberName || s.barber || 'Sem barbeiro',
+          barbeiroId: s.barbeiroId || s.barberId || '',
+          servico: s.servico || s.service || 'Serviço',
+          servicoId: s.servicoId || s.serviceId || '',
+          valor: s.valor || s.price || 0,
+          comissao: s.comissao || s.commission || 0,
+          data: s.data || s.date || new Date().toISOString().split('T')[0],
+          hora: s.hora || s.time || '',
+          status: 'concluido' as const,
+          formaPagamento: s.formaPagamento || s.paymentMethod || 'dinheiro',
+          observacao: s.observacao || '',
+          items: s.items || undefined, // 🔥 NOVO
+        }));
         setServicos(servicosFormatados);
       } else {
         setServicos([]);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
-      try {
-        const hoje = new Date().toISOString().split('T')[0];
-        const caixaSalvo = localStorage.getItem(`@caixa_${hoje}`);
-        if (caixaSalvo) {
-          const caixaData = JSON.parse(caixaSalvo);
-          setCaixa({
-            id: 'local',
-            userId: user?.id || '',
-            date: hoje,
-            isOpen: caixaData.aberto,
-            openingTime: caixaData.horaAbertura,
-            closingTime: caixaData.horaFechamento,
-            initialCash: caixaData.valorInicial,
-            finalCash: caixaData.valorFinal,
-            services: caixaData.servicos || [],
-            totalRevenue: caixaData.totalVendas || 0,
-            totalCommissions: caixaData.totalComissoes || 0,
-            servicesCount: caixaData.quantidadeServicos || 0,
-            barber: null,
-          });
-          setServicos(caixaData.servicos || []);
-        }
-      } catch (e) {
-        console.error('❌ Erro ao carregar fallback:', e);
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  // ========== INICIALIZAÇÃO ==========
   useEffect(() => {
     loadData();
   }, []);
 
-  // ========== OUTROS EFFECTS ==========
   useEffect(() => {
     loadOccupiedTimes();
   }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
@@ -303,14 +275,8 @@ const BarberCaixa = () => {
   // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
     const initialValor = valorInicial.getNumberValue();
-    if (!initialValor || initialValor < 0) {
-      alert('Digite um valor inicial válido');
-      return;
-    }
-    if (!selectedBarberForOpening) {
-      alert('Selecione o barbeiro responsável');
-      return;
-    }
+    if (!initialValor || initialValor < 0) return alert('Digite um valor inicial válido');
+    if (!selectedBarberForOpening) return alert('Selecione o barbeiro responsável');
     try {
       await cashRegisterService.open(initialValor, selectedBarberForOpening.id);
       await loadData();
@@ -319,17 +285,13 @@ const BarberCaixa = () => {
       setSelectedBarberForOpening(null);
       alert('✅ Caixa aberto com sucesso!');
     } catch (error: any) {
-      console.error('Erro ao abrir caixa:', error);
       alert(error.response?.data?.error || 'Erro ao abrir caixa');
     }
   };
 
   // ========== FECHAR CAIXA ==========
   const handleFecharCaixa = async () => {
-    if (!selectedBarberForClosing) {
-      alert('Selecione o barbeiro que está fechando o caixa');
-      return;
-    }
+    if (!selectedBarberForClosing) return alert('Selecione o barbeiro que está fechando o caixa');
     try {
       await cashRegisterService.close(selectedBarberForClosing.id);
       await loadData();
@@ -338,13 +300,12 @@ const BarberCaixa = () => {
       alert('✅ Caixa fechado com sucesso!');
       window.location.reload();
     } catch (error: any) {
-      console.error('Erro ao fechar caixa:', error);
       alert(error.response?.data?.error || 'Erro ao fechar caixa');
     }
   };
 
-  // ========== ABRIR MODAL (CRIAÇÃO/EDIÇÃO) ==========
-  const handleOpenModal = (servico?: ServicoFaturamento) => {
+  // ========== ABRIR MODAL ==========
+  const handleOpenModal = async (servico?: ServicoFaturamento) => {
     if (servico) {
       setEditingServico(servico);
       setClientName(servico.cliente);
@@ -359,31 +320,84 @@ const BarberCaixa = () => {
       });
       setSelectedDate(servico.data || new Date().toISOString().split('T')[0]);
       setSelectedTime(servico.hora || '');
-      valor.setValue(String(servico.valor));
       setIsGuest(servico.cliente === 'Cliente sem cadastro');
-      if (servico.servicoId) {
-        const serviceIds = servico.servicoId.split(',');
-        const loadedServices = serviceIds
-          .map((id: string) => {
-            const trimmedId = id.trim();
-            let baseId = trimmedId;
-            const parts = trimmedId.split('-');
-            if (parts.length > 2) {
-              const possibleBaseId = parts.slice(0, -2).join('-');
-              const service = getServiceById(possibleBaseId);
-              if (service) baseId = possibleBaseId;
+
+      // 🔥 Reconstruir serviços e produtos a partir dos items[]
+      if (servico.items && Array.isArray(servico.items)) {
+        const servs: SelectedService[] = [];
+        const prods: SelectedProduct[] = [];
+
+        for (const it of servico.items) {
+          if (it.type === 'service') {
+            const s = getServiceById(it.serviceId || '');
+            if (s) {
+              servs.push({
+                id: `${it.serviceId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                service: s,
+              });
+            } else {
+              // Fallback: monta objeto manual
+              servs.push({
+                id: `${it.serviceId}-${Date.now()}`,
+                service: {
+                  id: it.serviceId || '',
+                  name: it.name,
+                  price: it.price,
+                  category: 'outro',
+                  isCommissioned: it.isCommissioned,
+                },
+              });
             }
-            const service = getServiceById(baseId);
-            if (service) {
-              return { id: trimmedId, service };
+          } else if (it.type === 'product') {
+            try {
+              const p = await productService.getById(it.productId || '');
+              prods.push({
+                id: `prod_${p.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                product: {
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  costPrice: p.costPrice,
+                  stock: p.stock,
+                  hasCommission: p.hasCommission !== false,
+                },
+                quantity: it.quantity || 1,
+              });
+            } catch (e) {
+              console.warn('Produto não encontrado:', it.productId);
             }
-            return null;
-          })
-          .filter(Boolean) as SelectedService[];
-        setSelectedServices(loadedServices);
+          }
+        }
+
+        setSelectedServices(servs);
+        setSelectedProducts(prods);
       } else {
-        setSelectedServices([]);
+        // Compat formato antigo
+        if (servico.servicoId) {
+          const serviceIds = servico.servicoId.split(',');
+          const loadedServices = serviceIds
+            .map((id: string) => {
+              const trimmedId = id.trim();
+              let baseId = trimmedId;
+              const parts = trimmedId.split('-');
+              if (parts.length > 2) {
+                const possibleBaseId = parts.slice(0, -2).join('-');
+                const service = getServiceById(possibleBaseId);
+                if (service) baseId = possibleBaseId;
+              }
+              const service = getServiceById(baseId);
+              if (service) return { id: trimmedId, service };
+              return null;
+            })
+            .filter(Boolean) as SelectedService[];
+          setSelectedServices(loadedServices);
+        } else {
+          setSelectedServices([]);
+        }
+        setSelectedProducts([]);
       }
+
+      valor.setValue(String(servico.valor));
     } else {
       setEditingServico(null);
       setClientName('');
@@ -401,15 +415,17 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
+      setSelectedProducts([]);
+
       if (barbersList.length > 0 && !currentBarber) {
         setCurrentBarber(barbersList[0]);
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           barbeiroId: barbersList[0].id,
           barbeiroNome: barbersList[0].name,
         }));
       } else if (currentBarber) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           barbeiroId: currentBarber.id,
           barbeiroNome: currentBarber.name,
@@ -419,107 +435,91 @@ const BarberCaixa = () => {
     setShowModal(true);
   };
 
+  // ========== SUBMIT ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!caixa?.isOpen) {
-      alert('O caixa precisa estar aberto para registrar serviços!');
-      return;
-    }
+
+    if (!caixa?.isOpen) return alert('O caixa precisa estar aberto para registrar serviços!');
 
     const barberId = formData.barbeiroId || currentBarber?.id;
-    if (!barberId) {
-      alert('Selecione um barbeiro');
-      return;
+    if (!barberId) return alert('Selecione um barbeiro');
+    if (!barbersList.some((b) => b.id === barberId)) return alert('Barbeiro selecionado não é válido');
+
+    if (selectedServices.length === 0 && selectedProducts.length === 0) {
+      return alert('Adicione pelo menos um serviço ou produto');
     }
 
-    const barberExists = barbersList.some(b => b.id === barberId);
-    if (!barberExists) {
-      alert('Barbeiro selecionado não é válido');
-      return;
-    }
+    const hasEmptyService = selectedServices.some((s) => !s.service.name || s.service.name.trim() === '');
+    if (hasEmptyService) return alert('Um ou mais serviços não têm nome válido');
 
-    if (selectedServices.length === 0) {
-      alert('Selecione pelo menos um serviço');
-      return;
-    }
+    const clientNameFinal = isGuest
+      ? 'Cliente sem cadastro'
+      : formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : '');
+    if (!clientNameFinal) return alert('Digite o nome do cliente');
 
-    const hasEmptyService = selectedServices.some(s => !s.service.name || s.service.name.trim() === '');
-    if (hasEmptyService) {
-      alert('Um ou mais serviços não têm nome válido');
-      return;
-    }
-
-    const clientNameFinal = isGuest 
-      ? 'Cliente sem cadastro' 
-      : (formData.cliente.trim() || clientName.trim() || (editingServico ? editingServico.cliente : ''));
-    if (!clientNameFinal) {
-      alert('Digite o nome do cliente');
-      return;
-    }
-
-    if (!selectedDate) {
-      alert('Selecione uma data');
-      return;
-    }
-    if (!selectedTime) {
-      alert('Selecione um horário');
-      return;
-    }
+    if (!selectedDate) return alert('Selecione uma data');
+    if (!selectedTime) return alert('Selecione um horário');
     if (!editingServico && isTimeOccupied(selectedTime)) {
-      alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
-      return;
+      return alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
     }
 
     try {
-      const clientPhoneFinal = isGuest 
-        ? '00000000000' 
-        : (formData.clienteTelefone || clientPhone || (editingServico ? editingServico.telefone : ''));
-      const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
-      
-      // 💰 FATURAMENTO: soma TODOS os serviços (comissionados ou não)
-      const total = hasMensalista ? 0 : getTotalServices();
+      const clientPhoneFinal = isGuest
+        ? '00000000000'
+        : formData.clienteTelefone || clientPhone || (editingServico ? editingServico.telefone : '');
+
+      // 🔥 Montar items[] misto
+      const items: ServicoItem[] = [];
+
+      for (const s of selectedServices) {
+        items.push({
+          type: 'service',
+          serviceId: s.service.id,
+          name: s.service.name,
+          price: s.service.price,
+          commission: 0, // backend recalcula
+          isCommissioned: s.service.isCommissioned !== false,
+        });
+      }
+
+      for (const p of selectedProducts) {
+        items.push({
+          type: 'product',
+          productId: p.product.id,
+          name: p.product.name,
+          quantity: p.quantity,
+          unitPrice: p.product.price,
+          costPrice: p.product.costPrice,
+          price: p.product.price * p.quantity,
+          commission: 0, // backend recalcula
+          hasCommission: p.product.hasCommission !== false,
+        });
+      }
+
       const serviceNames = getServiceNames();
       const serviceIds = getServiceIds();
-
-      const barber = barbersList.find(b => b.id === barberId);
-      const taxaComissaoServico = barber?.serviceCommissionRate || 0.50;
-
-      // 🔥 NOVO: Comissão calculada apenas sobre serviços COMISSIONADOS
-      // Serviços com isCommissioned === false NÃO entram na base de comissão.
-      // Serviços sem a flag definida (undefined) são tratados como comissionados (padrão seguro).
-      const totalComissionavel = selectedServices
-        .filter(s => s.service.isCommissioned !== false)
-        .reduce((sum, s) => sum + (s.service.price || 0), 0);
-
-      const comissaoServico = hasMensalista ? 0 : (totalComissionavel * taxaComissaoServico);
-
-      let comissaoProduto = 0;
-      for (const service of selectedServices) {
-        if (service.id && service.id.startsWith('prod_')) {
-          const comissao = await calcularComissaoProduto(service.id, service.service.price);
-          comissaoProduto += comissao;
-        }
-      }
-      const comissaoTotal = hasMensalista ? 0 : (comissaoServico + comissaoProduto);
+      const total = getGrandTotal();
+      const comissaoTotal = getCommissionTotal();
 
       if (editingServico) {
-        const updatedServicos = servicos.map(s => {
+        // 🔥 Edição: envia payload completo com items[]
+        const updatedServicos = servicos.map((s) => {
           if (s.id === editingServico.id) {
             return {
               ...s,
-              cliente: clientNameFinal || s.cliente,
-              telefone: clientPhoneFinal || s.telefone,
+              cliente: clientNameFinal,
+              telefone: clientPhoneFinal,
               barbeiro: formData.barbeiroNome || currentBarber?.name || s.barbeiro,
-              barbeiroId: barberId || s.barbeiroId,
-              servico: serviceNames || s.servico,
-              servicoId: serviceIds || s.servicoId,
-              valor: total,                    // ✅ sempre sobrescrever
-              comissao: comissaoTotal,         // ✅ SEMPRE sobrescrever (mesmo 0)
-              formaPagamento: formData.formaPagamento || s.formaPagamento,
-              observacao: formData.observacao || s.observacao,
-              data: selectedDate || s.data,
-              hora: selectedTime || s.hora,
+              barbeiroId: barberId,
+              servico: serviceNames,
+              servicoId: serviceIds,
+              valor: total,
+              comissao: comissaoTotal,
+              formaPagamento: formData.formaPagamento,
+              observacao: formData.observacao,
+              data: selectedDate,
+              hora: selectedTime,
+              items,
             };
           }
           return s;
@@ -529,11 +529,8 @@ const BarberCaixa = () => {
       } else {
         await cashRegisterService.addService({
           client: clientNameFinal,
-          barberId: barberId,
-          service: serviceNames,
-          serviceId: serviceIds,
-          price: total,
-          commission: comissaoTotal,
+          barberId,
+          items, // 🔥 ENVIA ITEMS MISTOS
           paymentMethod: formData.formaPagamento,
           date: selectedDate,
           time: selectedTime,
@@ -559,31 +556,27 @@ const BarberCaixa = () => {
       valor.reset();
       setIsGuest(false);
       setSelectedServices([]);
-      alert('✅ Serviço registrado com sucesso!');
+      setSelectedProducts([]);
+      alert('✅ Registrado com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro ao salvar:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar serviço');
+      alert(error.response?.data?.error || 'Erro ao salvar');
     }
   };
 
-  // ========== EXCLUIR ==========
   const handleDelete = async (id: string) => {
-    if (!caixa?.isOpen) {
-      alert('O caixa precisa estar aberto para excluir serviços!');
-      return;
-    }
-    if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
+    if (!caixa?.isOpen) return alert('O caixa precisa estar aberto para excluir!');
+    if (!confirm('Tem certeza que deseja excluir este registro?')) return;
     try {
       await cashRegisterService.removeService(id);
       await loadData();
     } catch (error) {
-      alert('Erro ao excluir serviço');
+      alert('Erro ao excluir');
     }
   };
 
-  // ========== FILTROS E TOTAIS ==========
-  const filteredServicos = servicos.filter(servico => {
-    const matchSearch = 
+  const filteredServicos = servicos.filter((servico) => {
+    const matchSearch =
       servico.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
       servico.barbeiro.toLowerCase().includes(searchTerm.toLowerCase()) ||
       servico.servico.toLowerCase().includes(searchTerm.toLowerCase());
@@ -591,33 +584,26 @@ const BarberCaixa = () => {
     return matchSearch && matchStatus;
   });
 
-  const totalVendas = servicos.filter(s => s.status === 'concluido').reduce((acc, s) => acc + s.valor, 0);
-  const totalComissoes = servicos.filter(s => s.status === 'concluido').reduce((acc, s) => acc + s.comissao, 0);
-  const totalServicos = servicos.filter(s => s.status === 'concluido').length;
+  const totalVendas = servicos.filter((s) => s.status === 'concluido').reduce((acc, s) => acc + s.valor, 0);
+  const totalComissoes = servicos.filter((s) => s.status === 'concluido').reduce((acc, s) => acc + s.comissao, 0);
+  const totalServicos = servicos.filter((s) => s.status === 'concluido').length;
   const ticketMedio = totalServicos > 0 ? totalVendas / totalServicos : 0;
 
-  // 🔥 TOTAIS POR FORMA DE PAGAMENTO (calculado localmente para fallback)
   const totalsByPayment = (() => {
-    // Se o backend já enviou, usar
     if (caixa?.totalsByPayment) return caixa.totalsByPayment;
-    // Senão, calcular localmente
     const totais = { dinheiro: 0, credito: 0, debito: 0, pix: 0, outros: 0 };
-    servicos.filter(s => s.status === 'concluido').forEach(s => {
+    servicos.filter((s) => s.status === 'concluido').forEach((s) => {
       const price = s.valor || 0;
       const method = (s.formaPagamento || 'dinheiro').toLowerCase();
-      if (totais[method] !== undefined) {
-        totais[method] += price;
-      } else if (method === 'cartao') {
-        totais.credito += price;
-      } else {
-        totais.outros += price;
-      }
+      if (totais[method] !== undefined) totais[method] += price;
+      else if (method === 'cartao') totais.credito += price;
+      else totais.outros += price;
     });
     return totais;
   })();
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'concluido': return 'bg-green-100 text-green-800';
       case 'pendente': return 'bg-yellow-100 text-yellow-800';
       case 'cancelado': return 'bg-red-100 text-red-800';
@@ -626,7 +612,7 @@ const BarberCaixa = () => {
   };
 
   const getStatusText = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'concluido': return 'Concluído';
       case 'pendente': return 'Pendente';
       case 'cancelado': return 'Cancelado';
@@ -635,7 +621,7 @@ const BarberCaixa = () => {
   };
 
   const getPaymentText = (payment: string) => {
-    switch(payment) {
+    switch (payment) {
       case 'dinheiro': return 'Dinheiro';
       case 'credito': return 'Crédito';
       case 'cartao': return 'Cartão';
@@ -654,6 +640,7 @@ const BarberCaixa = () => {
     setSelectedTime('');
     setOccupiedTimes([]);
     setSelectedServices([]);
+    setSelectedProducts([]); // 🔥
     setIsGuest(false);
     valor.reset();
     setFormData({
@@ -666,9 +653,8 @@ const BarberCaixa = () => {
     });
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   // ==================== RENDER ====================
   return (
@@ -688,9 +674,10 @@ const BarberCaixa = () => {
               </span>
             )}
             {currentBarber && (
-              <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">👤 {currentBarber.name}</span>
+              <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">
+                👤 {currentBarber.name}
+              </span>
             )}
-            {/* 🔥 Mostrar quem fechou */}
             {!caixa?.isOpen && caixa?.closedByBarber && (
               <span className="ml-2 sm:ml-4 text-xs sm:text-sm text-[#9c7f64]">
                 🔒 Fechado por {caixa.closedByBarber.name}
@@ -700,22 +687,22 @@ const BarberCaixa = () => {
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           {!caixa?.isOpen ? (
-            <button 
-              onClick={() => setShowModalAbrirCaixa(true)} 
+            <button
+              onClick={() => setShowModalAbrirCaixa(true)}
               className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
             >
               <Unlock size={18} /> Abrir Caixa
             </button>
           ) : (
             <>
-              <button 
-                onClick={() => handleOpenModal()} 
+              <button
+                onClick={() => handleOpenModal()}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
               >
                 <Plus size={18} /> Novo Serviço
               </button>
-              <button 
-                onClick={() => setShowModalFecharCaixa(true)} 
+              <button
+                onClick={() => setShowModalFecharCaixa(true)}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
               >
                 <Lock size={18} /> Fechar
@@ -728,20 +715,20 @@ const BarberCaixa = () => {
       {/* Alertas */}
       {!caixa?.isOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
-          <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
+          <AlertCircle className="text-yellow-600 flex-shrink-0" size={18} />
           <div>
             <p className="text-yellow-800 font-medium text-sm sm:text-base">Caixa fechado</p>
-            <p className="text-yellow-700 text-xs sm:text-sm">Abra o caixa para começar a registrar os serviços do dia</p>
+            <p className="text-yellow-700 text-xs sm:text-sm">Abra o caixa para começar a registrar</p>
           </div>
         </div>
       )}
 
       {caixa?.isOpen && servicos.length === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 flex items-start sm:items-center gap-2 sm:gap-3">
-          <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
+          <AlertCircle className="text-blue-600 flex-shrink-0" size={18} />
           <div>
             <p className="text-blue-800 font-medium text-sm sm:text-base">Nenhum serviço registrado</p>
-            <p className="text-blue-700 text-xs sm:text-sm">Clique em "Novo Serviço" para adicionar o primeiro serviço do dia</p>
+            <p className="text-blue-700 text-xs sm:text-sm">Clique em "Novo Serviço" para começar</p>
           </div>
         </div>
       )}
@@ -755,7 +742,9 @@ const BarberCaixa = () => {
                 <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Vendas</p>
                 <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalVendas.toFixed(2)}</p>
               </div>
-              <div className="p-2 sm:p-3 bg-green-100 rounded-full"><DollarSign size={16} className="sm:w-5 sm:h-5 text-green-600" /></div>
+              <div className="p-2 sm:p-3 bg-green-100 rounded-full">
+                <DollarSign size={16} className="sm:w-5 sm:h-5 text-green-600" />
+              </div>
             </div>
             {caixa?.initialCash !== undefined && (
               <p className="text-xs text-[#7f7c7a] mt-1">Inicial: R$ {caixa.initialCash.toFixed(2)}</p>
@@ -768,7 +757,9 @@ const BarberCaixa = () => {
                 <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Comissões</p>
                 <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p>
               </div>
-              <div className="p-2 sm:p-3 bg-orange-100 rounded-full"><TrendingUp size={16} className="sm:w-5 sm:h-5 text-orange-600" /></div>
+              <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
+                <TrendingUp size={16} className="sm:w-5 sm:h-5 text-orange-600" />
+              </div>
             </div>
           </div>
 
@@ -778,7 +769,9 @@ const BarberCaixa = () => {
                 <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Ticket Médio</p>
                 <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {ticketMedio.toFixed(2)}</p>
               </div>
-              <div className="p-2 sm:p-3 bg-blue-100 rounded-full"><Users size={16} className="sm:w-5 sm:h-5 text-blue-600" /></div>
+              <div className="p-2 sm:p-3 bg-blue-100 rounded-full">
+                <Users size={16} className="sm:w-5 sm:h-5 text-blue-600" />
+              </div>
             </div>
           </div>
 
@@ -788,13 +781,15 @@ const BarberCaixa = () => {
                 <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Serviços</p>
                 <p className="text-lg sm:text-2xl font-bold text-[#060606]">{totalServicos}</p>
               </div>
-              <div className="p-2 sm:p-3 bg-purple-100 rounded-full"><Clock size={16} className="sm:w-5 sm:h-5 text-purple-600" /></div>
+              <div className="p-2 sm:p-3 bg-purple-100 rounded-full">
+                <Clock size={16} className="sm:w-5 sm:h-5 text-purple-600" />
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🔥 CARDS POR FORMA DE PAGAMENTO */}
+      {/* Cards por pagamento */}
       {(caixa?.isOpen || servicos.length > 0) && (
         <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h2 className="text-base sm:text-lg font-semibold text-[#060606] mb-3 sm:mb-4 flex items-center gap-2">
@@ -802,56 +797,35 @@ const BarberCaixa = () => {
             Faturamento por Forma de Pagamento
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {/* DINHEIRO */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Banknote size={18} className="text-green-600" />
                 <p className="text-xs sm:text-sm font-medium text-green-800">Dinheiro</p>
               </div>
-              <p className="text-lg sm:text-xl font-bold text-green-700">
-                {formatCurrency(totalsByPayment.dinheiro)}
-              </p>
+              <p className="text-lg sm:text-xl font-bold text-green-700">{formatCurrency(totalsByPayment.dinheiro)}</p>
             </div>
-
-            {/* CRÉDITO */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CreditCard size={18} className="text-blue-600" />
                 <p className="text-xs sm:text-sm font-medium text-blue-800">Crédito</p>
               </div>
-              <p className="text-lg sm:text-xl font-bold text-blue-700">
-                {formatCurrency(totalsByPayment.credito)}
-              </p>
+              <p className="text-lg sm:text-xl font-bold text-blue-700">{formatCurrency(totalsByPayment.credito)}</p>
             </div>
-
-            {/* DÉBITO */}
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CreditCard size={18} className="text-purple-600" />
                 <p className="text-xs sm:text-sm font-medium text-purple-800">Débito</p>
               </div>
-              <p className="text-lg sm:text-xl font-bold text-purple-700">
-                {formatCurrency(totalsByPayment.debito)}
-              </p>
+              <p className="text-lg sm:text-xl font-bold text-purple-700">{formatCurrency(totalsByPayment.debito)}</p>
             </div>
-
-            {/* PIX */}
             <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-1">
                 <QrCode size={18} className="text-teal-600" />
                 <p className="text-xs sm:text-sm font-medium text-teal-800">PIX</p>
               </div>
-              <p className="text-lg sm:text-xl font-bold text-teal-700">
-                {formatCurrency(totalsByPayment.pix)}
-              </p>
+              <p className="text-lg sm:text-xl font-bold text-teal-700">{formatCurrency(totalsByPayment.pix)}</p>
             </div>
           </div>
-          {/* Mostrar "outros" se houver */}
-          {totalsByPayment.outros > 0 && (
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-600">Outros: {formatCurrency(totalsByPayment.outros)}</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -860,22 +834,22 @@ const BarberCaixa = () => {
         <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <div className="flex-1 flex items-center gap-2">
-              <Search size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
+              <Search size={16} className="text-[#7f7c7a] flex-shrink-0" />
               <input
                 type="text"
                 placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                 disabled={!caixa?.isOpen}
               />
             </div>
             <div className="flex items-center gap-2">
-              <Filter size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
+              <Filter size={16} className="text-[#7f7c7a] flex-shrink-0" />
               <select
                 value={filtroStatus}
                 onChange={(e) => setFiltroStatus(e.target.value)}
-                className="flex-1 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                 disabled={!caixa?.isOpen}
               >
                 <option value="todos">Todos</option>
@@ -908,47 +882,76 @@ const BarberCaixa = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {loading ? (
-                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">Carregando...</td></tr>
+                    <tr>
+                      <td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">
+                        Carregando...
+                      </td>
+                    </tr>
                   ) : filteredServicos.length === 0 ? (
-                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">{caixa?.isOpen ? 'Nenhum serviço registrado' : 'Caixa fechado'}</td></tr>
+                    <tr>
+                      <td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">
+                        {caixa?.isOpen ? 'Nenhum registro' : 'Caixa fechado'}
+                      </td>
+                    </tr>
                   ) : (
-                    filteredServicos.map((servico) => (
-                      <tr key={servico.id} className="hover:bg-gray-50">
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">{servico.cliente}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.barbeiro}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{servico.servico}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">R$ {servico.valor.toFixed(2)}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">R$ {servico.comissao.toFixed(2)}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">{getPaymentText(servico.formaPagamento)}</td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${getStatusColor(servico.status)}`}>
-                            {getStatusText(servico.status)}
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right">
-                          <button 
-                            onClick={() => handleOpenModal(servico)} 
-                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2" 
-                            disabled={!caixa?.isOpen}
-                          >
-                            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
-                          </button>
-                          <button 
-                            onClick={() => window.print()} 
-                            className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2"
-                          >
-                            <Printer size={16} className="sm:w-[18px] sm:h-[18px]" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(servico.id)} 
-                            className="text-red-500 hover:text-red-700 transition" 
-                            disabled={!caixa?.isOpen}
-                          >
-                            <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredServicos.map((servico) => {
+                      const temProduto = servico.items?.some((it) => it.type === 'product');
+                      const temServico = servico.items?.some((it) => it.type === 'service');
+
+                      return (
+                        <tr key={servico.id} className="hover:bg-gray-50">
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">
+                            {servico.cliente}
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                            {servico.barbeiro}
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 text-[#060606] text-xs sm:text-sm">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {temServico && <Scissors size={12} className="text-[#9c7f64]" />}
+                              {temProduto && <Package size={12} className="text-blue-500" />}
+                              <span>{servico.servico}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] font-medium text-xs sm:text-sm">
+                            R$ {servico.valor.toFixed(2)}
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                            R$ {servico.comissao.toFixed(2)}
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
+                            {getPaymentText(servico.formaPagamento)}
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-[10px] sm:text-xs rounded-full ${getStatusColor(servico.status)}`}>
+                              {getStatusText(servico.status)}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right">
+                            <button
+                              onClick={() => handleOpenModal(servico)}
+                              className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2"
+                              disabled={!caixa?.isOpen}
+                            >
+                              <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            </button>
+                            <button
+                              onClick={() => window.print()}
+                              className="text-[#9c7f64] hover:text-[#544941] transition mr-1 sm:mr-2"
+                            >
+                              <Printer size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(servico.id)}
+                              className="text-red-500 hover:text-red-700 transition"
+                              disabled={!caixa?.isOpen}
+                            >
+                              <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -965,23 +968,25 @@ const BarberCaixa = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Abrir Caixa</h2>
-              <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={() => setShowModalAbrirCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]">
+                <X size={24} />
+              </button>
             </div>
             <div className="space-y-4">
               <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
-                <p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas do dia.</p>
+                <p className="text-sm text-blue-800">Ao abrir o caixa, você poderá registrar serviços e vendas.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#060606]">Valor Inicial (R$)</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={valorInicial.value} 
-                  onChange={valorInicial.onChange} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base" 
-                  placeholder="0,00" 
-                  min="0" 
-                  required 
+                <input
+                  type="number"
+                  step="0.01"
+                  value={valorInicial.value}
+                  onChange={valorInicial.onChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm sm:text-base"
+                  placeholder="0,00"
+                  min="0"
+                  required
                 />
               </div>
               <div>
@@ -989,20 +994,22 @@ const BarberCaixa = () => {
                 <select
                   value={selectedBarberForOpening?.id || ''}
                   onChange={(e) => {
-                    const barber = barbersList.find(b => b.id === e.target.value);
+                    const barber = barbersList.find((b) => b.id === e.target.value);
                     setSelectedBarberForOpening(barber || null);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   required
                 >
                   <option value="">Selecione um barbeiro</option>
                   {barbersList.map((barber) => (
-                    <option key={barber.id} value={barber.id}>{barber.name}</option>
+                    <option key={barber.id} value={barber.id}>
+                      {barber.name}
+                    </option>
                   ))}
                 </select>
               </div>
-              <button 
-                onClick={handleAbrirCaixa} 
+              <button
+                onClick={handleAbrirCaixa}
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 <Unlock size={18} /> Abrir Caixa
@@ -1018,10 +1025,11 @@ const BarberCaixa = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">Fechar Caixa</h2>
-              <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={() => setShowModalFecharCaixa(false)} className="text-[#7f7c7a] hover:text-[#060606]">
+                <X size={24} />
+              </button>
             </div>
             <div className="space-y-4">
-              {/* Resumo financeiro */}
               <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-yellow-800">Valor Inicial</span>
@@ -1033,11 +1041,12 @@ const BarberCaixa = () => {
                 </div>
                 <div className="flex justify-between border-t border-yellow-200 pt-2">
                   <span className="text-sm font-bold text-yellow-800">Total em Caixa</span>
-                  <span className="font-bold text-base sm:text-lg">R$ {(caixa.initialCash + totalVendas).toFixed(2)}</span>
+                  <span className="font-bold text-base sm:text-lg">
+                    R$ {(caixa.initialCash + totalVendas).toFixed(2)}
+                  </span>
                 </div>
               </div>
 
-              {/* 🔥 Resumo por forma de pagamento */}
               <div className="bg-[#f5f0e8] p-3 sm:p-4 rounded-lg space-y-2">
                 <p className="text-xs font-semibold text-[#544941] uppercase mb-2">Por Forma de Pagamento</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1060,7 +1069,6 @@ const BarberCaixa = () => {
                 </div>
               </div>
 
-              {/* 🔥 Select do barbeiro que está fechando */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   Barbeiro que está fechando *
@@ -1068,21 +1076,23 @@ const BarberCaixa = () => {
                 <select
                   value={selectedBarberForClosing?.id || ''}
                   onChange={(e) => {
-                    const barber = barbersList.find(b => b.id === e.target.value);
+                    const barber = barbersList.find((b) => b.id === e.target.value);
                     setSelectedBarberForClosing(barber || null);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   required
                 >
                   <option value="">Selecione um barbeiro</option>
                   {barbersList.map((barber) => (
-                    <option key={barber.id} value={barber.id}>{barber.name}</option>
+                    <option key={barber.id} value={barber.id}>
+                      {barber.name}
+                    </option>
                   ))}
                 </select>
               </div>
 
-              <button 
-                onClick={handleFecharCaixa} 
+              <button
+                onClick={handleFecharCaixa}
                 className="w-full bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 <Lock size={18} /> Fechar Caixa
@@ -1098,9 +1108,11 @@ const BarberCaixa = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-[#060606]">
-                {editingServico ? 'Editar Serviço' : '📝 Novo Serviço'}
+                {editingServico ? 'Editar Registro' : '📝 Novo Registro'}
               </h2>
-              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]">
+                <X size={24} />
+              </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -1111,17 +1123,17 @@ const BarberCaixa = () => {
                   value={formData.barbeiroId || currentBarber?.id || ''}
                   onChange={(e) => {
                     const id = e.target.value;
-                    const barber = barbersList.find(b => b.id === id);
+                    const barber = barbersList.find((b) => b.id === id);
                     if (barber) {
                       setCurrentBarber(barber);
-                      setFormData(prev => ({
+                      setFormData((prev) => ({
                         ...prev,
                         barbeiroId: barber.id,
                         barbeiroNome: barber.name,
                       }));
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm sm:text-base"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   required
                 >
                   <option value="">Selecione um barbeiro</option>
@@ -1141,7 +1153,7 @@ const BarberCaixa = () => {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                     required
                   />
                 </div>
@@ -1156,7 +1168,7 @@ const BarberCaixa = () => {
                       {[
                         '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
                         '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00',
                       ].map((time) => {
                         const isBooked = isTimeOccupied(time);
                         return (
@@ -1166,11 +1178,11 @@ const BarberCaixa = () => {
                             onClick={() => !isBooked && setSelectedTime(time)}
                             disabled={isBooked}
                             className={`py-1.5 rounded-lg border-2 text-[10px] sm:text-xs transition ${
-                              isBooked 
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through' 
-                                : selectedTime === time 
-                                  ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium' 
-                                  : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
+                              isBooked
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                : selectedTime === time
+                                ? 'border-[#9c7f64] bg-[#9c7f64]/10 text-[#9c7f64] font-medium'
+                                : 'border-gray-200 hover:border-[#9c7f64] hover:bg-[#9c7f64]/5'
                             }`}
                           >
                             {time}
@@ -1179,12 +1191,6 @@ const BarberCaixa = () => {
                         );
                       })}
                     </div>
-                  )}
-                  {selectedTime && !isTimeOccupied(selectedTime) && (
-                    <p className="text-[10px] sm:text-xs text-green-600 mt-1">✅ {selectedTime}</p>
-                  )}
-                  {selectedTime && isTimeOccupied(selectedTime) && (
-                    <p className="text-[10px] sm:text-xs text-red-600 mt-1">❌ Ocupado!</p>
                   )}
                 </div>
               </div>
@@ -1196,10 +1202,7 @@ const BarberCaixa = () => {
                   value={formData.cliente}
                   onChange={(value) => {
                     setClientName(value);
-                    setFormData(prev => ({
-                      ...prev,
-                      cliente: value,
-                    }));
+                    setFormData((prev) => ({ ...prev, cliente: value }));
                   }}
                   onSelectClient={handleSelectClient}
                   placeholder="Digite o nome ou telefone..."
@@ -1217,14 +1220,14 @@ const BarberCaixa = () => {
                     type="text"
                     value={formData.clienteTelefone}
                     onChange={(e) => setFormData({ ...formData, clienteTelefone: e.target.value })}
-                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                     placeholder="(00) 00000-0000"
                     disabled={isGuest}
                   />
                 </div>
               </div>
 
-              {/* Opção sem cadastro */}
+              {/* Guest */}
               <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-[#9c7f64] transition cursor-pointer">
                 <input
                   type="checkbox"
@@ -1244,9 +1247,11 @@ const BarberCaixa = () => {
                 </label>
               </div>
 
-              {/* Multi Serviços */}
+              {/* ✂️ SERVIÇOS */}
               <div>
-                <label className="block text-sm font-medium text-[#060606] mb-1">Serviços</label>
+                <label className="block text-sm font-medium text-[#060606] mb-1 flex items-center gap-2">
+                  <Scissors size={16} className="text-[#9c7f64]" /> Serviços
+                </label>
                 <MultiServiceSelector
                   selectedServices={selectedServices}
                   onChange={setSelectedServices}
@@ -1254,12 +1259,42 @@ const BarberCaixa = () => {
                 />
               </div>
 
-              {/* Total e Comissão */}
-              {selectedServices.length > 0 && (
-                <div className="bg-[#f5f0e8] rounded-lg p-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#7f7c7a]">Total:</span>
-                    <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+              {/* 🍺 PRODUTOS */}
+              <div>
+                <label className="block text-sm font-medium text-[#060606] mb-1 flex items-center gap-2">
+                  <Package size={16} className="text-blue-500" /> Produtos
+                </label>
+                <MultiProductSelector
+                  selectedProducts={selectedProducts}
+                  onChange={setSelectedProducts}
+                  maxProducts={20}
+                />
+              </div>
+
+              {/* Resumo */}
+              {(selectedServices.length > 0 || selectedProducts.length > 0) && (
+                <div className="bg-[#f5f0e8] rounded-lg p-3 space-y-1">
+                  {selectedServices.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#7f7c7a]">Serviços:</span>
+                      <span className="font-medium">R$ {getTotalServices().toFixed(2)}</span>
+                    </div>
+                  )}
+                  {selectedProducts.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#7f7c7a]">Produtos:</span>
+                      <span className="font-medium">R$ {getTotalProducts().toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-300 pt-1 mt-1">
+                    <span className="text-sm font-bold text-[#060606]">Total:</span>
+                    <span className="text-base font-bold text-[#9c7f64]">
+                      R$ {getGrandTotal().toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-[#7f7c7a]">
+                    <span>Comissão barbeiro:</span>
+                    <span className="font-medium">R$ {getCommissionTotal().toFixed(2)}</span>
                   </div>
                 </div>
               )}
@@ -1270,7 +1305,7 @@ const BarberCaixa = () => {
                 <select
                   value={formData.formaPagamento}
                   onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   required
                 >
                   <option value="dinheiro">Dinheiro</option>
@@ -1286,7 +1321,7 @@ const BarberCaixa = () => {
                 <textarea
                   value={formData.observacao}
                   onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
                   rows={2}
                   placeholder="Observações..."
                 />

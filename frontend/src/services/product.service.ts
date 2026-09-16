@@ -8,6 +8,7 @@ export interface Product {
   costPrice: number;
   stock: number;
   category: 'higiene' | 'cabelo' | 'barba' | 'acessorios' | 'outros';
+  hasCommission: boolean;   // 🔥 NOVO
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -20,6 +21,7 @@ export interface CreateProductData {
   costPrice: number;
   stock: number;
   category?: string;
+  hasCommission?: boolean;  // 🔥 NOVO
 }
 
 export const productService = {
@@ -27,22 +29,18 @@ export const productService = {
     const response = await api.get('/products');
     return response.data;
   },
-
   async getById(id: string): Promise<Product> {
     const response = await api.get(`/products/${id}`);
     return response.data;
   },
-
   async create(data: CreateProductData): Promise<Product> {
     const response = await api.post('/products', data);
     return response.data;
   },
-
   async update(id: string, data: Partial<Product>): Promise<Product> {
     const response = await api.put(`/products/${id}`, data);
     return response.data;
   },
-
   async delete(id: string): Promise<{ message: string; action: string; salesCount?: number }> {
     const response = await api.delete(`/products/${id}`);
     return response.data;
