@@ -43,7 +43,7 @@ const getAvailableTimes = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    // 🔥 CORREÇÃO: Usar helper para dia da semana
+    // 🔥 USAR HELPER PARA DIA DA SEMANA
     const dayOfWeek = dateHelper.getDayOfWeekEn(date);
     
     if (!dayOfWeek) {
@@ -81,7 +81,23 @@ const getAvailableTimes = async (req, res) => {
     });
     
     const bookedTimes = appointments.map(app => app.time);
-    const availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
+    let availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
+    
+    // 🔥 NOVO: FILTRAR HORÁRIOS JÁ PASSADOS (se for hoje)
+    // Usar getTodayLocal() para comparação — NUNCA toISOString()
+    const todayStr = dateHelper.getTodayLocal();
+    if (date === todayStr) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      availableTimes = availableTimes.filter(time => {
+        const [hour, minute] = time.split(':').map(Number);
+        return hour > currentHour || (hour === currentHour && minute > currentMinute);
+      });
+      
+      console.log(`⏰ Filtrando horários passados (hoje ${currentHour}:${String(currentMinute).padStart(2, '0')})`);
+    }
     
     console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
     
@@ -92,6 +108,9 @@ const getAvailableTimes = async (req, res) => {
   }
 };
 
+// ==========================================
+// CRIAR AGENDAMENTO PÚBLICO
+// ==========================================
 const createAppointment = async (req, res) => {
   try {
     const { 
@@ -146,16 +165,14 @@ const createAppointment = async (req, res) => {
       });
     }
     
-    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários na mesma semana (para o mesmo barbeiro)
-    const appointmentDateObj = new Date(date + 'T00:00:00');
+    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários na mesma semana (mesmo barbeiro)
+    // CORRIGIDO: usa dateHelper para evitar bug de timezone (toISOString)
+    const appointmentDateObj = dateHelper.parseDateLocal(date);
     const dayOfWeek = appointmentDateObj.getDay();
     const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-    const weekStart = new Date(appointmentDateObj);
-    weekStart.setDate(appointmentDateObj.getDate() - diffToMonday);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const weekStartStr = dateHelper.subtractDays(date, diffToMonday); // segunda
+    const weekEndStr   = dateHelper.addDays(weekStartStr, 6);         // domingo
     
     const existingAppointments = await Appointment.findAll({
       where: {
@@ -172,7 +189,7 @@ const createAppointment = async (req, res) => {
       });
     }
     
-    // 🔥 (OPCIONAL) VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários no mesmo dia
+    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários no mesmo dia
     const sameDayAppointments = await Appointment.findAll({
       where: {
         clientId: client.id,

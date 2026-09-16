@@ -104,10 +104,9 @@ const getAvailableTimes = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // 🔥 Obter o schedule do barbeiro
+    // 🔥 Obter o schedule do barbeiro (usando helper)
     const schedule = barber.schedule || {};
-    const dateObj = new Date(date + 'T00:00:00');
-    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayOfWeek = dateHelper.getDayOfWeekEn(date); // ✅ helper
     const daySchedule = schedule[dayOfWeek];
 
     if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) {
@@ -128,12 +127,11 @@ const getAvailableTimes = async (req, res) => {
     // 🔥 Filtrar horários disponíveis
     let availableTimes = daySchedule.times.filter(time => !bookedTimes.includes(time));
 
-    // 🔥 Remover horários passados (se for hoje)
-    const today = new Date();
-    const isToday = date === today.toISOString().split('T')[0];
-    if (isToday) {
-      const currentHour = today.getHours();
-      const currentMinute = today.getMinutes();
+    // 🔥 Remover horários passados (se for hoje) — CORRIGIDO com helper
+    if (date === dateHelper.getTodayLocal()) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
       availableTimes = availableTimes.filter(time => {
         const [hour, minute] = time.split(':').map(Number);
         return hour > currentHour || (hour === currentHour && minute > currentMinute);
@@ -210,15 +208,13 @@ const create = async (req, res) => {
     }
     
     // VALIDAÇÃO 4: Um agendamento por semana (por barbeiro)
-    const appointmentDateObj = new Date(date + 'T00:00:00');
+    // CORRIGIDO: usa dateHelper para evitar bug de timezone
+    const appointmentDateObj = dateHelper.parseDateLocal(date);
     const dayOfWeek = appointmentDateObj.getDay();
     const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-    const weekStart = new Date(appointmentDateObj);
-    weekStart.setDate(appointmentDateObj.getDate() - diffToMonday);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const weekStartStr = dateHelper.subtractDays(date, diffToMonday); // segunda
+    const weekEndStr   = dateHelper.addDays(weekStartStr, 6);         // domingo
     
     const existingAppointments = await Appointment.findAll({
       where: {
@@ -273,7 +269,7 @@ const create = async (req, res) => {
 };
 
 // ============================================================
-// UPDATE STATUS  (com correção do barbeiro/serviço)
+// UPDATE STATUS
 // ============================================================
 const updateStatus = async (req, res) => {
   try {
@@ -311,14 +307,13 @@ const updateStatus = async (req, res) => {
         }
       });
       
-      // 🔥 Buscar o barbeiro do agendamento (nunca usar req.user)
+      // 🔥 Buscar o barbeiro do agendamento
       const barber = await Barber.findByPk(appointment.barberId);
       const barberName = barber?.name || 'Barbeiro';
       const commission = (appointment.price || 0) * (barber?.serviceCommissionRate || 0.50);
       const client = await Client.findByPk(appointment.clientId);
       const clientName = client?.name || 'Cliente';
       
-      // 🔥 Nome do serviço: preferir serviceDescription, depois service, com fallback seguro
       const serviceName = appointment.serviceDescription || appointment.service || 'Serviço';
       
       if (cashRegister) {
@@ -328,7 +323,6 @@ const updateStatus = async (req, res) => {
         const totalRevenue = cashRegister.totalRevenue || 0;
         const totalCommissions = cashRegister.totalCommissions || 0;
         
-        // 🔥 Adicionar serviço ao caixa com TODOS os campos preenchidos
         services.push({
           id: appointment.id,
           type: 'service',
@@ -336,15 +330,15 @@ const updateStatus = async (req, res) => {
           clientId: appointment.clientId,
           barberId: appointment.barberId,
           barberName: barberName,
-          barbeiro: barberName,               // duplicata pt-BR
-          barbeiroId: appointment.barberId,   // duplicata pt-BR
+          barbeiro: barberName,
+          barbeiroId: appointment.barberId,
           service: serviceName,
-          servico: serviceName,               // duplicata pt-BR
+          servico: serviceName,
           serviceDescription: appointment.serviceDescription || '',
           serviceId: appointment.service || '',
           price: appointment.price || 0,
           commission,
-          comissao: commission,               // duplicata pt-BR
+          comissao: commission,
           paymentMethod: 'dinheiro',
           time: appointment.time,
           date: hoje,
@@ -357,7 +351,6 @@ const updateStatus = async (req, res) => {
           servicesCount: services.length,
         });
         
-        // Criar Revenue confirmado
         try {
           const revenue = await Revenue.create({
             cashRegisterId: cashRegister.id,
@@ -381,7 +374,6 @@ const updateStatus = async (req, res) => {
         
         console.log(`✅ Serviço ${id} adicionado ao caixa.`);
       } else {
-        // Caixa fechado – criar Revenue pendente
         console.log(`ℹ️ Caixa fechado, criando revenue pendente.`);
         
         try {
@@ -593,12 +585,16 @@ const getAvailableDates = async (req, res) => {
     const schedule = barber.schedule || {};
     const daysInMonth = new Date(year, mes, 0).getDate();
     const availableDates = [];
+    const todayStr = dateHelper.getTodayLocal(); // 🔥 NOVO
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(mes).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       
-      const dateObj = new Date(year, mes - 1, day);
-      const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      // 🔥 NOVO: Pular dias passados
+      if (dateStr < todayStr) continue;
+
+      // 🔥 Usar helper para o dia da semana
+      const dayOfWeek = dateHelper.getDayOfWeekEn(dateStr);
       const daySchedule = schedule[dayOfWeek];
       
       if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) {
@@ -615,7 +611,19 @@ const getAvailableDates = async (req, res) => {
       });
       const bookedTimes = appointments.map(a => a.time);
 
-      const hasAvailable = daySchedule.times.some(time => !bookedTimes.includes(time));
+      // 🔥 Se for hoje, também considera horários passados como "indisponíveis"
+      let timesToCheck = daySchedule.times;
+      if (dateStr === todayStr) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        timesToCheck = timesToCheck.filter(time => {
+          const [hour, minute] = time.split(':').map(Number);
+          return hour > currentHour || (hour === currentHour && minute > currentMinute);
+        });
+      }
+
+      const hasAvailable = timesToCheck.some(time => !bookedTimes.includes(time));
       if (hasAvailable) {
         availableDates.push(dateStr);
       }
