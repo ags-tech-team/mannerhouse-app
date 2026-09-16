@@ -1,17 +1,25 @@
-const { Appointment, Barber, Client } = require('../models');
+const { Appointment, Barber, Client, Service } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
+// ============================================================
+// 🔥 HELPER: buscar serviço por ID ou nome
+// ============================================================
+const findServiceByIdentifier = async (identifier) => {
+  if (!identifier) return null;
+  let svc = await Service.findOne({ where: { id: identifier } });
+  if (svc) return svc;
+  svc = await Service.findOne({ where: { name: identifier } });
+  return svc;
+};
+
 // ==========================================
-// GET BARBERS - Listar barbeiros ativos
+// GET BARBERS
 // ==========================================
 const getBarbers = async (req, res) => {
   try {
     const barbers = await Barber.findAll({
-      where: { 
-        isActive: true,
-        name: { [Op.notLike]: '%Luiz%' }
-       },
+      where: { isActive: true, name: { [Op.notLike]: '%Luiz%' } },
       attributes: ['id', 'name', 'phone', 'serviceCommissionRate', 'schedule']
     });
     res.json(barbers);
@@ -22,85 +30,50 @@ const getBarbers = async (req, res) => {
 };
 
 // ==========================================
-// 🔥 CORRIGIDO: Buscar horários disponíveis
+// GET AVAILABLE TIMES
 // ==========================================
 const getAvailableTimes = async (req, res) => {
   try {
     const { barberId, date } = req.query;
-    
-    if (!barberId || !date) {
-      return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
-    }
-    
-    // 🔥 VALIDAR DATA
-    if (!dateHelper.isValidDate(date)) {
-      return res.status(400).json({ error: 'Data inválida' });
-    }
-    
-    // 🔥 BUSCAR BARBEIRO COM SCHEDULE
+    if (!barberId || !date) return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
+    if (!dateHelper.isValidDate(date)) return res.status(400).json({ error: 'Data inválida' });
+
     const barber = await Barber.findByPk(barberId);
-    if (!barber) {
-      return res.status(404).json({ error: 'Barbeiro não encontrado' });
-    }
-    
-    // 🔥 USAR HELPER PARA DIA DA SEMANA
+    if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
+
     const dayOfWeek = dateHelper.getDayOfWeekEn(date);
-    
-    if (!dayOfWeek) {
-      return res.status(400).json({ error: 'Data inválida para cálculo do dia da semana' });
-    }
-    
-    // 🔥 VERIFICAR SCHEDULE DO BARBEIRO
+    if (!dayOfWeek) return res.status(400).json({ error: 'Data inválida para cálculo do dia da semana' });
+
     const schedule = barber.schedule || {};
     const daySchedule = schedule[dayOfWeek];
-    
-    console.log(`📅 Buscando horários para ${barber.name} em ${date} (${dayOfWeek})`);
-    
+
     let allTimes = [];
-    
-    // 🔥 SE TIVER SCHEDULE CONFIGURADO, USA ELE
     if (daySchedule && daySchedule.enabled) {
       allTimes = daySchedule.times || [];
-      console.log(`✅ Usando schedule do barbeiro: ${allTimes.length} horários`);
     } else {
-      // 🔥 SE NÃO TIVER, RETORNA VAZIO
-      console.log(`⚠️ ${barber.name} não tem horários configurados para ${dayOfWeek}`);
       return res.json([]);
     }
-    
-    // 🔥 BUSCAR HORÁRIOS OCUPADOS
+
     const appointments = await Appointment.findAll({
-      where: {
-        barberId,
-        date,
-        status: {
-          [Op.notIn]: ['cancelled']
-        }
-      },
+      where: { barberId, date, status: { [Op.notIn]: ['cancelled'] } },
       attributes: ['time']
     });
-    
+
     const bookedTimes = appointments.map(app => app.time);
     let availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
-    
-    // 🔥 NOVO: FILTRAR HORÁRIOS JÁ PASSADOS (se for hoje)
-    // Usar getTodayLocal() para comparação — NUNCA toISOString()
+
+    // 🔥 Filtrar horários passados
     const todayStr = dateHelper.getTodayLocal();
     if (date === todayStr) {
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
-      
       availableTimes = availableTimes.filter(time => {
         const [hour, minute] = time.split(':').map(Number);
         return hour > currentHour || (hour === currentHour && minute > currentMinute);
       });
-      
-      console.log(`⏰ Filtrando horários passados (hoje ${currentHour}:${String(currentMinute).padStart(2, '0')})`);
     }
-    
-    console.log(`📅 Horários disponíveis para ${barber.name} em ${date}: ${availableTimes.length}`);
-    
+
     res.json(availableTimes);
   } catch (error) {
     console.error('❌ Erro ao buscar horários disponíveis:', error);
@@ -109,54 +82,24 @@ const getAvailableTimes = async (req, res) => {
 };
 
 // ==========================================
-// CRIAR AGENDAMENTO PÚBLICO
+// CREATE APPOINTMENT (público)
 // ==========================================
 const createAppointment = async (req, res) => {
   try {
-    const { 
-      barberId, 
-      clientName, 
-      clientPhone, 
-      date, 
-      time, 
-      service, 
-      serviceDescription,
-      price
-    } = req.body;
-    
-    // 🔥 VALIDAR DATA
-    if (!dateHelper.isValidDate(date)) {
-      return res.status(400).json({ error: 'Data inválida' });
-    }
-    
-    // 🔥 VERIFICAR SE A DATA NÃO É PASSADA
-    if (dateHelper.isPastDate(date)) {
-      return res.status(400).json({ error: 'Não é possível agendar em datas passadas' });
-    }
-    
-    // 🔥 VERIFICAR BARBEIRO
+    const { barberId, clientName, clientPhone, date, time, service, serviceDescription, price } = req.body;
+
+    if (!dateHelper.isValidDate(date)) return res.status(400).json({ error: 'Data inválida' });
+    if (dateHelper.isPastDate(date)) return res.status(400).json({ error: 'Não é possível agendar em datas passadas' });
+
     const barber = await Barber.findByPk(barberId);
-    if (!barber) {
-      return res.status(404).json({ error: 'Barbeiro não encontrado' });
-    }
-    
-    // 🔥 VERIFICAR DISPONIBILIDADE (horário ocupado)
+    if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
+
     const existing = await Appointment.findOne({
-      where: {
-        barberId,
-        date,
-        time,
-        status: { [Op.notIn]: ['cancelled'] }
-      }
+      where: { barberId, date, time, status: { [Op.notIn]: ['cancelled'] } }
     });
-    if (existing) {
-      return res.status(400).json({ error: 'Horário já ocupado' });
-    }
-    
-    // 🔥 BUSCAR OU CRIAR CLIENTE (sempre pelo telefone)
-    let client = await Client.findOne({
-      where: { phone: clientPhone }
-    });
+    if (existing) return res.status(400).json({ error: 'Horário já ocupado' });
+
+    let client = await Client.findOne({ where: { phone: clientPhone } });
     if (!client) {
       client = await Client.create({
         name: clientName || 'Cliente sem nome',
@@ -164,20 +107,16 @@ const createAppointment = async (req, res) => {
         isActive: true,
       });
     }
-    
-    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários na mesma semana (mesmo barbeiro)
-    // CORRIGIDO: usa dateHelper para evitar bug de timezone (toISOString)
+
     const appointmentDateObj = dateHelper.parseDateLocal(date);
     const dayOfWeek = appointmentDateObj.getDay();
     const diffToMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-    
-    const weekStartStr = dateHelper.subtractDays(date, diffToMonday); // segunda
-    const weekEndStr   = dateHelper.addDays(weekStartStr, 6);         // domingo
-    
+    const weekStartStr = dateHelper.subtractDays(date, diffToMonday);
+    const weekEndStr = dateHelper.addDays(weekStartStr, 6);
+
     const existingAppointments = await Appointment.findAll({
       where: {
-        clientId: client.id,
-        barberId: barberId,
+        clientId: client.id, barberId,
         date: { [Op.between]: [weekStartStr, weekEndStr] },
         status: { [Op.notIn]: ['cancelled'] }
       }
@@ -188,48 +127,42 @@ const createAppointment = async (req, res) => {
         error: `Este cliente já possui agendamento(s) na semana (${weekStartStr} a ${weekEndStr}): ${dates}. Não é permitido mais de um agendamento por semana para o mesmo barbeiro.`
       });
     }
-    
-    // 🔥 VALIDAÇÃO: mesmo cliente NÃO pode agendar dois horários no mesmo dia
+
     const sameDayAppointments = await Appointment.findAll({
-      where: {
-        clientId: client.id,
-        barberId: barberId,
-        date: date,
-        status: { [Op.notIn]: ['cancelled'] }
-      }
+      where: { clientId: client.id, barberId, date, status: { [Op.notIn]: ['cancelled'] } }
     });
     if (sameDayAppointments.length > 0) {
       return res.status(400).json({
         error: `Este cliente já possui um agendamento no dia ${date}. Não é permitido dois agendamentos no mesmo dia para o mesmo barbeiro.`
       });
     }
-    
-    // 🔥 CALCULAR COMISSÃO
-    const commission = (price || 0) * (barber.serviceCommissionRate || 0.50);
-    
-    // 🔥 CRIAR AGENDAMENTO
+
+    // 🔥 COMISSÃO respeitando isCommissioned
+    let isCommissioned = true;
+    let foundService = null;
+    if (service) foundService = await findServiceByIdentifier(service);
+    if (!foundService && serviceDescription) foundService = await findServiceByIdentifier(serviceDescription);
+    if (foundService && foundService.isCommissioned === false) isCommissioned = false;
+
+    const commission = isCommissioned ? (price || 0) * (barber.serviceCommissionRate || 0.50) : 0;
+
     const appointment = await Appointment.create({
-      barberId,
-      clientId: client.id,
-      date,
-      time,
+      barberId, clientId: client.id, date, time,
       service: service || 'outro',
       serviceDescription: serviceDescription || '',
-      price: price || 0,
-      commission,
-      status: 'pending',
+      price: price || 0, commission, status: 'pending',
       notes: `Agendamento feito pelo site - Cliente: ${clientName}`,
     });
-    
-    console.log(`✅ Agendamento público ${appointment.id} criado para ${date} às ${time}`);
-    
+
+    console.log(`✅ Agendamento público ${appointment.id} criado para ${date} às ${time} | comissão R$ ${commission.toFixed(2)}`);
+
     const created = await Appointment.findByPk(appointment.id, {
       include: [
         { model: Barber, as: 'barber', attributes: ['id', 'name'] },
         { model: Client, as: 'client', attributes: ['id', 'name', 'phone'] }
       ],
     });
-    
+
     res.status(201).json({
       success: true,
       message: 'Agendamento realizado com sucesso!',

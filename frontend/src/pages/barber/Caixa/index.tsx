@@ -514,8 +514,8 @@ const BarberCaixa = () => {
               barbeiroId: barberId || s.barbeiroId,
               servico: serviceNames || s.servico,
               servicoId: serviceIds || s.servicoId,
-              valor: total || s.valor,
-              comissao: comissaoTotal || s.comissao,
+              valor: total,                    // ✅ sempre sobrescrever
+              comissao: comissaoTotal,         // ✅ SEMPRE sobrescrever (mesmo 0)
               formaPagamento: formData.formaPagamento || s.formaPagamento,
               observacao: formData.observacao || s.observacao,
               data: selectedDate || s.data,
