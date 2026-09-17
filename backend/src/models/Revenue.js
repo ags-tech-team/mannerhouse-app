@@ -32,6 +32,13 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'client_id',
     },
+    // 🔥 NOVO: chave única que liga esse Revenue ao item do caixa
+    // Evita duplicação e permite match 1:1 confiável
+    sourceItemId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'source_item_id',
+    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
