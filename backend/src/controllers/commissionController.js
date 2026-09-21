@@ -1,4 +1,4 @@
-const { Barber, Appointment, Sale, Product, Client } = require('../models'); // 🔥 ADICIONAR Client
+const { Barber, Appointment, Sale, Product, Client } = require('../models');
 const { Op } = require('sequelize');
 
 // Calcular comissão de um barbeiro específico
@@ -7,7 +7,6 @@ const getBarberCommission = async (req, res) => {
     const { barberId } = req.params;
     const { startDate, endDate } = req.query;
     
-    // Definir datas padrão (mês atual)
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
@@ -17,7 +16,6 @@ const getBarberCommission = async (req, res) => {
     
     console.log(`📊 Calculando comissão do barbeiro ${barberId} de ${start} até ${end}`);
     
-    // Buscar barbeiro
     const barber = await Barber.findByPk(barberId);
     if (!barber) {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
@@ -34,7 +32,8 @@ const getBarberCommission = async (req, res) => {
       },
       include: [
         { 
-          model: Client, as: 'client', 
+          model: Client, 
+          as: 'client',             // 🔥 alias
           attributes: ['id', 'name', 'phone']
         }
       ]
@@ -48,7 +47,13 @@ const getBarberCommission = async (req, res) => {
           [Op.between]: [start, end]
         }
       },
-      include: [{ model: Product }]
+      include: [
+        { 
+          model: Product, 
+          as: 'product',            // 🔥 alias
+          attributes: ['id', 'name', 'price', 'costPrice'] 
+        }
+      ]
     });
     
     // Calcular comissão de serviços
@@ -66,21 +71,21 @@ const getBarberCommission = async (req, res) => {
     
     const totalProductRevenue = sales.reduce((total, sale) => total + (sale.salePrice * sale.quantity), 0);
     
-    // Detalhes dos serviços
+    // Detalhes dos serviços (🔥 app.client minúsculo)
     const serviceDetails = appointments.map(app => ({
       id: app.id,
       date: app.date,
-      client: app.Client?.name || 'Cliente não identificado',
+      client: app.client?.name || 'Cliente não identificado',
       service: app.service,
       price: app.price,
       commission: app.price * barber.serviceCommissionRate,
     }));
     
-    // Detalhes das vendas
+    // Detalhes das vendas (🔥 sale.product minúsculo)
     const productDetails = sales.map(sale => ({
       id: sale.id,
       date: sale.date,
-      product: sale.Product?.name || 'Produto',
+      product: sale.product?.name || 'Produto',
       quantity: sale.quantity,
       salePrice: sale.salePrice,
       costPrice: sale.costPrice,
@@ -188,7 +193,6 @@ const getAllCommissions = async (req, res) => {
       };
     }));
     
-    // Calcular totais gerais
     const totals = results.reduce((acc, item) => {
       acc.totalServices += item.servicesCount;
       acc.totalProducts += item.productsCount;
