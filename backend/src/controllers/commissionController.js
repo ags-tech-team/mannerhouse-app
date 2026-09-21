@@ -34,7 +34,7 @@ const getBarberCommission = async (req, res) => {
       },
       include: [
         { 
-          model: Client, 
+          model: Client, as: 'client', 
           attributes: ['id', 'name', 'phone']
         }
       ]
