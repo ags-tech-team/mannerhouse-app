@@ -1,5 +1,32 @@
-const { Barber, Appointment, Sale, Product, Client } = require('../models');
+const { Barber, Appointment, Sale, Product, Client, Service } = require('../models');
 const { Op } = require('sequelize');
+
+// 🔥 HELPER: extrair nome bonito do serviço
+const getServiceDisplayName = async (app) => {
+  // 1. Preferir serviceDescription se existir e não for slug
+  if (app.serviceDescription && app.serviceDescription.trim() && !/-\d{10,}/.test(app.serviceDescription)) {
+    return app.serviceDescription;
+  }
+
+  // 2. Tentar buscar o Service pelo ID direto
+  if (app.service) {
+    // Tenta busca direta (ex: "mensalista")
+    let svc = await Service.findOne({ where: { id: app.service } });
+    if (svc) return svc.name;
+
+    // Se for slug tipo "mensalista-1788471297070-nq8z", extrai "mensalista"
+    const parts = app.service.split('-');
+    // Remove blocos de números e hash final
+    const baseSlug = parts.filter(p => !/^\d+$/.test(p) && p.length > 2).join('-');
+    if (baseSlug && baseSlug !== app.service) {
+      svc = await Service.findOne({ where: { id: baseSlug } });
+      if (svc) return svc.name;
+    }
+  }
+
+  // 3. Fallback: retorna o que tem
+  return app.serviceDescription || app.service || 'Serviço';
+};
 
 // Calcular comissão de um barbeiro específico
 const getBarberCommission = async (req, res) => {
@@ -26,14 +53,12 @@ const getBarberCommission = async (req, res) => {
       where: {
         barberId: barber.id,
         status: 'completed',
-        date: {
-          [Op.between]: [start, end]
-        }
+        date: { [Op.between]: [start, end] }
       },
       include: [
         { 
           model: Client, 
-          as: 'client',             // 🔥 alias
+          as: 'client', 
           attributes: ['id', 'name', 'phone']
         }
       ]
@@ -43,14 +68,12 @@ const getBarberCommission = async (req, res) => {
     const sales = await Sale.findAll({
       where: {
         barberId: barber.id,
-        date: {
-          [Op.between]: [start, end]
-        }
+        date: { [Op.between]: [start, end] }
       },
       include: [
         { 
           model: Product, 
-          as: 'product',            // 🔥 alias
+          as: 'product', 
           attributes: ['id', 'name', 'price', 'costPrice'] 
         }
       ]
@@ -71,17 +94,20 @@ const getBarberCommission = async (req, res) => {
     
     const totalProductRevenue = sales.reduce((total, sale) => total + (sale.salePrice * sale.quantity), 0);
     
-    // Detalhes dos serviços (🔥 app.client minúsculo)
-    const serviceDetails = appointments.map(app => ({
-      id: app.id,
-      date: app.date,
-      client: app.client?.name || 'Cliente não identificado',
-      service: app.service,
-      price: app.price,
-      commission: app.price * barber.serviceCommissionRate,
+    // 🔥 Detalhes dos serviços — nomes bonitos via helper
+    const serviceDetails = await Promise.all(appointments.map(async (app) => {
+      const displayName = await getServiceDisplayName(app);
+      return {
+        id: app.id,
+        date: app.date,
+        client: app.client?.name || 'Cliente não identificado',
+        service: displayName,
+        price: app.price,
+        commission: app.price * barber.serviceCommissionRate,
+      };
     }));
     
-    // Detalhes das vendas (🔥 sale.product minúsculo)
+    // Detalhes das vendas
     const productDetails = sales.map(sale => ({
       id: sale.id,
       date: sale.date,
@@ -104,10 +130,7 @@ const getBarberCommission = async (req, res) => {
         serviceCommissionRate: barber.serviceCommissionRate * 100,
         productCommissionRate: barber.productCommissionRate * 100,
       },
-      period: {
-        startDate: start,
-        endDate: end,
-      },
+      period: { startDate: start, endDate: end },
       summary: {
         totalServices: appointments.length,
         totalServiceRevenue: totalServiceRevenue,
