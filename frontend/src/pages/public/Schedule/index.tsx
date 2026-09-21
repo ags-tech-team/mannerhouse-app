@@ -40,6 +40,15 @@ interface SelectedService {
   };
 }
 
+// 🔥 Converte "YYYY-MM-DD" para "DD/MM/YYYY" no fuso LOCAL, sem passar por UTC
+// (evita bug de mostrar 22/09 quando o usuário escolheu 23/09)
+const formatDateBR = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // mês é 0-indexed
+  return date.toLocaleDateString('pt-BR');
+};
+
 const PublicSchedule = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -280,7 +289,6 @@ const PublicSchedule = () => {
   };
 
   const isTimePast = (time: string) => {
-   
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -305,7 +313,7 @@ const PublicSchedule = () => {
             Seu agendamento foi realizado com sucesso!
           </p>
           <div className="bg-[#f5f0e8] rounded-lg p-4 mb-6 text-left text-sm md:text-base">
-            <p className="text-[#7f7c7a]">📅 Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+            <p className="text-[#7f7c7a]">📅 Data: {formatDateBR(selectedDate)}</p>
             <p className="text-[#7f7c7a]">⏰ Horário: {selectedTime}</p>
             <p className="text-[#7f7c7a]">👤 Cliente: {clientName}</p>
             <p className="text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
@@ -576,7 +584,7 @@ const PublicSchedule = () => {
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#060606]">3. Seus dados</h2>
                 
                 <div className="bg-[#f5f0e8] rounded-lg p-3 sm:p-4 md:p-5 mb-3 sm:mb-4 text-sm sm:text-base">
-                  <p className="text-[#7f7c7a]">📅 {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[#7f7c7a]">📅 {formatDateBR(selectedDate)}</p>
                   <p className="text-[#7f7c7a]">⏰ {selectedTime}</p>
                   <p className="text-[#7f7c7a]">💈 {barbers.find(b => b.id === selectedBarber)?.name}</p>
                   <p className="text-[#7f7c7a]">✂️ Serviços: {getServiceNames()}</p>
