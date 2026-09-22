@@ -4,7 +4,7 @@ const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
 // ============================================================
-// HELPER: buscar serviço por ID ou nome
+// HELPERS
 // ============================================================
 const findServiceByIdentifier = async (identifier) => {
   if (!identifier) return null;
@@ -14,16 +14,10 @@ const findServiceByIdentifier = async (identifier) => {
   return svc;
 };
 
-// ============================================================
-// HELPER: totais por forma de pagamento
-// ============================================================
 const calcularTotaisPorPagamento = (services = []) => {
   const totais = { dinheiro: 0, credito: 0, debito: 0, pix: 0, outros: 0 };
   services.forEach((s) => {
-    const isMens = s.service && (
-      s.service.toLowerCase().includes('mensal') ||
-      s.type === 'monthly'
-    );
+    const isMens = s.service && (s.service.toLowerCase().includes('mensal') || s.type === 'monthly');
     if (isMens) return;
     const price = s.price || s.valor || 0;
     const method = (s.paymentMethod || s.formaPagamento || 'dinheiro').toLowerCase();
@@ -34,9 +28,6 @@ const calcularTotaisPorPagamento = (services = []) => {
   return totais;
 };
 
-// ============================================================
-// HELPER: é mensalidade?
-// ============================================================
 const isMensalidade = (s) => {
   return s.service && (
     s.service.toLowerCase().includes('mensal') ||
@@ -45,6 +36,93 @@ const isMensalidade = (s) => {
     s.serviceId?.toLowerCase().includes('mensalista') ||
     s.serviceId?.toLowerCase().includes('mensal')
   );
+};
+
+// ============================================================
+// 🔥 HELPER INTERNO: fecha um caixa (cria revenues + marca fechado)
+// Usado tanto pelo endpoint /close quanto pelo auto-fechamento no /open
+// ============================================================
+const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
+  const services = caixa.services || [];
+  const servicosReais = services.filter(s => !isMensalidade(s));
+  const mensalidades = services.filter(s => isMensalidade(s));
+
+  const totalRevenue = servicosReais.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalCommissions = servicosReais.reduce((sum, s) => sum + Number(s.commission || 0), 0);
+  const servicesCount = servicosReais.length;
+
+  const closingLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  await caixa.update({
+    isOpen: false,
+    closingTime: closingLabel,
+    totalRevenue,
+    totalCommissions,
+    servicesCount,
+    closedByBarberId: closedByBarberId || caixa.barberId || null,
+  });
+
+  let criados = 0;
+  let atualizados = 0;
+
+  for (const service of servicosReais) {
+    const barber = await Barber.findByPk(service.barberId);
+    let clientName = 'Cliente';
+    let clientId = service.clientId || null;
+
+    if (service.clientId) {
+      try {
+        const client = await Client.findByPk(service.clientId);
+        if (client) { clientName = client.name; clientId = client.id; }
+      } catch (e) {}
+    }
+    if (clientName === 'Cliente' && service.client && !['', 'Cliente', 'Cliente sem cadastro'].includes(service.client)) {
+      try {
+        const client = await Client.findOne({ where: { name: service.client } });
+        if (client) { clientName = client.name; clientId = client.id; }
+        else clientName = service.client;
+      } catch (e) { clientName = service.client; }
+    }
+
+    const sourceId = String(service.id);
+    let revenue = await Revenue.findOne({ where: { sourceItemId: sourceId } });
+
+    const payload = {
+      cashRegisterId: caixa.id,
+      barberId: service.barberId || null,
+      clientId,
+      date: caixa.date,
+      total: Number(service.price || 0),
+      commissions: Number(service.commission || 0),
+      servicesCount: 1,
+      clientName,
+      barberName: barber?.name || 'Desconhecido',
+      service: service.service || service.product || 'Serviço',
+      serviceDescription: service.serviceDescription || '',
+      sourceItemId: sourceId,
+      status: 'confirmed',
+    };
+
+    if (revenue) {
+      await revenue.update(payload);
+      atualizados++;
+    } else {
+      await Revenue.create(payload);
+      criados++;
+    }
+  }
+
+  // Revenues pendentes do mesmo dia
+  const pendingRevenues = await Revenue.findAll({
+    where: { cashRegisterId: null, status: 'pending', date: caixa.date }
+  });
+  for (const pendingRevenue of pendingRevenues) {
+    await pendingRevenue.update({ cashRegisterId: caixa.id, status: 'confirmed' });
+  }
+
+  console.log(`   🔒 Caixa ${caixa.date} fechado: ${criados} revenues criados, ${atualizados} atualizados`);
+
+  return { criados, atualizados, totalRevenue, totalCommissions, servicesCount };
 };
 
 // ============================================================
@@ -82,72 +160,39 @@ const getToday = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 OPEN — corrigido: não zera itens, bloqueia se tiver aberto em dia anterior
+// 🔥 OPEN — auto-fecha caixa de dia anterior em vez de bloquear
 // ============================================================
 const openCashRegister = async (req, res) => {
   try {
     const { initialCash, barberId } = req.body;
     const today = dateHelper.getTodayLocal();
 
-    console.log('🔓 ===== ABRINDO CAIXA =====', { userId: req.userId, date: today, initialCash, barberId });
+    console.log('🔓 ===== ABRINDO CAIXA =====', { userId: req.userId, date: today });
 
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) return res.status(400).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // 🔥 BUG FIX #1: verificar QUALQUER caixa aberto (de qualquer data)
+    // 🔥 Fecha QUALQUER caixa aberto (mesmo de dias anteriores) automaticamente
     const qualquerAberto = await CashRegister.findOne({
       where: { userId: req.userId, isOpen: true },
       order: [['date', 'DESC']],
     });
 
-    if (qualquerAberto && qualquerAberto.date !== today) {
-      return res.status(400).json({
-        error: `⚠️ Existe um caixa aberto de ${qualquerAberto.date} (aberto às ${qualquerAberto.openingTime}). Feche ele antes de abrir um novo.`,
-        caixaAbertoAnterior: {
-          id: qualquerAberto.id,
-          date: qualquerAberto.date,
-          openingTime: qualquerAberto.openingTime,
-        },
-      });
+    if (qualquerAberto) {
+      if (qualquerAberto.date === today) {
+        // Caixa aberto do mesmo dia → cria turno 2
+        console.log(`📌 Já existe caixa aberto hoje. Fechando pra criar turno 2.`);
+        await fecharCaixaInterno(qualquerAberto, barberId);
+      } else {
+        // Caixa aberto de outro dia → auto-fecha retroativamente
+        console.log(`🔒 Auto-fechando caixa de ${qualquerAberto.date} antes de abrir novo.`);
+        await fecharCaixaInterno(qualquerAberto, qualquerAberto.barberId);
+      }
     }
 
-    if (qualquerAberto && qualquerAberto.date === today) {
-      return res.status(400).json({
-        error: '⚠️ Já existe um caixa aberto hoje. Feche-o antes de abrir outro.',
-        caixaAberto: { id: qualquerAberto.id, openingTime: qualquerAberto.openingTime },
-      });
-    }
-
-    // 🔥 BUG FIX #2: se já existe caixa FECHADO hoje, cria um NOVO (turno 2)
-    // Não reabre o antigo, preservando o histórico
-    const jaFechadoHoje = await CashRegister.findOne({
-      where: { date: today, userId: req.userId, isOpen: false },
-      order: [['createdAt', 'DESC']],
-    });
-
-    if (jaFechadoHoje) {
-      console.log(`📌 Já existe caixa fechado hoje (${jaFechadoHoje.id.slice(0,8)}). Criando NOVO caixa (turno 2).`);
-
-      const novoTurno = await CashRegister.create({
-        userId: req.userId,
-        date: today,
-        isOpen: true,
-        openingTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        initialCash: parseFloat(initialCash) || 0,
-        services: [],
-        totalRevenue: 0,
-        totalCommissions: 0,
-        servicesCount: 0,
-        barberId: barberId || null,
-      });
-
-      console.log(`✅ Novo caixa (turno 2) criado: ${novoTurno.id}`);
-      return res.status(201).json(novoTurno);
-    }
-
-    // Caso normal: primeiro caixa do dia
+    // Cria o novo caixa
     const cashRegister = await CashRegister.create({
       userId: req.userId,
       date: today,
@@ -170,7 +215,7 @@ const openCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 CLOSE — corrigido: sempre cria Revenue por item (chave sourceItemId)
+// CLOSE — agora usa o helper interno
 // ============================================================
 const closeCashRegister = async (req, res) => {
   try {
@@ -190,93 +235,14 @@ const closeCashRegister = async (req, res) => {
     });
     if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
 
-    const services = cashRegister.services || [];
-    const servicosReais = services.filter(s => !isMensalidade(s));
-    const mensalidades = services.filter(s => isMensalidade(s));
+    const resultado = await fecharCaixaInterno(cashRegister, barberId);
 
-    const totalRevenue = servicosReais.reduce((sum, s) => sum + (s.price || 0), 0);
-    const totalCommissions = servicosReais.reduce((sum, s) => sum + (s.commission || 0), 0);
-    const servicesCount = servicosReais.length;
-    const finalCash = cashRegister.initialCash + totalRevenue + mensalidades.reduce((sum, s) => sum + (s.price || 0), 0);
-    const totalsByPayment = calcularTotaisPorPagamento(services);
-
-    await cashRegister.update({
-      isOpen: false,
-      closingTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      finalCash, totalRevenue, totalCommissions, servicesCount,
-      closedByBarberId: barberId || null,
-    });
-
-    // 🔥 BUG FIX #3: criar Revenue para CADA item, identificado por sourceItemId
-    let criados = 0;
-    let atualizados = 0;
-
-    for (const service of servicosReais) {
-      const barber = await Barber.findByPk(service.barberId);
-      let clientName = 'Cliente';
-      let clientId = service.clientId || null;
-
-      if (service.clientId) {
-        try {
-          const client = await Client.findByPk(service.clientId);
-          if (client) { clientName = client.name; clientId = client.id; }
-        } catch (e) {}
-      }
-      if (clientName === 'Cliente' && service.client && !['', 'Cliente', 'Cliente sem cadastro'].includes(service.client)) {
-        try {
-          const client = await Client.findOne({ where: { name: service.client } });
-          if (client) { clientName = client.name; clientId = client.id; }
-          else clientName = service.client;
-        } catch (e) { clientName = service.client; }
-      }
-
-      // 🔥 Match por sourceItemId (chave única do item no caixa)
-      const sourceId = String(service.id);
-      let revenue = await Revenue.findOne({ where: { sourceItemId: sourceId } });
-
-      const payload = {
-        cashRegisterId: cashRegister.id,
-        barberId: service.barberId || null,
-        clientId,
-        date: cashRegister.date, // 🔥 usa a DATA DO CAIXA (não hoje)
-        total: service.price || 0,
-        commissions: service.commission || 0,
-        servicesCount: 1,
-        clientName,
-        barberName: barber?.name || 'Desconhecido',
-        service: service.service || 'Serviço',
-        serviceDescription: service.serviceDescription || '',
-        sourceItemId: sourceId,
-        status: 'confirmed',
-      };
-
-      if (revenue) {
-        await revenue.update(payload);
-        atualizados++;
-      } else {
-        await Revenue.create(payload);
-        criados++;
-      }
-    }
-
-    // Revenues pendentes de outras fontes (ex: agendamentos públicos) do mesmo dia
-    const pendingRevenues = await Revenue.findAll({
-      where: {
-        cashRegisterId: null,
-        status: 'pending',
-        date: cashRegister.date,
-      }
-    });
-    for (const pendingRevenue of pendingRevenues) {
-      await pendingRevenue.update({ cashRegisterId: cashRegister.id, status: 'confirmed' });
-    }
-
-    console.log(`✅ Fechamento: ${criados} revenues criados, ${atualizados} atualizados`);
+    const totalsByPayment = calcularTotaisPorPagamento(cashRegister.services || []);
 
     const result = cashRegister.toJSON();
     result.totalsByPayment = totalsByPayment;
-    result.revenuesCriados = criados;
-    result.revenuesAtualizados = atualizados;
+    result.revenuesCriados = resultado.criados;
+    result.revenuesAtualizados = resultado.atualizados;
     res.json(result);
   } catch (error) {
     console.error('❌ Erro ao fechar caixa:', error);
@@ -285,7 +251,7 @@ const closeCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// ADD SERVICE (mantido, igual antes)
+// ADD SERVICE (inalterado)
 // ============================================================
 const addService = async (req, res) => {
   try {
@@ -471,8 +437,6 @@ const addService = async (req, res) => {
       servicesCount: services.length,
     });
 
-    console.log(`✅ Item adicionado: ${newService.client} | R$ ${finalPrice.toFixed(2)} | com R$ ${finalCommission.toFixed(2)}`);
-
     res.status(201).json(newService);
   } catch (error) {
     console.error('❌ Erro ao adicionar serviço:', error);
@@ -481,7 +445,7 @@ const addService = async (req, res) => {
 };
 
 // ============================================================
-// REMOVE SERVICE (mantido)
+// REMOVE SERVICE
 // ============================================================
 const removeService = async (req, res) => {
   try {
@@ -497,7 +461,6 @@ const removeService = async (req, res) => {
     const services = cashRegister.services || [];
     const itemToRemove = services.find((s) => s.id === serviceId);
 
-    // Restaurar estoque
     if (itemToRemove && Array.isArray(itemToRemove.items)) {
       for (const it of itemToRemove.items) {
         if (it.type === 'product' && it.productId && it.quantity) {
@@ -513,12 +476,11 @@ const removeService = async (req, res) => {
       }
     }
 
-    // 🔥 Se item já virou Revenue, remover também
     if (itemToRemove) {
       const rev = await Revenue.findOne({ where: { sourceItemId: String(itemToRemove.id) } });
       if (rev) {
         await rev.destroy();
-        console.log(`🗑️ Revenue ${rev.id} removido junto com item ${serviceId}`);
+        console.log(`🗑️ Revenue ${rev.id} removido junto com item`);
       }
     }
 
@@ -540,7 +502,7 @@ const removeService = async (req, res) => {
 };
 
 // ============================================================
-// UPDATE SERVICES (mantido)
+// UPDATE SERVICES
 // ============================================================
 const updateServices = async (req, res) => {
   try {
