@@ -47,24 +47,39 @@ const AdminEstoque = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      const payload = {
+      // 🔥 Tipar como `any` pra permitir adicionar stock/updateStock condicionalmente
+      const payload: any = {
         name: formData.name,
         description: formData.description,
         price: price.getNumberValue(),
         costPrice: costPrice.getNumberValue(),
-        stock: stock.getNumberValue(),
         category: formData.category,
         hasCommission: formData.hasCommission,
       };
 
+      if (!editingProduct) {
+        // Criação: sempre manda o estoque inicial
+        payload.stock = stock.getNumberValue();
+        payload.updateStock = true;
+      } else {
+        // Edição: só manda o estoque se o admin mexeu no campo
+        const originalStock = editingProduct.stock;
+        const currentStock = stock.getNumberValue();
+        if (currentStock !== originalStock) {
+          payload.stock = currentStock;
+          payload.updateStock = true;
+        }
+      }
+
+      // 🔥 ESSENCIAL: chamar a API (você tinha removido)
       if (editingProduct) {
         await productService.update(editingProduct.id, payload);
       } else {
         await productService.create(payload);
       }
-      
+
       await loadProducts();
       setShowModal(false);
       resetForm();

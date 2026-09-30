@@ -1,6 +1,7 @@
 const { Sale, Barber, Product, Client, CashRegister, Revenue } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
+const dateHelper = require('../utils/dateHelper');
 
 const getAll = async (req, res) => {
   try {
@@ -102,7 +103,7 @@ const create = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dateHelper.getTodayLocal();
     const cashRegister = await CashRegister.findOne({
       where: {
         date: hoje,
@@ -140,13 +141,10 @@ const create = async (req, res) => {
       return res.status(400).json({ error: 'Cliente não encontrado ou não fornecido' });
     }
     
-    // 🔥 CORRIGIDO: CALCULAR PROFIT E COMISSÃO
     const profit = (product.price - product.costPrice) * quantity;
     let commission = 0;
     
-    // 🔥 SÓ CALCULA COMISSÃO SE O PRODUTO TIVER COMISSÃO ATIVA
     if (product.hasCommission !== false) {
-      // 🔥 USA A TAXA DE COMISSÃO DO BARBEIRO (productCommissionRate)
       commission = profit * barber.productCommissionRate;
     }
     
@@ -169,9 +167,8 @@ const create = async (req, res) => {
       paymentMethod: paymentMethod || 'dinheiro',
     });
     
-    await product.update({ 
-      stock: product.stock - quantity 
-    });
+    // 🔥 Decrement atômico
+    await Product.decrement('stock', { by: quantity, where: { id: productId } });
     
     if (cashRegister) {
       const services = cashRegister.services || [];
@@ -181,6 +178,7 @@ const create = async (req, res) => {
       services.push({
         id: sale.id,
         type: 'product',
+        productId: product.id,     // 🔥 ADICIONADO: garante que updateServices/removeService achem
         client: client.name,
         clientId: client.id,
         product: product.name,
@@ -225,7 +223,7 @@ const create = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO - DELETAR VENDA
+// 🔥 CORRIGIDO — evita dupla restauração de estoque
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
@@ -248,25 +246,37 @@ const remove = async (req, res) => {
     }
     
     console.log('✅ Venda encontrada:', sale.id);
-    
-    // Restaurar estoque
-    if (sale.product) {
-      console.log(`📦 Restaurando estoque do produto ${sale.product.name}: +${sale.quantity}`);
-      await sale.product.update({
-        stock: (sale.product.stock || 0) + sale.quantity
-      });
-    }
-    
-    // Remover do caixa
-    const hoje = new Date().toISOString().split('T')[0];
+
+    // 🔥 Verificar se a Sale ainda está em algum caixa aberto
+    // Se estiver, quem remove do caixa (removeService) é quem restaura o estoque.
+    // Assim evitamos restauração dupla.
+    const hoje = dateHelper.getTodayLocal();
     const cashRegister = await CashRegister.findOne({
       where: {
         date: hoje,
         isOpen: true,
       }
     });
-    
+
+    let stillInCashRegister = false;
     if (cashRegister) {
+      const services = cashRegister.services || [];
+      stillInCashRegister = services.some(s => s.id === sale.id);
+    }
+
+    // 🔥 Só restaura se NÃO estiver mais no caixa
+    if (sale.product && !stillInCashRegister) {
+      console.log(`📦 Restaurando estoque do produto ${sale.product.name}: +${sale.quantity}`);
+      await Product.increment('stock', {
+        by: sale.quantity,
+        where: { id: sale.productId }
+      });
+    } else if (sale.product && stillInCashRegister) {
+      console.log(`ℹ️ Venda ainda está no caixa — estoque será restaurado ao remover do caixa`);
+    }
+    
+    // Remover do caixa (se ainda estiver lá — caso de uso antigo)
+    if (cashRegister && stillInCashRegister) {
       const services = cashRegister.services || [];
       const updatedServices = services.filter(s => s.id !== sale.id);
       
@@ -297,7 +307,7 @@ const remove = async (req, res) => {
   }
 };
 
-// 🔥 ATUALIZAR VENDA
+// ATUALIZAR VENDA
 const update = async (req, res) => {
   try {
     const { id } = req.params;
@@ -313,21 +323,39 @@ const update = async (req, res) => {
     if (!sale) {
       return res.status(404).json({ error: 'Venda não encontrada' });
     }
+
+    // 🔥 Ajustar estoque pelo diff de quantidade
+    const oldQty = sale.quantity;
+    const newQty = Number(quantity) || oldQty;
+    const diff = newQty - oldQty;
+    if (diff !== 0) {
+      if (diff > 0) {
+        const product = await Product.findByPk(sale.productId);
+        if (product && product.stock < diff) {
+          return res.status(400).json({
+            error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}`,
+          });
+        }
+        await Product.decrement('stock', { by: diff, where: { id: sale.productId } });
+      } else {
+        await Product.increment('stock', { by: Math.abs(diff), where: { id: sale.productId } });
+      }
+    }
     
-    const newTotal = salePrice * quantity;
-    const newCost = sale.product.costPrice * quantity;
+    const newTotal = salePrice * newQty;
+    const newCost = sale.product.costPrice * newQty;
     const newProfit = newTotal - newCost;
     const newCommission = newProfit * (sale.barber?.productCommissionRate || 0.5);
     
     await sale.update({
       salePrice,
-      quantity,
+      quantity: newQty,
       profit: newProfit,
       commission: newCommission,
       paymentMethod: paymentMethod || sale.paymentMethod
     });
     
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dateHelper.getTodayLocal();
     const cashRegister = await CashRegister.findOne({
       where: {
         date: hoje,
@@ -341,9 +369,9 @@ const update = async (req, res) => {
         if (s.id === sale.id) {
           return {
             ...s,
-            price: salePrice * quantity,
+            price: salePrice * newQty,
             commission: newCommission,
-            quantity: quantity
+            quantity: newQty
           };
         }
         return s;

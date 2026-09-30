@@ -6,7 +6,6 @@ const getAll = async (req, res) => {
     const { category, search, includeInactive } = req.query;
     const where = {};
     
-    // 🔥 POR PADRÃO, NÃO MOSTRA INATIVOS
     if (includeInactive !== 'true') {
       where.isActive = true;
     }
@@ -72,26 +71,41 @@ const create = async (req, res) => {
   }
 };
 
+// 🔥 CORRIGIDO — só atualiza `stock` se explicitamente enviado com flag
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, costPrice, stock, category, isActive, hasCommission } = req.body;
+    const { 
+      name, description, price, costPrice, stock, 
+      category, isActive, hasCommission,
+      updateStock, // 🔥 flag: só altera estoque se o frontend mandar `true`
+    } = req.body;
     
     const product = await Product.findByPk(id);
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
     
-    await product.update({
+    const payload = {
       name: name || product.name,
       description: description !== undefined ? description : product.description,
       price: price !== undefined ? parseFloat(price) : product.price,
       costPrice: costPrice !== undefined ? parseFloat(costPrice) : product.costPrice,
-      stock: stock !== undefined ? parseInt(stock) : product.stock,
       category: category || product.category,
       isActive: isActive !== undefined ? isActive : product.isActive,
       hasCommission: hasCommission !== undefined ? hasCommission : product.hasCommission,
-    });
+    };
+
+    // 🔥 Só altera estoque se o frontend marcar `updateStock: true`
+    // ou se NÃO houver vendas associadas (produto novo sendo cadastrado).
+    if (updateStock === true && stock !== undefined) {
+      payload.stock = parseInt(stock);
+      console.log(`📦 Estoque alterado manualmente: ${product.name} ${product.stock} → ${payload.stock}`);
+    } else if (stock !== undefined && stock !== product.stock) {
+      console.log(`⚠️ Estoque enviado (${stock}) ≠ atual (${product.stock}) mas updateStock!=true — ignorado`);
+    }
+    
+    await product.update(payload);
     
     res.json(product);
   } catch (error) {
@@ -100,7 +114,6 @@ const update = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO: DELETE LÓGICO (DESATIVA) EM VEZ DE DELETE FÍSICO
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
@@ -110,13 +123,11 @@ const remove = async (req, res) => {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
     
-    // 🔥 VERIFICAR SE O PRODUTO TEM VENDAS
     const salesCount = await Sale.count({
       where: { productId: id }
     });
     
     if (salesCount > 0) {
-      // 🔥 TEM VENDAS → DESATIVA
       await product.update({ isActive: false });
       console.log(`📦 Produto ${product.name} desativado (tem ${salesCount} vendas associadas)`);
       return res.json({
@@ -126,7 +137,6 @@ const remove = async (req, res) => {
         salesCount
       });
     } else {
-      // 🔥 NÃO TEM VENDAS → DELETA FÍSICO
       await product.destroy();
       console.log(`🗑️ Produto ${product.name} deletado fisicamente (sem vendas associadas)`);
       return res.json({

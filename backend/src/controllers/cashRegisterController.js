@@ -1,4 +1,4 @@
-const { CashRegister, User, Revenue, Barber, Client, Service, Product } = require('../models');
+const { CashRegister, User, Revenue, Barber, Client, Service, Product, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
@@ -40,7 +40,6 @@ const isMensalidade = (s) => {
 
 // ============================================================
 // 🔥 HELPER INTERNO: fecha um caixa (cria revenues + marca fechado)
-// Usado tanto pelo endpoint /close quanto pelo auto-fechamento no /open
 // ============================================================
 const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
   const services = caixa.services || [];
@@ -112,7 +111,6 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
     }
   }
 
-  // Revenues pendentes do mesmo dia
   const pendingRevenues = await Revenue.findAll({
     where: { cashRegisterId: null, status: 'pending', date: caixa.date }
   });
@@ -160,7 +158,7 @@ const getToday = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 OPEN — auto-fecha caixa de dia anterior em vez de bloquear
+// OPEN — auto-fecha caixa anterior
 // ============================================================
 const openCashRegister = async (req, res) => {
   try {
@@ -174,7 +172,6 @@ const openCashRegister = async (req, res) => {
       if (!barber) return res.status(400).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // 🔥 Fecha QUALQUER caixa aberto (mesmo de dias anteriores) automaticamente
     const qualquerAberto = await CashRegister.findOne({
       where: { userId: req.userId, isOpen: true },
       order: [['date', 'DESC']],
@@ -182,17 +179,14 @@ const openCashRegister = async (req, res) => {
 
     if (qualquerAberto) {
       if (qualquerAberto.date === today) {
-        // Caixa aberto do mesmo dia → cria turno 2
         console.log(`📌 Já existe caixa aberto hoje. Fechando pra criar turno 2.`);
         await fecharCaixaInterno(qualquerAberto, barberId);
       } else {
-        // Caixa aberto de outro dia → auto-fecha retroativamente
         console.log(`🔒 Auto-fechando caixa de ${qualquerAberto.date} antes de abrir novo.`);
         await fecharCaixaInterno(qualquerAberto, qualquerAberto.barberId);
       }
     }
 
-    // Cria o novo caixa
     const cashRegister = await CashRegister.create({
       userId: req.userId,
       date: today,
@@ -215,7 +209,7 @@ const openCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// CLOSE — agora usa o helper interno
+// CLOSE
 // ============================================================
 const closeCashRegister = async (req, res) => {
   try {
@@ -251,9 +245,10 @@ const closeCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// ADD SERVICE (inalterado)
+// 🔥 ADD SERVICE — corrigido com transação + decrement atômico
 // ============================================================
 const addService = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const {
       client, barberId,
@@ -264,16 +259,17 @@ const addService = async (req, res) => {
 
     const today = date || dateHelper.getTodayLocal();
 
-    if (!barberId) return res.status(400).json({ error: 'Barbeiro é obrigatório' });
+    if (!barberId) { await t.rollback(); return res.status(400).json({ error: 'Barbeiro é obrigatório' }); }
     const barber = await Barber.findByPk(barberId);
-    if (!barber) return res.status(400).json({ error: 'Barbeiro não encontrado' });
+    if (!barber) { await t.rollback(); return res.status(400).json({ error: 'Barbeiro não encontrado' }); }
 
     let normalizedItems = [];
     let finalPrice = 0;
     let finalCommission = 0;
     let aggregatedServiceNames = '';
     let aggregatedServiceIds = '';
-    const productStockUpdates = [];
+    // 🔥 Agrupa por produto pra fazer 1 decremento por produto
+    const productStockUpdates = new Map();
 
     if (items && Array.isArray(items) && items.length > 0) {
       const serviceCommissionRate = barber.serviceCommissionRate || 0.50;
@@ -312,11 +308,13 @@ const addService = async (req, res) => {
           const product = await Product.findByPk(item.productId);
           if (!product) continue;
           if (product.isActive === false) {
+            await t.rollback();
             return res.status(400).json({ error: `Produto "${product.name}" está inativo` });
           }
 
           const qty = Math.max(1, parseInt(item.quantity) || 1);
           if (product.stock < qty) {
+            await t.rollback();
             return res.status(400).json({
               error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, solicitado: ${qty}`,
             });
@@ -340,15 +338,21 @@ const addService = async (req, res) => {
 
           finalPrice += itemPrice;
           finalCommission += itemCommission;
-          productStockUpdates.push({ product, quantityToDecrement: qty });
+
+          // 🔥 Soma se o produto aparecer mais de uma vez
+          const current = productStockUpdates.get(product.id) || { product, quantity: 0 };
+          current.quantity += qty;
+          productStockUpdates.set(product.id, current);
         }
       }
 
       if (normalizedItems.length === 0) {
+        await t.rollback();
         return res.status(400).json({ error: 'Nenhum item válido recebido' });
       }
     } else {
       if (!service || service.trim() === '') {
+        await t.rollback();
         return res.status(400).json({ error: 'Serviço é obrigatório' });
       }
 
@@ -402,11 +406,20 @@ const addService = async (req, res) => {
     const cashRegister = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: true },
       order: [['createdAt', 'DESC']],
+      transaction: t,
     });
-    if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    if (!cashRegister) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    }
 
-    for (const { product, quantityToDecrement } of productStockUpdates) {
-      await product.update({ stock: product.stock - quantityToDecrement });
+    // 🔥 Decremento atômico — evita race condition
+    for (const { product, quantity } of productStockUpdates.values()) {
+      await Product.decrement('stock', {
+        by: quantity,
+        where: { id: product.id },
+        transaction: t,
+      });
     }
 
     const newService = {
@@ -435,19 +448,23 @@ const addService = async (req, res) => {
       totalRevenue: (cashRegister.totalRevenue || 0) + finalPrice,
       totalCommissions: (cashRegister.totalCommissions || 0) + finalCommission,
       servicesCount: services.length,
-    });
+    }, { transaction: t });
+
+    await t.commit();
 
     res.status(201).json(newService);
   } catch (error) {
+    await t.rollback();
     console.error('❌ Erro ao adicionar serviço:', error);
     res.status(500).json({ error: 'Erro ao adicionar serviço' });
   }
 };
 
 // ============================================================
-// REMOVE SERVICE
+// 🔥 REMOVE SERVICE — corrigido com increment atômico + compat Loja
 // ============================================================
 const removeService = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { serviceId } = req.params;
     const today = dateHelper.getTodayLocal();
@@ -455,31 +472,51 @@ const removeService = async (req, res) => {
     const cashRegister = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: true },
       order: [['createdAt', 'DESC']],
+      transaction: t,
     });
-    if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    if (!cashRegister) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    }
 
     const services = cashRegister.services || [];
     const itemToRemove = services.find((s) => s.id === serviceId);
 
+    // 🔥 Agrupa por produto pra incrementar 1x por produto
+    const productStockRestores = new Map();
+
     if (itemToRemove && Array.isArray(itemToRemove.items)) {
+      // Formato novo (caixa)
       for (const it of itemToRemove.items) {
         if (it.type === 'product' && it.productId && it.quantity) {
-          const product = await Product.findByPk(it.productId);
-          if (product) await product.update({ stock: product.stock + it.quantity });
+          const current = productStockRestores.get(it.productId) || { productId: it.productId, quantity: 0 };
+          current.quantity += it.quantity;
+          productStockRestores.set(it.productId, current);
         }
       }
     } else if (itemToRemove && itemToRemove.type === 'product' && itemToRemove.productId) {
-      const product = await Product.findByPk(itemToRemove.productId);
-      if (product) {
-        const qty = itemToRemove.quantity || 1;
-        await product.update({ stock: product.stock + qty });
-      }
+      // 🔥 Formato antigo (Loja / saleController)
+      const qty = itemToRemove.quantity || 1;
+      const current = productStockRestores.get(itemToRemove.productId) || { productId: itemToRemove.productId, quantity: 0 };
+      current.quantity += qty;
+      productStockRestores.set(itemToRemove.productId, current);
     }
 
+    // Increment atômico
+    for (const { productId, quantity } of productStockRestores.values()) {
+      await Product.increment('stock', {
+        by: quantity,
+        where: { id: productId },
+        transaction: t,
+      });
+      console.log(`📦 Estoque restaurado: ${productId} +${quantity}`);
+    }
+
+    // Remove revenue vinculado
     if (itemToRemove) {
-      const rev = await Revenue.findOne({ where: { sourceItemId: String(itemToRemove.id) } });
+      const rev = await Revenue.findOne({ where: { sourceItemId: String(itemToRemove.id) }, transaction: t });
       if (rev) {
-        await rev.destroy();
+        await rev.destroy({ transaction: t });
         console.log(`🗑️ Revenue ${rev.id} removido junto com item`);
       }
     }
@@ -492,19 +529,22 @@ const removeService = async (req, res) => {
       services: updatedServices,
       totalRevenue, totalCommissions,
       servicesCount: updatedServices.length,
-    });
+    }, { transaction: t });
 
+    await t.commit();
     res.status(204).send();
   } catch (error) {
+    await t.rollback();
     console.error('❌ Erro ao remover serviço:', error);
     res.status(500).json({ error: 'Erro ao remover serviço' });
   }
 };
 
 // ============================================================
-// UPDATE SERVICES
+// 🔥 UPDATE SERVICES — corrigido: suporta formato novo E legado (Loja)
 // ============================================================
 const updateServices = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { services } = req.body;
     const today = dateHelper.getTodayLocal();
@@ -512,8 +552,12 @@ const updateServices = async (req, res) => {
     const cashRegister = await CashRegister.findOne({
       where: { date: today, userId: req.userId, isOpen: true },
       order: [['createdAt', 'DESC']],
+      transaction: t,
     });
-    if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    if (!cashRegister) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
+    }
 
     const currentServices = cashRegister.services || [];
 
@@ -521,41 +565,91 @@ const updateServices = async (req, res) => {
       const original = currentServices.find((s) => s.id === updated.id);
       if (!original) continue;
 
+      // 🔥 Formato NOVO (items[])
       const originalProducts = (original.items || []).filter((it) => it.type === 'product');
       const updatedProducts = (updated.items || []).filter((it) => it.type === 'product');
 
-      for (const origP of originalProducts) {
-        const newP = updatedProducts.find((p) => p.productId === origP.productId);
-        const oldQty = origP.quantity || 0;
-        const newQty = newP ? newP.quantity || 0 : 0;
-        const diff = newQty - oldQty;
-        if (diff !== 0) {
-          const product = await Product.findByPk(origP.productId);
-          if (product) {
-            const newStock = product.stock - diff;
-            if (newStock < 0) {
-              return res.status(400).json({
-                error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock + oldQty}`,
+      if (originalProducts.length > 0 || updatedProducts.length > 0) {
+        for (const origP of originalProducts) {
+          const newP = updatedProducts.find((p) => p.productId === origP.productId);
+          const oldQty = origP.quantity || 0;
+          const newQty = newP ? newP.quantity || 0 : 0;
+          const diff = newQty - oldQty;
+          if (diff !== 0) {
+            if (diff > 0) {
+              // Vai consumir mais → checa estoque
+              const product = await Product.findByPk(origP.productId, { transaction: t });
+              if (product && product.stock < diff) {
+                await t.rollback();
+                return res.status(400).json({
+                  error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, adicional: ${diff}`,
+                });
+              }
+              await Product.decrement('stock', {
+                by: diff,
+                where: { id: origP.productId },
+                transaction: t,
+              });
+            } else {
+              // Vai devolver → increment
+              await Product.increment('stock', {
+                by: Math.abs(diff),
+                where: { id: origP.productId },
+                transaction: t,
               });
             }
-            await product.update({ stock: newStock });
           }
         }
-      }
 
-      for (const newP of updatedProducts) {
-        const existedBefore = originalProducts.find((p) => p.productId === newP.productId);
-        if (!existedBefore) {
-          const product = await Product.findByPk(newP.productId);
-          if (product) {
+        for (const newP of updatedProducts) {
+          const existedBefore = originalProducts.find((p) => p.productId === newP.productId);
+          if (!existedBefore) {
+            const product = await Product.findByPk(newP.productId, { transaction: t });
             const qty = newP.quantity || 1;
-            if (product.stock < qty) {
+            if (product && product.stock < qty) {
+              await t.rollback();
               return res.status(400).json({
                 error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}`,
               });
             }
-            await product.update({ stock: product.stock - qty });
+            await Product.decrement('stock', {
+              by: qty,
+              where: { id: newP.productId },
+              transaction: t,
+            });
           }
+        }
+      } else if (
+        original.type === 'product' && original.productId &&
+        updated.type === 'product' && updated.productId
+      ) {
+        // 🔥 Formato LEGADO (Loja) — item raiz é um produto direto
+        const oldQty = Number(original.quantity) || 0;
+        const newQty = Number(updated.quantity) || 0;
+        const diff = newQty - oldQty;
+
+        if (diff !== 0) {
+          if (diff > 0) {
+            const product = await Product.findByPk(original.productId, { transaction: t });
+            if (product && product.stock < diff) {
+              await t.rollback();
+              return res.status(400).json({
+                error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, adicional: ${diff}`,
+              });
+            }
+            await Product.decrement('stock', {
+              by: diff,
+              where: { id: original.productId },
+              transaction: t,
+            });
+          } else {
+            await Product.increment('stock', {
+              by: Math.abs(diff),
+              where: { id: original.productId },
+              transaction: t,
+            });
+          }
+          console.log(`📦 Estoque ajustado (legado): ${original.productId} ${diff > 0 ? '-' : '+'}${Math.abs(diff)}`);
         }
       }
     }
@@ -573,10 +667,12 @@ const updateServices = async (req, res) => {
       services: updatedServices,
       totalRevenue, totalCommissions,
       servicesCount: updatedServices.length,
-    });
+    }, { transaction: t });
 
+    await t.commit();
     res.json(cashRegister);
   } catch (error) {
+    await t.rollback();
     console.error('❌ Erro ao atualizar serviços:', error);
     res.status(500).json({ error: 'Erro ao atualizar serviços' });
   }
