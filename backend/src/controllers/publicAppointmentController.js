@@ -2,9 +2,6 @@ const { Appointment, Barber, Client, Service } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
-// ============================================================
-// 🔥 HELPER: buscar serviço por ID ou nome
-// ============================================================
 const findServiceByIdentifier = async (identifier) => {
   if (!identifier) return null;
   let svc = await Service.findOne({ where: { id: identifier } });
@@ -13,10 +10,15 @@ const findServiceByIdentifier = async (identifier) => {
   return svc;
 };
 
-// ============================================================
-// 🔥 Delay artificial para não dar pistas de bloqueio
-// ============================================================
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// 🔥 PLANOS (mesma definição do monthlyController)
+const PLANOS = {
+  inicial: { name: 'Inicial', price: 50, days: [1,2,3,4,5,6] },
+  basico:  { name: 'Básico',  price: 110, days: [1,2,3,4] },
+  plus:    { name: 'Plus',    price: 220, days: [1,2,3,4] },
+  premium: { name: 'Premium', price: 290, days: [1,2,3,4,5,6] },
+};
 
 const getBarbers = async (req, res) => {
   try {
@@ -80,7 +82,7 @@ const getAvailableTimes = async (req, res) => {
 };
 
 // ==========================================
-// CREATE APPOINTMENT (público) — 🔥 COM BLOQUEIO
+// CREATE APPOINTMENT
 // ==========================================
 const createAppointment = async (req, res) => {
   try {
@@ -99,13 +101,28 @@ const createAppointment = async (req, res) => {
 
     let client = await Client.findOne({ where: { phone: clientPhone } });
 
-    // 🔥 VALIDAÇÃO DE BLOQUEIO — mensagem genérica
+    // 🔥 BLOQUEIO
     if (client && client.isBlocked) {
       console.log(`🚫 Tentativa de agendamento de cliente bloqueado: ${client.name} (${client.phone})`);
-      await delay(600); // pequeno delay pra parecer erro de servidor
+      await delay(600);
       return res.status(400).json({
         error: '⚠️ Ocorreu um erro ao processar seu agendamento. Entre em contato conosco para resolver esse problema.'
       });
+    }
+
+    // 🔥 VALIDAÇÃO DE PLANO (só se for mensalista com plano)
+    if (client && client.isMonthly && client.planType && PLANOS[client.planType]) {
+      const plan = PLANOS[client.planType];
+      const dateObj = dateHelper.parseDateLocal(date);
+      const dayOfWeek = dateObj.getDay();
+
+      if (!plan.days.includes(dayOfWeek)) {
+        console.log(`🚫 Tentativa de agendamento em dia fora do plano: ${client.name} | ${plan.name} | ${date} (dia ${dayOfWeek})`);
+        await delay(600);
+        return res.status(400).json({
+          error: `⚠️ Ocorreu um erro ao processar seu agendamento. Seu plano ${plan.name} cobre apenas os dias ${plan.days.includes(5) ? 'de segunda a sábado' : 'de segunda a quinta'}. Entre em contato para fazer upgrade.`
+        });
+      }
     }
 
     if (!client) {

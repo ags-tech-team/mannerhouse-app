@@ -49,6 +49,9 @@ const formatDateBR = (dateStr: string): string => {
   return date.toLocaleDateString('pt-BR');
 };
 
+// 🔥 NOVO: dias da semana que só estão disponíveis para planos Seg-Sáb (Sex=5, Sáb=6)
+const DIAS_SO_SEG_SAB = [5, 6];
+
 const PublicSchedule = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -176,6 +179,9 @@ const PublicSchedule = () => {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const isAvailable = isDayAvailable(dateStr);
       const isUnavailable = !isAvailable && !isPast;
+      // 🔥 NOVO: marca se é sexta ou sábado (só planos Seg-Sáb)
+      const dayOfWeek = date.getDay();
+      const isSegSabOnly = DIAS_SO_SEG_SAB.includes(dayOfWeek);
       
       days.push({
         day: i,
@@ -185,6 +191,7 @@ const PublicSchedule = () => {
         allowed: isAvailable && !isPast,
         reason: isUnavailable ? 'Sem horários' : '',
         isUnavailable,
+        isSegSabOnly, // 🔥 NOVO
       });
     }
     
@@ -320,7 +327,6 @@ const PublicSchedule = () => {
             <p className="text-[#7f7c7a]">💰 Total: R$ {getTotalPrice().toFixed(2)}</p>
             <p className="text-[#7f7c7a]">📞 Telefone: {formData.clientPhone}</p>
           </div>
-          {/* 🔥 Botão "Novo Agendamento" removido */}
         </div>
       </div>
     );
@@ -409,6 +415,10 @@ const PublicSchedule = () => {
                       ))}
                       {days.map((day, index) => {
                         const isDisabled = !day || day.isPast || day.isUnavailable;
+                        // 🔥 NOVO: dia é só para planos Seg-Sáb?
+                        const isSegSabOnly = day?.isSegSabOnly;
+                        const isSelected = day && selectedDate === day.date;
+
                         return (
                           <button
                             key={index}
@@ -423,11 +433,18 @@ const PublicSchedule = () => {
                               !day ? 'invisible' :
                               day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
                               day.isUnavailable ? 'text-gray-400 cursor-not-allowed bg-gray-200 line-through' :
-                              selectedDate === day.date ? 'bg-[#9c7f64] text-white' :
+                              isSelected ? 'bg-[#9c7f64] text-white' :
+                              isSegSabOnly ? 'bg-amber-50 hover:bg-amber-100 border border-amber-200' :
                               'hover:bg-[#9c7f64]/10'
                             }`}
                           >
                             {day?.day}
+                            {/* 🔥 NOVO: badge Seg-Sáb nos dias de sexta/sábado */}
+                            {isSegSabOnly && !isSelected && !day?.isUnavailable && !day?.isPast && (
+                              <span className="block text-[6px] sm:text-[7px] text-amber-600 font-medium leading-none mt-0.5">
+                                Seg-Sáb
+                              </span>
+                            )}
                             {day?.isUnavailable && (
                               <span className="block text-[6px] sm:text-[8px] text-gray-500">🚫</span>
                             )}
@@ -444,6 +461,11 @@ const PublicSchedule = () => {
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-200 border border-gray-300 rounded inline-block line-through"></span>
                         Sem horários
+                      </span>
+                      {/* 🔥 NOVO */}
+                      <span className="flex items-center gap-1 text-amber-600">
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-50 border border-amber-200 rounded inline-block"></span>
+                        Só planos Seg-Sáb
                       </span>
                       <span className="flex items-center gap-1 text-gray-400">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-200 rounded inline-block"></span>

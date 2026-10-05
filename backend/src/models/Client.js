@@ -21,18 +21,19 @@ module.exports = (sequelize, DataTypes) => {
     monthlyFee: {
       type: DataTypes.FLOAT,
       defaultValue: 0,
-      validate: {
-        min: 0,
-      },
+      validate: { min: 0 },
       field: 'monthly_fee',
+    },
+    // 🔥 NOVO: tipo do plano do mensalista
+    planType: {
+      type: DataTypes.ENUM('inicial', 'basico', 'plus', 'premium'),
+      allowNull: true,
+      field: 'plan_type',
     },
     barberId: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: 'barbers',
-        key: 'id',
-      },
+      references: { model: 'barbers', key: 'id' },
       field: 'barber_id',
     },
     isActive: {
@@ -40,7 +41,6 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: true,
       field: 'is_active',
     },
-    // 🔥 NOVO: cliente bloqueado
     isBlocked: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
