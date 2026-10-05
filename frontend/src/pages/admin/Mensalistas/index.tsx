@@ -6,6 +6,7 @@ import {
   Plus, Search, Edit, Trash2, X, Check,
   Users, User, Clock, AlertCircle, CheckCircle,
   UserPlus, CreditCard, Phone, FileText, ChevronLeft, ChevronRight,
+  DollarSign, 
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 
