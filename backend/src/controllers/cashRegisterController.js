@@ -39,7 +39,23 @@ const isMensalidade = (s) => {
 };
 
 // ============================================================
-// 🔥 HELPER INTERNO: fecha um caixa (cria revenues + marca fechado)
+// 🔥 HELPER: calcular desconto e distribuir proporcionalmente
+// ============================================================
+const calcularDesconto = (subtotal, discountType, discountValue) => {
+  if (!discountType || !discountValue || discountValue <= 0 || subtotal <= 0) {
+    return 0;
+  }
+  let desc = 0;
+  if (discountType === 'percentage') {
+    desc = subtotal * (Number(discountValue) / 100);
+  } else if (discountType === 'fixed') {
+    desc = Number(discountValue);
+  }
+  return Math.min(desc, subtotal); // não pode passar do subtotal
+};
+
+// ============================================================
+// 🔥 HELPER INTERNO: fecha caixa
 // ============================================================
 const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
   const services = caixa.services || [];
@@ -61,8 +77,7 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
     closedByBarberId: closedByBarberId || caixa.barberId || null,
   });
 
-  let criados = 0;
-  let atualizados = 0;
+  let criados = 0, atualizados = 0;
 
   for (const service of servicosReais) {
     const barber = await Barber.findByPk(service.barberId);
@@ -102,13 +117,8 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       status: 'confirmed',
     };
 
-    if (revenue) {
-      await revenue.update(payload);
-      atualizados++;
-    } else {
-      await Revenue.create(payload);
-      criados++;
-    }
+    if (revenue) { await revenue.update(payload); atualizados++; }
+    else { await Revenue.create(payload); criados++; }
   }
 
   const pendingRevenues = await Revenue.findAll({
@@ -118,8 +128,7 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
     await pendingRevenue.update({ cashRegisterId: caixa.id, status: 'confirmed' });
   }
 
-  console.log(`   🔒 Caixa ${caixa.date} fechado: ${criados} revenues criados, ${atualizados} atualizados`);
-
+  console.log(`   🔒 Caixa ${caixa.date} fechado: ${criados} criados, ${atualizados} atualizados`);
   return { criados, atualizados, totalRevenue, totalCommissions, servicesCount };
 };
 
@@ -158,14 +167,12 @@ const getToday = async (req, res) => {
 };
 
 // ============================================================
-// OPEN — auto-fecha caixa anterior
+// OPEN
 // ============================================================
 const openCashRegister = async (req, res) => {
   try {
     const { initialCash, barberId } = req.body;
     const today = dateHelper.getTodayLocal();
-
-    console.log('🔓 ===== ABRINDO CAIXA =====', { userId: req.userId, date: today });
 
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
@@ -179,10 +186,8 @@ const openCashRegister = async (req, res) => {
 
     if (qualquerAberto) {
       if (qualquerAberto.date === today) {
-        console.log(`📌 Já existe caixa aberto hoje. Fechando pra criar turno 2.`);
         await fecharCaixaInterno(qualquerAberto, barberId);
       } else {
-        console.log(`🔒 Auto-fechando caixa de ${qualquerAberto.date} antes de abrir novo.`);
         await fecharCaixaInterno(qualquerAberto, qualquerAberto.barberId);
       }
     }
@@ -193,14 +198,10 @@ const openCashRegister = async (req, res) => {
       isOpen: true,
       openingTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       initialCash: parseFloat(initialCash) || 0,
-      services: [],
-      totalRevenue: 0,
-      totalCommissions: 0,
-      servicesCount: 0,
+      services: [], totalRevenue: 0, totalCommissions: 0, servicesCount: 0,
       barberId: barberId || null,
     });
 
-    console.log('✅ CAIXA CRIADO:', cashRegister.id);
     res.status(201).json(cashRegister);
   } catch (error) {
     console.error('❌ Erro ao abrir caixa:', error);
@@ -216,8 +217,6 @@ const closeCashRegister = async (req, res) => {
     const { barberId } = req.body;
     const today = dateHelper.getTodayLocal();
 
-    console.log('🔒 ===== FECHANDO CAIXA =====', { userId: req.userId, closedBy: barberId });
-
     if (barberId) {
       const barber = await Barber.findByPk(barberId);
       if (!barber) return res.status(400).json({ error: 'Barbeiro que está fechando não encontrado' });
@@ -230,7 +229,6 @@ const closeCashRegister = async (req, res) => {
     if (!cashRegister) return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
 
     const resultado = await fecharCaixaInterno(cashRegister, barberId);
-
     const totalsByPayment = calcularTotaisPorPagamento(cashRegister.services || []);
 
     const result = cashRegister.toJSON();
@@ -245,7 +243,7 @@ const closeCashRegister = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 ADD SERVICE — corrigido com transação + decrement atômico
+// 🔥 ADD SERVICE — agora com desconto
 // ============================================================
 const addService = async (req, res) => {
   const t = await sequelize.transaction();
@@ -255,6 +253,8 @@ const addService = async (req, res) => {
       service, serviceId, price, commission: commissionFromBody,
       paymentMethod, date, time, phone,
       items,
+      // 🔥 NOVOS
+      discountType, discountValue,
     } = req.body;
 
     const today = date || dateHelper.getTodayLocal();
@@ -264,17 +264,12 @@ const addService = async (req, res) => {
     if (!barber) { await t.rollback(); return res.status(400).json({ error: 'Barbeiro não encontrado' }); }
 
     let normalizedItems = [];
-    let finalPrice = 0;
-    let finalCommission = 0;
+    let subtotal = 0;
     let aggregatedServiceNames = '';
     let aggregatedServiceIds = '';
-    // 🔥 Agrupa por produto pra fazer 1 decremento por produto
     const productStockUpdates = new Map();
 
     if (items && Array.isArray(items) && items.length > 0) {
-      const serviceCommissionRate = barber.serviceCommissionRate || 0.50;
-      const productCommissionRate = barber.productCommissionRate || 0.50;
-
       for (const item of items) {
         if (item.type === 'service') {
           let svc = null;
@@ -283,26 +278,21 @@ const addService = async (req, res) => {
 
           const isCommissioned = !(svc && svc.isCommissioned === false);
           const itemPrice = Number(item.price) || 0;
-          const itemCommission = isCommissioned ? itemPrice * serviceCommissionRate : 0;
 
           normalizedItems.push({
             type: 'service',
             serviceId: item.serviceId || (svc ? svc.id : ''),
             name: item.name || (svc ? svc.name : 'Serviço'),
             price: itemPrice,
-            commission: itemCommission,
             isCommissioned,
           });
 
-          finalPrice += itemPrice;
-          finalCommission += itemCommission;
+          subtotal += itemPrice;
           aggregatedServiceNames = aggregatedServiceNames
-            ? `${aggregatedServiceNames} + ${item.name}`
-            : item.name;
+            ? `${aggregatedServiceNames} + ${item.name}` : item.name;
           if (item.serviceId) {
             aggregatedServiceIds = aggregatedServiceIds
-              ? `${aggregatedServiceIds},${item.serviceId}`
-              : item.serviceId;
+              ? `${aggregatedServiceIds},${item.serviceId}` : item.serviceId;
           }
         } else if (item.type === 'product') {
           const product = await Product.findByPk(item.productId);
@@ -320,26 +310,20 @@ const addService = async (req, res) => {
             });
           }
 
-          const unitPrice = product.price;
-          const unitCost = product.costPrice;
-          const itemPrice = unitPrice * qty;
-          const profit = (unitPrice - unitCost) * qty;
-          const itemCommission = product.hasCommission !== false ? profit * productCommissionRate : 0;
+          const itemPrice = product.price * qty;
 
           normalizedItems.push({
             type: 'product',
             productId: product.id,
             name: product.name,
             quantity: qty,
-            unitPrice, costPrice: unitCost,
-            price: itemPrice, commission: itemCommission,
+            unitPrice: product.price,
+            costPrice: product.costPrice,
+            price: itemPrice,
             hasCommission: product.hasCommission !== false,
           });
 
-          finalPrice += itemPrice;
-          finalCommission += itemCommission;
-
-          // 🔥 Soma se o produto aparecer mais de uma vez
+          subtotal += itemPrice;
           const current = productStockUpdates.get(product.id) || { product, quantity: 0 };
           current.quantity += qty;
           productStockUpdates.set(product.id, current);
@@ -355,41 +339,69 @@ const addService = async (req, res) => {
         await t.rollback();
         return res.status(400).json({ error: 'Serviço é obrigatório' });
       }
-
-      let commission;
-      if (commissionFromBody !== undefined && commissionFromBody !== null) {
-        commission = Number(commissionFromBody);
-      } else {
-        const commissionRate = barber.serviceCommissionRate || 0.50;
-        let isCommissioned = true;
-        if (serviceId) {
-          const ids = serviceId.split(',').map(s => s.trim()).filter(Boolean);
-          for (const id of ids) {
-            const svc = await findServiceByIdentifier(id);
-            if (svc && svc.isCommissioned === false) { isCommissioned = false; break; }
-          }
-        }
-        commission = isCommissioned ? (price || 0) * commissionRate : 0;
-      }
-
       normalizedItems.push({
         type: 'service',
         serviceId: serviceId || '',
         name: service,
         price: Number(price) || 0,
-        commission,
-        isCommissioned: commission > 0,
+        isCommissioned: true,
       });
-      finalPrice = Number(price) || 0;
-      finalCommission = commission;
+      subtotal = Number(price) || 0;
       aggregatedServiceNames = service;
       aggregatedServiceIds = serviceId || '';
     }
 
-    let clientRecord = null;
-    let clientId = null;
-    let clientName = client || 'Cliente';
+    // ============================================================
+    // 🔥 APLICAR DESCONTO + CALCULAR COMISSÃO SOBRE O LÍQUIDO
+    // ============================================================
+    const discountAmount = calcularDesconto(subtotal, discountType, discountValue);
+    const finalPrice = subtotal - discountAmount;
 
+    // Separar totals por tipo
+    const totalServices = normalizedItems.filter(i => i.type === 'service').reduce((s, i) => s + i.price, 0);
+    const totalProducts = normalizedItems.filter(i => i.type === 'product').reduce((s, i) => s + i.price, 0);
+
+    // Distribuir desconto proporcionalmente
+    const servicesDiscount = subtotal > 0 ? discountAmount * (totalServices / subtotal) : 0;
+    const productsDiscount = subtotal > 0 ? discountAmount * (totalProducts / subtotal) : 0;
+
+    const serviceCommissionRate = barber.serviceCommissionRate || 0.50;
+    const productCommissionRate = barber.productCommissionRate || 0.50;
+
+    // Comissão serviços = base reduzida × taxa
+    let serviceCommissionTotal = 0;
+    const effectiveServicesTotal = totalServices - servicesDiscount;
+    const effectiveServicesRate = totalServices > 0 ? (effectiveServicesTotal / totalServices) : 1;
+
+    for (const item of normalizedItems.filter(i => i.type === 'service')) {
+      const effectivePrice = item.price * effectiveServicesRate;
+      const itemCommission = item.isCommissioned ? effectivePrice * serviceCommissionRate : 0;
+      item.commission = itemCommission;
+      item.priceOriginal = item.price; // guarda o original
+      item.discount = item.price - effectivePrice;
+      serviceCommissionTotal += itemCommission;
+    }
+
+    // Comissão produtos = base reduzida × taxa sobre lucro
+    let productCommissionTotal = 0;
+    const effectiveProductsRate = totalProducts > 0 ? ((totalProducts - productsDiscount) / totalProducts) : 1;
+
+    for (const item of normalizedItems.filter(i => i.type === 'product')) {
+      const effectivePrice = item.price * effectiveProductsRate;
+      const cost = item.costPrice * item.quantity;
+      const profit = Math.max(0, effectivePrice - cost);
+      const itemCommission = item.hasCommission !== false ? profit * productCommissionRate : 0;
+      item.commission = itemCommission;
+      item.priceOriginal = item.price;
+      item.discount = item.price - effectivePrice;
+      item.profit = profit;
+      productCommissionTotal += itemCommission;
+    }
+
+    const finalCommission = serviceCommissionTotal + productCommissionTotal;
+
+    // Cliente
+    let clientRecord = null, clientId = null, clientName = client || 'Cliente';
     if (client && !['Cliente sem cadastro', '', 'Cliente'].includes(client)) {
       try {
         const result = await findOrCreateClient({
@@ -398,9 +410,7 @@ const addService = async (req, res) => {
         clientRecord = result.client;
         clientId = clientRecord.id;
         clientName = clientRecord.name;
-      } catch (error) {
-        console.error('❌ Erro ao buscar/criar cliente:', error);
-      }
+      } catch (error) { console.error('❌ Erro cliente:', error); }
     }
 
     const cashRegister = await CashRegister.findOne({
@@ -413,12 +423,10 @@ const addService = async (req, res) => {
       return res.status(404).json({ error: 'Nenhum caixa aberto encontrado' });
     }
 
-    // 🔥 Decremento atômico — evita race condition
+    // Decrementa estoque
     for (const { product, quantity } of productStockUpdates.values()) {
       await Product.decrement('stock', {
-        by: quantity,
-        where: { id: product.id },
-        transaction: t,
+        by: quantity, where: { id: product.id }, transaction: t,
       });
     }
 
@@ -431,7 +439,14 @@ const addService = async (req, res) => {
       barbeiroId: barber.id,
       service: aggregatedServiceNames, servico: aggregatedServiceNames,
       serviceId: aggregatedServiceIds,
-      price: finalPrice, commission: finalCommission, comissao: finalCommission,
+      // 🔥 NOVOS campos de desconto
+      originalPrice: subtotal,
+      discountType: discountType || null,
+      discountValue: Number(discountValue) || 0,
+      discountAmount,
+      price: finalPrice,
+      commission: finalCommission,
+      comissao: finalCommission,
       items: normalizedItems,
       paymentMethod: paymentMethod || 'dinheiro',
       formaPagamento: paymentMethod || 'dinheiro',
@@ -452,6 +467,8 @@ const addService = async (req, res) => {
 
     await t.commit();
 
+    console.log(`✅ Item adicionado: subtotal R$ ${subtotal.toFixed(2)} | desconto R$ ${discountAmount.toFixed(2)} | final R$ ${finalPrice.toFixed(2)} | comissão R$ ${finalCommission.toFixed(2)}`);
+
     res.status(201).json(newService);
   } catch (error) {
     await t.rollback();
@@ -461,7 +478,7 @@ const addService = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 REMOVE SERVICE — corrigido com increment atômico + compat Loja
+// REMOVE SERVICE
 // ============================================================
 const removeService = async (req, res) => {
   const t = await sequelize.transaction();
@@ -481,12 +498,9 @@ const removeService = async (req, res) => {
 
     const services = cashRegister.services || [];
     const itemToRemove = services.find((s) => s.id === serviceId);
-
-    // 🔥 Agrupa por produto pra incrementar 1x por produto
     const productStockRestores = new Map();
 
     if (itemToRemove && Array.isArray(itemToRemove.items)) {
-      // Formato novo (caixa)
       for (const it of itemToRemove.items) {
         if (it.type === 'product' && it.productId && it.quantity) {
           const current = productStockRestores.get(it.productId) || { productId: it.productId, quantity: 0 };
@@ -495,30 +509,19 @@ const removeService = async (req, res) => {
         }
       }
     } else if (itemToRemove && itemToRemove.type === 'product' && itemToRemove.productId) {
-      // 🔥 Formato antigo (Loja / saleController)
       const qty = itemToRemove.quantity || 1;
       const current = productStockRestores.get(itemToRemove.productId) || { productId: itemToRemove.productId, quantity: 0 };
       current.quantity += qty;
       productStockRestores.set(itemToRemove.productId, current);
     }
 
-    // Increment atômico
     for (const { productId, quantity } of productStockRestores.values()) {
-      await Product.increment('stock', {
-        by: quantity,
-        where: { id: productId },
-        transaction: t,
-      });
-      console.log(`📦 Estoque restaurado: ${productId} +${quantity}`);
+      await Product.increment('stock', { by: quantity, where: { id: productId }, transaction: t });
     }
 
-    // Remove revenue vinculado
     if (itemToRemove) {
       const rev = await Revenue.findOne({ where: { sourceItemId: String(itemToRemove.id) }, transaction: t });
-      if (rev) {
-        await rev.destroy({ transaction: t });
-        console.log(`🗑️ Revenue ${rev.id} removido junto com item`);
-      }
+      if (rev) await rev.destroy({ transaction: t });
     }
 
     const updatedServices = services.filter((s) => s.id !== serviceId);
@@ -541,7 +544,7 @@ const removeService = async (req, res) => {
 };
 
 // ============================================================
-// 🔥 UPDATE SERVICES — corrigido: suporta formato novo E legado (Loja)
+// UPDATE SERVICES
 // ============================================================
 const updateServices = async (req, res) => {
   const t = await sequelize.transaction();
@@ -565,7 +568,6 @@ const updateServices = async (req, res) => {
       const original = currentServices.find((s) => s.id === updated.id);
       if (!original) continue;
 
-      // 🔥 Formato NOVO (items[])
       const originalProducts = (original.items || []).filter((it) => it.type === 'product');
       const updatedProducts = (updated.items || []).filter((it) => it.type === 'product');
 
@@ -577,7 +579,6 @@ const updateServices = async (req, res) => {
           const diff = newQty - oldQty;
           if (diff !== 0) {
             if (diff > 0) {
-              // Vai consumir mais → checa estoque
               const product = await Product.findByPk(origP.productId, { transaction: t });
               if (product && product.stock < diff) {
                 await t.rollback();
@@ -585,22 +586,12 @@ const updateServices = async (req, res) => {
                   error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, adicional: ${diff}`,
                 });
               }
-              await Product.decrement('stock', {
-                by: diff,
-                where: { id: origP.productId },
-                transaction: t,
-              });
+              await Product.decrement('stock', { by: diff, where: { id: origP.productId }, transaction: t });
             } else {
-              // Vai devolver → increment
-              await Product.increment('stock', {
-                by: Math.abs(diff),
-                where: { id: origP.productId },
-                transaction: t,
-              });
+              await Product.increment('stock', { by: Math.abs(diff), where: { id: origP.productId }, transaction: t });
             }
           }
         }
-
         for (const newP of updatedProducts) {
           const existedBefore = originalProducts.find((p) => p.productId === newP.productId);
           if (!existedBefore) {
@@ -612,22 +603,16 @@ const updateServices = async (req, res) => {
                 error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}`,
               });
             }
-            await Product.decrement('stock', {
-              by: qty,
-              where: { id: newP.productId },
-              transaction: t,
-            });
+            await Product.decrement('stock', { by: qty, where: { id: newP.productId }, transaction: t });
           }
         }
       } else if (
         original.type === 'product' && original.productId &&
         updated.type === 'product' && updated.productId
       ) {
-        // 🔥 Formato LEGADO (Loja) — item raiz é um produto direto
         const oldQty = Number(original.quantity) || 0;
         const newQty = Number(updated.quantity) || 0;
         const diff = newQty - oldQty;
-
         if (diff !== 0) {
           if (diff > 0) {
             const product = await Product.findByPk(original.productId, { transaction: t });
@@ -637,19 +622,10 @@ const updateServices = async (req, res) => {
                 error: `Estoque insuficiente para "${product.name}". Disponível: ${product.stock}, adicional: ${diff}`,
               });
             }
-            await Product.decrement('stock', {
-              by: diff,
-              where: { id: original.productId },
-              transaction: t,
-            });
+            await Product.decrement('stock', { by: diff, where: { id: original.productId }, transaction: t });
           } else {
-            await Product.increment('stock', {
-              by: Math.abs(diff),
-              where: { id: original.productId },
-              transaction: t,
-            });
+            await Product.increment('stock', { by: Math.abs(diff), where: { id: original.productId }, transaction: t });
           }
-          console.log(`📦 Estoque ajustado (legado): ${original.productId} ${diff > 0 ? '-' : '+'}${Math.abs(diff)}`);
         }
       }
     }

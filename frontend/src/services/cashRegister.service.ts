@@ -41,18 +41,18 @@ export interface CashRegister {
 export interface AddServiceData {
   client: string;
   barberId: string;
-  // Formato novo
   items?: CashRegisterItem[];
-  // Formato antigo (compat)
   service?: string;
   serviceId?: string;
   price?: number;
   commission?: number;
-  // Comuns
   paymentMethod: string;
   date: string;
   time: string;
   phone?: string;
+  // 🔥 NOVOS
+  discountType?: 'percentage' | 'fixed' | null;
+  discountValue?: number;
 }
 
 export const cashRegisterService = {
