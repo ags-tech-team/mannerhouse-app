@@ -3,15 +3,20 @@ import { api } from '../api/client';
 export interface Client {
   id: string;
   name: string;
-  phone: string; // 🔥 REMOVER EMAIL
+  phone: string;
+  isMonthly?: boolean;
+  monthlyFee?: number;
   isActive: boolean;
+  isBlocked?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateClientData {
   name: string;
-  phone: string; // 🔥 REMOVER EMAIL
+  phone: string;
+  isMonthly?: boolean;
+  monthlyFee?: number;
 }
 
 export const clientService = {
@@ -41,6 +46,18 @@ export const clientService = {
 
   async search(query: string): Promise<Client[]> {
     const response = await api.get('/clients/search', { params: { q: query } });
+    return response.data;
+  },
+
+  // 🔥 NOVO
+  async block(id: string): Promise<{ message: string; client: Client }> {
+    const response = await api.patch(`/clients/${id}/block`);
+    return response.data;
+  },
+
+  // 🔥 NOVO
+  async unblock(id: string): Promise<{ message: string; client: Client }> {
+    const response = await api.patch(`/clients/${id}/unblock`);
     return response.data;
   },
 };

@@ -26,7 +26,6 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'monthly_fee',
     },
-    // 🔥 NOVO CAMPO: Vinculação com barbeiro
     barberId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -41,6 +40,12 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: true,
       field: 'is_active',
     },
+    // 🔥 NOVO: cliente bloqueado
+    isBlocked: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: 'is_blocked',
+    },
   }, {
     tableName: 'clients',
     underscored: true,
@@ -54,7 +59,6 @@ module.exports = (sequelize, DataTypes) => {
     ]
   });
 
-  // 🔥 ASSOCIAÇÃO
   Client.associate = function(models) {
     Client.belongsTo(models.Barber, { foreignKey: 'barberId', as: 'barber' });
   };

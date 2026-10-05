@@ -3,22 +3,8 @@ import { api } from '../../../api/client';
 import { useNumberInput } from '../../../hooks/useNumberInput';
 import { ClientAutocomplete } from '../../../components/common/ClientAutocomplete';
 import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  X, 
-  Check,
-  Users,
-  User,
-  Phone,
-  AlertCircle,
-  CheckCircle,
-  UserPlus,
-  CreditCard,
-  FileText,
-  ChevronLeft,
-  ChevronRight
+  Plus, Search, Edit, Trash2, X, Check, Users,
+  Phone, CheckCircle, CreditCard, Lock, Unlock
 } from 'lucide-react';
 
 interface Client {
@@ -28,6 +14,7 @@ interface Client {
   isMonthly: boolean;
   monthlyFee: number;
   isActive: boolean;
+  isBlocked?: boolean;
 }
 
 const AdminClientes = () => {
@@ -36,7 +23,8 @@ const AdminClientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  
+  const [filterBlocked, setFilterBlocked] = useState<'all' | 'blocked' | 'active'>('all');
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -72,19 +60,13 @@ const AdminClientes = () => {
       });
     } else {
       setEditingClient(null);
-      setFormData({
-        name: '',
-        phone: '',
-        isMonthly: false,
-        monthlyFee: 0,
-      });
+      setFormData({ name: '', phone: '', isMonthly: false, monthlyFee: 0 });
     }
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
       const payload = {
         name: formData.name,
@@ -99,7 +81,7 @@ const AdminClientes = () => {
       } else {
         await api.post('/clients', payload);
       }
-      
+
       await loadClients();
       setShowModal(false);
       resetForm();
@@ -109,12 +91,8 @@ const AdminClientes = () => {
     }
   };
 
-  // 🔥 FUNÇÃO PARA EDITAR CLIENTE
-  const handleEditClient = (client: Client) => {
-    handleOpenModal(client);
-  };
+  const handleEditClient = (client: Client) => handleOpenModal(client);
 
-  // 🔥 FUNÇÃO PARA DELETAR CLIENTE
   const handleDeleteClient = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este cliente?')) return;
     try {
@@ -122,32 +100,49 @@ const AdminClientes = () => {
       await loadClients();
       alert('✅ Cliente excluído com sucesso!');
     } catch (error: any) {
-      console.error('Erro ao excluir cliente:', error);
       alert(error.response?.data?.error || 'Erro ao excluir cliente');
+    }
+  };
+
+  // 🔥 BLOQUEAR/DESBLOQUEAR
+  const handleToggleBlock = async (client: Client) => {
+    const isBlocking = !client.isBlocked;
+    const msg = isBlocking
+      ? `Bloquear "${client.name}"? Ele NÃO conseguirá agendar pelo site.`
+      : `Desbloquear "${client.name}"? Ele poderá agendar pelo site novamente.`;
+
+    if (!confirm(msg)) return;
+
+    try {
+      if (isBlocking) {
+        await api.patch(`/clients/${client.id}/block`);
+      } else {
+        await api.patch(`/clients/${client.id}/unblock`);
+      }
+      await loadClients();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao alterar bloqueio');
     }
   };
 
   const resetForm = () => {
     setEditingClient(null);
-    setFormData({
-      name: '',
-      phone: '',
-      isMonthly: false,
-      monthlyFee: 0,
-    });
+    setFormData({ name: '', phone: '', isMonthly: false, monthlyFee: 0 });
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  const filteredClients = clients.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
-  );
+  const filteredClients = clients.filter((c) => {
+    const matchSearch =
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone.includes(searchTerm);
+    const matchFilter =
+      filterBlocked === 'all' ||
+      (filterBlocked === 'blocked' && c.isBlocked) ||
+      (filterBlocked === 'active' && !c.isBlocked);
+    return matchSearch && matchFilter;
+  });
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -161,17 +156,16 @@ const AdminClientes = () => {
           onClick={() => handleOpenModal()}
           className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-4 py-2 rounded-lg transition text-sm sm:text-base"
         >
-          <Plus size={18} />
-          Novo Cliente
+          <Plus size={18} /> Novo Cliente
         </button>
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Total de Clientes</p>
+              <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Total</p>
               <p className="text-lg sm:text-2xl font-bold text-[#060606]">{clients.length}</p>
             </div>
             <div className="p-2 sm:p-3 bg-blue-100 rounded-full">
@@ -183,7 +177,7 @@ const AdminClientes = () => {
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Clientes Ativos</p>
+              <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Ativos</p>
               <p className="text-lg sm:text-2xl font-bold text-green-600">
                 {clients.filter(c => c.isActive).length}
               </p>
@@ -207,26 +201,55 @@ const AdminClientes = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Busca */}
-      <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
-        <div className="flex items-center gap-2">
-          <Search size={16} className="sm:w-[18px] sm:h-[18px] text-[#7f7c7a] flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Buscar cliente por nome ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
-          />
-          <span className="text-xs sm:text-sm text-[#7f7c7a] whitespace-nowrap">
-            {filteredClients.length} clientes
-          </span>
+        {/* 🔥 NOVO: card de bloqueados */}
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Bloqueados</p>
+              <p className="text-lg sm:text-2xl font-bold text-red-600">
+                {clients.filter(c => c.isBlocked).length}
+              </p>
+            </div>
+            <div className="p-2 sm:p-3 bg-red-100 rounded-full">
+              <Lock size={16} className="sm:w-5 sm:h-5 text-red-600" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Lista de Clientes */}
+      {/* Busca + Filtro */}
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 flex items-center gap-2">
+            <Search size={16} className="text-[#7f7c7a] flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar cliente por nome ou telefone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 🔥 NOVO: filtro */}
+            <select
+              value={filterBlocked}
+              onChange={(e) => setFilterBlocked(e.target.value as any)}
+              className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm"
+            >
+              <option value="all">Todos</option>
+              <option value="active">Não bloqueados</option>
+              <option value="blocked">Bloqueados</option>
+            </select>
+            <span className="text-xs sm:text-sm text-[#7f7c7a] whitespace-nowrap">
+              {filteredClients.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista */}
       {loading ? (
         <div className="flex justify-center items-center py-8 sm:py-12">
           <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#9c7f64]"></div>
@@ -235,7 +258,6 @@ const AdminClientes = () => {
         <div className="bg-white rounded-lg shadow p-8 sm:p-12 text-center">
           <Users size={32} className="sm:w-12 sm:h-12 mx-auto text-[#7f7c7a] mb-4" />
           <h3 className="text-base sm:text-lg font-medium text-[#060606]">Nenhum cliente encontrado</h3>
-          <p className="text-sm text-[#7f7c7a] mt-2">Clique em "Novo Cliente" para começar</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -253,10 +275,12 @@ const AdminClientes = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
+                    <tr key={client.id} className={`hover:bg-gray-50 ${client.isBlocked ? 'bg-red-50/50' : ''}`}>
                       <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 sm:gap-2">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#9c7f64]/20 flex items-center justify-center text-[#9c7f64] font-bold text-[10px] sm:text-sm flex-shrink-0">
+                          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-[10px] sm:text-sm flex-shrink-0 ${
+                            client.isBlocked ? 'bg-red-200 text-red-800' : 'bg-[#9c7f64]/20 text-[#9c7f64]'
+                          }`}>
                             {client.name.charAt(0).toUpperCase()}
                           </div>
                           <span className="font-medium text-[#060606] text-xs sm:text-sm truncate max-w-[80px] sm:max-w-none">
@@ -268,11 +292,19 @@ const AdminClientes = () => {
                         {client.phone}
                       </td>
                       <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full ${
-                          client.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {client.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
+                        {client.isBlocked ? (
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-red-100 text-red-800 inline-flex items-center gap-1">
+                            <Lock size={10} /> Bloqueado
+                          </span>
+                        ) : client.isActive ? (
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-green-100 text-green-800">
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-xs rounded-full bg-gray-100 text-gray-800">
+                            Inativo
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         {client.isMonthly ? (
@@ -285,6 +317,22 @@ const AdminClientes = () => {
                       </td>
                       <td className="px-2 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1 sm:gap-2">
+                          {/* 🔥 NOVO: botão bloqueio */}
+                          <button
+                            onClick={() => handleToggleBlock(client)}
+                            className={`transition p-1 ${
+                              client.isBlocked
+                                ? 'text-green-600 hover:text-green-800'
+                                : 'text-orange-500 hover:text-orange-700'
+                            }`}
+                            title={client.isBlocked ? 'Desbloquear' : 'Bloquear'}
+                          >
+                            {client.isBlocked ? (
+                              <Unlock size={14} className="sm:w-[18px] sm:h-[18px]" />
+                            ) : (
+                              <Lock size={14} className="sm:w-[18px] sm:h-[18px]" />
+                            )}
+                          </button>
                           <button
                             onClick={() => handleEditClient(client)}
                             className="text-[#9c7f64] hover:text-[#544941] transition p-1"
@@ -310,7 +358,7 @@ const AdminClientes = () => {
         </div>
       )}
 
-      {/* Modal Novo/Editar Cliente */}
+      {/* Modal Novo/Editar Cliente (inalterado) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -319,10 +367,7 @@ const AdminClientes = () => {
                 {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
               </h2>
               <button
-                onClick={() => {
-                  setShowModal(false);
-                  resetForm();
-                }}
+                onClick={() => { setShowModal(false); resetForm(); }}
                 className="text-[#7f7c7a] hover:text-[#060606]"
               >
                 <X size={20} className="sm:w-6 sm:h-6" />
@@ -395,10 +440,7 @@ const AdminClientes = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
+                  onClick={() => { setShowModal(false); resetForm(); }}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base order-1 sm:order-2"
                 >
                   Cancelar

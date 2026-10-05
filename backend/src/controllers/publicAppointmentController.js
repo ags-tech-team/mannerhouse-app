@@ -13,9 +13,11 @@ const findServiceByIdentifier = async (identifier) => {
   return svc;
 };
 
-// ==========================================
-// GET BARBERS
-// ==========================================
+// ============================================================
+// 🔥 Delay artificial para não dar pistas de bloqueio
+// ============================================================
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const getBarbers = async (req, res) => {
   try {
     const barbers = await Barber.findAll({
@@ -29,9 +31,6 @@ const getBarbers = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET AVAILABLE TIMES
-// ==========================================
 const getAvailableTimes = async (req, res) => {
   try {
     const { barberId, date } = req.query;
@@ -62,7 +61,6 @@ const getAvailableTimes = async (req, res) => {
     const bookedTimes = appointments.map(app => app.time);
     let availableTimes = allTimes.filter(time => !bookedTimes.includes(time));
 
-    // 🔥 Filtrar horários passados
     const todayStr = dateHelper.getTodayLocal();
     if (date === todayStr) {
       const now = new Date();
@@ -82,7 +80,7 @@ const getAvailableTimes = async (req, res) => {
 };
 
 // ==========================================
-// CREATE APPOINTMENT (público)
+// CREATE APPOINTMENT (público) — 🔥 COM BLOQUEIO
 // ==========================================
 const createAppointment = async (req, res) => {
   try {
@@ -100,11 +98,22 @@ const createAppointment = async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Horário já ocupado' });
 
     let client = await Client.findOne({ where: { phone: clientPhone } });
+
+    // 🔥 VALIDAÇÃO DE BLOQUEIO — mensagem genérica
+    if (client && client.isBlocked) {
+      console.log(`🚫 Tentativa de agendamento de cliente bloqueado: ${client.name} (${client.phone})`);
+      await delay(600); // pequeno delay pra parecer erro de servidor
+      return res.status(400).json({
+        error: '⚠️ Ocorreu um erro ao processar seu agendamento. Entre em contato conosco para resolver esse problema.'
+      });
+    }
+
     if (!client) {
       client = await Client.create({
         name: clientName || 'Cliente sem nome',
         phone: clientPhone,
         isActive: true,
+        isBlocked: false,
       });
     }
 
@@ -137,7 +146,6 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    // 🔥 COMISSÃO respeitando isCommissioned
     let isCommissioned = true;
     let foundService = null;
     if (service) foundService = await findServiceByIdentifier(service);

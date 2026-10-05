@@ -6,6 +6,8 @@ const {
   update,
   remove,
   search,
+  blockClient,
+  unblockClient,
 } = require('../controllers/clientController');
 const { authMiddleware } = require('../middlewares/auth');
 
@@ -19,5 +21,9 @@ router.get('/:id', getById);
 router.post('/', create);
 router.put('/:id', update);
 router.delete('/:id', remove);
+
+// 🔥 NOVO: bloqueio/desbloqueio
+router.patch('/:id/block', blockClient);
+router.patch('/:id/unblock', unblockClient);
 
 module.exports = router;
