@@ -144,7 +144,7 @@ const BarberLoja = () => {
       if (item.product.hasCommission !== false) {
         const profit = (item.product.price - item.product.costPrice) * item.quantity;
         // 🔥 TAXA PADRÃO DE 50% (OU PEGAR DO BARBEIRO SELECIONADO)
-        const rate = barbers.find(b => b.id === selectedBarberId)?.productCommissionRate || 0.50;
+        const rate = 0.50;
         totalCommission += profit * rate;
       }
     }
@@ -403,12 +403,6 @@ const BarberLoja = () => {
                     R$ {getTotal().toFixed(2)}
                   </span>
                 </div>
-               <div className="flex justify-between text-sm text-[#7f7c7a]">
-                  <span>Comissão do barbeiro:</span>
-                  <span className="font-medium text-[#060606]">
-                    R$ {getTotalCommission().toFixed(2)}
-                  </span>
-                </div>
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   className="w-full py-2 bg-[#9c7f64] hover:bg-[#544941] text-white rounded-lg transition"
@@ -528,14 +522,6 @@ const BarberLoja = () => {
                     R$ {getTotal().toFixed(2)}
                   </span>
                 </div>
-                {selectedBarberId && (
-                  <div className="flex justify-between text-sm text-[#7f7c7a]">
-                    <span>Comissão do barbeiro (50% do lucro):</span>
-                    <span className="font-medium text-[#060606]">
-                      R$ {getTotalCommission().toFixed(2)}
-                    </span>
-                  </div>
-                )}
               </div>
 
               {/* Botões */}

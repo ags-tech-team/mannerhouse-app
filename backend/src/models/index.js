@@ -20,6 +20,7 @@ const Expense = require('./Expense')(sequelize, DataTypes);
 const Sale = require('./Sale')(sequelize, DataTypes);
 const MonthlyPayment = require('./MonthlyPayment')(sequelize, DataTypes);
 const Service = require('./Service')(sequelize, DataTypes);
+const Plan = require('./Plan')(sequelize, DataTypes); // 🔥 NOVO
 
 // 🔥 ===== DEFINIÇÃO DE ASSOCIAÇÕES =====
 
@@ -52,7 +53,7 @@ CashRegister.belongsTo(Barber, {
   as: 'closedByBarber',
 });
 User.hasMany(CashRegister, { foreignKey: 'userId', as: 'cashRegisters' });
-Barber.hasMany(CashRegister, { foreignKey: 'barberId', as: 'cashRegisters' }); // 🔥 ADICIONADO
+Barber.hasMany(CashRegister, { foreignKey: 'barberId', as: 'cashRegisters' });
 
 // Revenue -> CashRegister e Barber
 Revenue.belongsTo(CashRegister, { foreignKey: 'cashRegisterId', as: 'cashRegister' });
@@ -76,7 +77,8 @@ const models = {
   Revenue,
   Expense,
   MonthlyPayment,
-  Service
+  Service,
+  Plan, // 🔥 NOVO
 };
 
 // 🔥 FUNÇÃO PARA SYNC (SE NECESSÁRIO)

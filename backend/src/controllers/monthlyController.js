@@ -1,13 +1,15 @@
-const { Client, MonthlyPayment, Revenue, CashRegister, Barber } = require('../models');
+const { Client, MonthlyPayment, Revenue, CashRegister, Barber, Plan } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
-// 🔥 PLANOS FIXOS
-const PLANOS = {
-  inicial: { name: 'Inicial', price: 50, days: [1,2,3,4,5,6] },
-  basico:  { name: 'Básico',  price: 110, days: [1,2,3,4] },
-  plus:    { name: 'Plus',    price: 220, days: [1,2,3,4] },
-  premium: { name: 'Premium', price: 290, days: [1,2,3,4,5,6] },
+// 🔥 HELPER: carrega planos do banco
+const getPlanos = async () => {
+  const plans = await Plan.findAll({ order: [['displayOrder', 'ASC']] });
+  const map = {};
+  plans.forEach(p => {
+    map[p.id] = { name: p.name, price: p.price, days: p.days };
+  });
+  return map;
 };
 
 const getMonthlyClients = async (req, res) => {
@@ -51,12 +53,13 @@ const createMonthlyClient = async (req, res) => {
       if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // 🔥 Se veio planType, valida
+    // 🔥 Planos dinâmicos do banco
+    const PLANOS = await getPlanos();
+
     if (planType && !PLANOS[planType]) {
       return res.status(400).json({ error: 'Plano inválido' });
     }
 
-    // 🔥 Se veio planType e NÃO veio monthlyFee, usa o valor do plano
     const feeFinal = monthlyFee || (planType ? PLANOS[planType].price : 0);
 
     let client = await Client.findOne({ where: { phone: phone.trim() } });
@@ -113,11 +116,13 @@ const updateMonthlyStatus = async (req, res) => {
       if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
 
+    // 🔥 Planos dinâmicos
+    const PLANOS = await getPlanos();
+
     if (planType && planType !== null && !PLANOS[planType]) {
       return res.status(400).json({ error: 'Plano inválido' });
     }
 
-    // 🔥 Se trocou o plano e não mandou o fee, sincroniza com o valor do plano
     let feeFinal = monthlyFee;
     if (planType && PLANOS[planType] && monthlyFee === undefined) {
       feeFinal = PLANOS[planType].price;
@@ -164,8 +169,6 @@ const confirmMonthlyPayment = async (req, res) => {
         error: '⚠️ Cliente não está vinculado a um barbeiro! Defina um barbeiro para este cliente.'
       });
     }
-
-    const today = dateHelper.getTodayLocal();
 
     const existing = await MonthlyPayment.findOne({
       where: { clientId, month, paid: true }

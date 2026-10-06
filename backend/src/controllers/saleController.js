@@ -118,7 +118,6 @@ const create = async (req, res) => {
       });
     }
     
-    // BUSCAR OU CRIAR CLIENTE
     let client = null;
     if (clientId) {
       client = await Client.findByPk(clientId);
@@ -145,7 +144,7 @@ const create = async (req, res) => {
     let commission = 0;
     
     if (product.hasCommission !== false) {
-      commission = profit * barber.productCommissionRate;
+      commission = profit * 0.50;
     }
     
     console.log(`📊 Produto: ${product.name}`);

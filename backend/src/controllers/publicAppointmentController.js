@@ -1,4 +1,4 @@
-const { Appointment, Barber, Client, Service } = require('../models');
+const { Appointment, Barber, Client, Service, Plan } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
@@ -12,12 +12,14 @@ const findServiceByIdentifier = async (identifier) => {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 🔥 PLANOS (mesma definição do monthlyController)
-const PLANOS = {
-  inicial: { name: 'Inicial', price: 50, days: [1,2,3,4,5,6] },
-  basico:  { name: 'Básico',  price: 110, days: [1,2,3,4] },
-  plus:    { name: 'Plus',    price: 220, days: [1,2,3,4] },
-  premium: { name: 'Premium', price: 290, days: [1,2,3,4,5,6] },
+// 🔥 HELPER: carrega planos do banco
+const getPlanos = async () => {
+  const plans = await Plan.findAll({ order: [['displayOrder', 'ASC']] });
+  const map = {};
+  plans.forEach(p => {
+    map[p.id] = { name: p.name, price: p.price, days: p.days };
+  });
+  return map;
 };
 
 const getBarbers = async (req, res) => {
@@ -110,18 +112,22 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    // 🔥 VALIDAÇÃO DE PLANO (só se for mensalista com plano)
-    if (client && client.isMonthly && client.planType && PLANOS[client.planType]) {
+    // 🔥 VALIDAÇÃO DE PLANO — dinâmica (lê do banco)
+    if (client && client.isMonthly && client.planType) {
+      const PLANOS = await getPlanos();
       const plan = PLANOS[client.planType];
-      const dateObj = dateHelper.parseDateLocal(date);
-      const dayOfWeek = dateObj.getDay();
 
-      if (!plan.days.includes(dayOfWeek)) {
-        console.log(`🚫 Tentativa de agendamento em dia fora do plano: ${client.name} | ${plan.name} | ${date} (dia ${dayOfWeek})`);
-        await delay(600);
-        return res.status(400).json({
-          error: `⚠️ Ocorreu um erro ao processar seu agendamento. Seu plano ${plan.name} cobre apenas os dias ${plan.days.includes(5) ? 'de segunda a sábado' : 'de segunda a quinta'}. Entre em contato para fazer upgrade.`
-        });
+      if (plan && Array.isArray(plan.days)) {
+        const dateObj = dateHelper.parseDateLocal(date);
+        const dayOfWeek = dateObj.getDay();
+
+        if (!plan.days.includes(dayOfWeek)) {
+          console.log(`🚫 Tentativa de agendamento em dia fora do plano: ${client.name} | ${plan.name} | ${date} (dia ${dayOfWeek})`);
+          await delay(600);
+          return res.status(400).json({
+            error: `⚠️ Ocorreu um erro ao processar seu agendamento. Seu plano ${plan.name} cobre apenas os dias ${plan.days.includes(5) ? 'de segunda a sábado' : 'de segunda a quinta'}. Entre em contato para fazer upgrade.`
+          });
+        }
       }
     }
 

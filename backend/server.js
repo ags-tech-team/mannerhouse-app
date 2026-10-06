@@ -21,6 +21,7 @@ const monthlyRoutes = require('./src/routes/monthlyRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
 const mobileRoutes = require('./src/routes/mobileRoutes')
 const serviceRoutes = require('./src/routes/serviceRoutes');
+const planRoutes = require('./src/routes/planRoutes')
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/mobile', mobileRoutes)
 app.use('/api/services', serviceRoutes);
+app.use('/plans', planRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/api/health', (req, res) => {
