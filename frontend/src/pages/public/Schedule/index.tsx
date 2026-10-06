@@ -41,15 +41,14 @@ interface SelectedService {
 }
 
 // 🔥 Converte "YYYY-MM-DD" para "DD/MM/YYYY" no fuso LOCAL, sem passar por UTC
-// (evita bug de mostrar 22/09 quando o usuário escolheu 23/09)
 const formatDateBR = (dateStr: string): string => {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-').map(Number);
-  const date = new Date(year, month - 1, day); // mês é 0-indexed
+  const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('pt-BR');
 };
 
-// 🔥 NOVO: dias da semana que só estão disponíveis para planos Seg-Sáb (Sex=5, Sáb=6)
+// 🔥 Dias da semana que só estão disponíveis para planos Seg-Sáb (Sex=5, Sáb=6)
 const DIAS_SO_SEG_SAB = [5, 6];
 
 const PublicSchedule = () => {
@@ -75,7 +74,6 @@ const PublicSchedule = () => {
     clientPhone: '',
   });
 
-  // Estado para datas disponíveis
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const loadingDatesRef = useRef(false);
 
@@ -179,7 +177,6 @@ const PublicSchedule = () => {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const isAvailable = isDayAvailable(dateStr);
       const isUnavailable = !isAvailable && !isPast;
-      // 🔥 NOVO: marca se é sexta ou sábado (só planos Seg-Sáb)
       const dayOfWeek = date.getDay();
       const isSegSabOnly = DIAS_SO_SEG_SAB.includes(dayOfWeek);
       
@@ -191,7 +188,7 @@ const PublicSchedule = () => {
         allowed: isAvailable && !isPast,
         reason: isUnavailable ? 'Sem horários' : '',
         isUnavailable,
-        isSegSabOnly, // 🔥 NOVO
+        isSegSabOnly,
       });
     }
     
@@ -265,7 +262,6 @@ const PublicSchedule = () => {
       setSuccess(true);
     } catch (error: any) {
       console.error('Erro ao agendar:', error);
-      // 🔥 Mostrar a mensagem exata do backend
       const backendError = error.response?.data?.error || 'Erro ao realizar agendamento. Tente novamente.';
       setError(backendError);
     } finally {
@@ -415,9 +411,9 @@ const PublicSchedule = () => {
                       ))}
                       {days.map((day, index) => {
                         const isDisabled = !day || day.isPast || day.isUnavailable;
-                        // 🔥 NOVO: dia é só para planos Seg-Sáb?
                         const isSegSabOnly = day?.isSegSabOnly;
                         const isSelected = day && selectedDate === day.date;
+                        const isAvailable = day && !day.isPast && !day.isUnavailable;
 
                         return (
                           <button
@@ -425,7 +421,7 @@ const PublicSchedule = () => {
                             type="button"
                             disabled={isDisabled}
                             onClick={() => {
-                              if (day && !day.isPast && !day.isUnavailable) {
+                              if (isAvailable) {
                                 setSelectedDate(day.date);
                               }
                             }}
@@ -434,14 +430,13 @@ const PublicSchedule = () => {
                               day.isPast ? 'text-gray-300 cursor-not-allowed bg-gray-100' :
                               day.isUnavailable ? 'text-gray-400 cursor-not-allowed bg-gray-200 line-through' :
                               isSelected ? 'bg-[#9c7f64] text-white' :
-                              isSegSabOnly ? 'bg-amber-50 hover:bg-amber-100 border border-amber-200' :
-                              'hover:bg-[#9c7f64]/10'
+                              isSegSabOnly ? 'bg-amber-100 hover:bg-amber-200 border border-amber-300' :
+                              'bg-green-100 hover:bg-green-200 border border-green-300'
                             }`}
                           >
                             {day?.day}
-                            {/* 🔥 NOVO: badge Seg-Sáb nos dias de sexta/sábado */}
-                            {isSegSabOnly && !isSelected && !day?.isUnavailable && !day?.isPast && (
-                              <span className="block text-[6px] sm:text-[7px] text-amber-600 font-medium leading-none mt-0.5">
+                            {isSegSabOnly && !isSelected && isAvailable && (
+                              <span className="block text-[6px] sm:text-[7px] text-amber-700 font-medium leading-none mt-0.5">
                                 Seg-Sáb
                               </span>
                             )}
@@ -458,14 +453,13 @@ const PublicSchedule = () => {
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-green-100 border border-green-300 rounded inline-block"></span>
                         Disponível
                       </span>
+                      <span className="flex items-center gap-1 text-amber-700">
+                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-100 border border-amber-300 rounded inline-block"></span>
+                        Só planos Seg-Sáb
+                      </span>
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-200 border border-gray-300 rounded inline-block line-through"></span>
                         Sem horários
-                      </span>
-                      {/* 🔥 NOVO */}
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <span className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-50 border border-amber-200 rounded inline-block"></span>
-                        Só planos Seg-Sáb
                       </span>
                       <span className="flex items-center gap-1 text-gray-400">
                         <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-100 border border-gray-200 rounded inline-block"></span>
