@@ -49,7 +49,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/mobile', mobileRoutes)
 app.use('/api/services', serviceRoutes);
-app.use('api/plans', planRoutes);
+app.use('/api/plans', planRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/api/health', (req, res) => {
