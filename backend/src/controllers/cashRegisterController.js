@@ -77,7 +77,8 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
     closedByBarberId: closedByBarberId || caixa.barberId || null,
   });
 
-  let criados = 0, atualizados = 0;
+  let criados = 0;
+  let atualizados = 0;
 
   for (const service of servicosReais) {
     const barber = await Barber.findByPk(service.barberId);
@@ -98,6 +99,28 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       } catch (e) { clientName = service.client; }
     }
 
+    // 🔥 CALCULAR separação serviço vs produto
+    let serviceValue = 0;
+    let productValue = 0;
+
+    if (Array.isArray(service.items) && service.items.length > 0) {
+      // Formato novo (com items[])
+      for (const it of service.items) {
+        if (it.type === 'service') serviceValue += Number(it.price || 0);
+        else if (it.type === 'product') productValue += Number(it.price || 0);
+      }
+    } else {
+      // 🔥 Formato antigo/legado
+      // Se tem " x" no nome → produto. Senão → serviço
+      const nome = service.service || service.servico || '';
+      const isProduct = / x\d/.test(nome);
+      if (isProduct) {
+        productValue = Number(service.price || 0);
+      } else {
+        serviceValue = Number(service.price || 0);
+      }
+    }
+
     const sourceId = String(service.id);
     let revenue = await Revenue.findOne({ where: { sourceItemId: sourceId } });
 
@@ -107,6 +130,8 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       clientId,
       date: caixa.date,
       total: Number(service.price || 0),
+      serviceValue,     // 🔥 NOVO
+      productValue,     // 🔥 NOVO
       commissions: Number(service.commission || 0),
       servicesCount: 1,
       clientName,
@@ -117,8 +142,13 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       status: 'confirmed',
     };
 
-    if (revenue) { await revenue.update(payload); atualizados++; }
-    else { await Revenue.create(payload); criados++; }
+    if (revenue) {
+      await revenue.update(payload);
+      atualizados++;
+    } else {
+      await Revenue.create(payload);
+      criados++;
+    }
   }
 
   const pendingRevenues = await Revenue.findAll({
@@ -129,6 +159,7 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
   }
 
   console.log(`   🔒 Caixa ${caixa.date} fechado: ${criados} criados, ${atualizados} atualizados`);
+
   return { criados, atualizados, totalRevenue, totalCommissions, servicesCount };
 };
 

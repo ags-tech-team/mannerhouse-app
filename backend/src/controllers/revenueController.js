@@ -20,9 +20,8 @@ const getFinancialDashboard = async (req, res) => {
         endDate = queryEnd;
         console.log('📅 Usando datas enviadas:', startDate, 'até', endDate);
       } else {
-        // 🔥 Cálculo da semana: segunda a domingo
         const hojeObj = new Date(hoje + 'T00:00:00');
-        let dayOfWeek = hojeObj.getDay(); // 0=domingo
+        let dayOfWeek = hojeObj.getDay();
         const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
         const monday = new Date(hojeObj);
         monday.setDate(hojeObj.getDate() + diffToMonday);
@@ -36,7 +35,7 @@ const getFinancialDashboard = async (req, res) => {
         };
         startDate = formatDate(monday);
         endDate = formatDate(sunday);
-        console.log(`📅 Calculando semana (segunda a domingo): ${startDate} até ${endDate}`);
+        console.log(`📅 Calculando semana: ${startDate} até ${endDate}`);
       }
       monthString = startDate.substring(0, 7);
     } else {
@@ -46,10 +45,9 @@ const getFinancialDashboard = async (req, res) => {
       const lastDay = new Date(ano, mes, 0).getDate();
       endDate = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       monthString = `${ano}-${String(mes).padStart(2, '0')}`;
-      console.log('📊 Gerando dashboard MENSAL:', { startDate, endDate });
     }
     
-    // 🔥 Revenues (serviços)
+    // 🔥 Revenues
     const revenues = await Revenue.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] },
@@ -61,7 +59,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 Sales (produtos)
+    // 🔥 Sales
     const sales = await Sale.findAll({
       where: {
         date: { [Op.between]: [startDate, endDate] }
@@ -72,7 +70,7 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    // 🔥 CORREÇÃO: Mensalidades – filtrar por data de pagamento (paidAt)
+    // 🔥 Mensalidades
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         paid: true,
@@ -95,11 +93,37 @@ const getFinancialDashboard = async (req, res) => {
       ]
     });
     
-    console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades pagas no período`);
+    console.log(`📦 Encontrados: ${revenues.length} revenues, ${sales.length} vendas, ${monthlyPayments.length} mensalidades`);
     
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
-    const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
-    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+
+    // 🔥 NOVO: separa serviceValue / productValue (usa os campos novos se existirem)
+    let totalServiceRevenue = 0;
+    let totalProductFromRevenues = 0;
+
+    for (const r of serviceRevenues) {
+      const sv = Number(r.serviceValue || 0);
+      const pv = Number(r.productValue || 0);
+      const total = Number(r.total || 0);
+
+      if (sv > 0 || pv > 0) {
+        // 🔥 Usa os campos novos (correto)
+        totalServiceRevenue += sv;
+        totalProductFromRevenues += pv;
+      } else {
+        // 🔥 Fallback pra registros antigos (sem serviceValue/productValue)
+        // Detecta " x2" no nome = produto
+        const nome = r.service || '';
+        if (/ x\d/.test(nome)) {
+          totalProductFromRevenues += total;
+        } else {
+          totalServiceRevenue += total;
+        }
+      }
+    }
+
+    const totalProductFromSales = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalProductRevenue = totalProductFromRevenues + totalProductFromSales;
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
@@ -111,7 +135,7 @@ const getFinancialDashboard = async (req, res) => {
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
-    // 🔥 Inicializar com todos os barbeiros ativos (zerados)
+    // Comissões por barbeiro
     const activeBarbers = await Barber.findAll({ where: { isActive: true } });
     const commissionsByBarber = {};
     activeBarbers.forEach(barber => {
@@ -123,7 +147,6 @@ const getFinancialDashboard = async (req, res) => {
       };
     });
     
-    // 🔥 Adicionar comissões de serviços (revenues)
     serviceRevenues.forEach(r => {
       const barberId = r.barberId;
       if (barberId && commissionsByBarber[barberId]) {
@@ -131,7 +154,6 @@ const getFinancialDashboard = async (req, res) => {
       }
     });
     
-    // 🔥 Adicionar comissões de produtos (sales)
     sales.forEach(s => {
       const barberId = s.barberId || 'sem-barbeiro';
       if (barberId !== 'sem-barbeiro' && commissionsByBarber[barberId]) {
@@ -139,7 +161,6 @@ const getFinancialDashboard = async (req, res) => {
       }
     });
     
-    // 🔥 Adicionar comissões de mensalidades (monthlyPayments)
     monthlyPayments.forEach(mp => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
       if (barberId !== 'sem-barbeiro' && commissionsByBarber[barberId]) {
@@ -148,7 +169,6 @@ const getFinancialDashboard = async (req, res) => {
       }
     });
     
-    // 🔥 Montar a lista de barbeiros (SEM FILTRO – todos os ativos)
     const byBarber = Object.values(commissionsByBarber).map(b => ({
       name: b.name,
       serviceCommission: b.serviceCommission,
@@ -158,9 +178,7 @@ const getFinancialDashboard = async (req, res) => {
     }));
     
     const expenses = await Expense.findAll({
-      where: {
-        date: { [Op.between]: [startDate, endDate] }
-      }
+      where: { date: { [Op.between]: [startDate, endDate] } }
     });
     
     const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
@@ -173,14 +191,7 @@ const getFinancialDashboard = async (req, res) => {
     const netProfit = totalRevenue - totalExpenses - totalCommissions;
     
     const result = {
-      period: {
-        type: period || 'month',
-        startDate,
-        endDate,
-        month: mes,
-        year: ano,
-        monthString,
-      },
+      period: { type: period || 'month', startDate, endDate, month: mes, year: ano, monthString },
       summary: {
         totalRevenue,
         totalExpenses,
@@ -195,7 +206,7 @@ const getFinancialDashboard = async (req, res) => {
         service: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.serviceCommission, 0),
         product: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.productCommission, 0),
         monthly: Object.values(commissionsByBarber).reduce((sum, b) => sum + b.monthlyCommission, 0),
-        byBarber: byBarber, // ← SEM FILTRO (todos os ativos aparecem)
+        byBarber: byBarber,
       },
       expenses: {
         total: totalExpenses,
@@ -256,7 +267,6 @@ const getSummary = async (req, res) => {
         startDate = queryStart;
         endDate = queryEnd;
       } else {
-        // 🔥 Cálculo da semana: segunda a domingo
         const hojeObj = new Date(hoje + 'T00:00:00');
         let dayOfWeek = hojeObj.getDay();
         const diffToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek;
@@ -272,7 +282,6 @@ const getSummary = async (req, res) => {
         };
         startDate = formatDate(monday);
         endDate = formatDate(sunday);
-        console.log(`📅 Resumo semana (segunda a domingo): ${startDate} até ${endDate}`);
       }
     } else if (period === 'month') {
       startDate = hoje.substring(0, 7) + '-01';
@@ -282,26 +291,18 @@ const getSummary = async (req, res) => {
       endDate = hoje;
     }
     
-    // 🔥 CORREÇÃO: Filtrar mensalidades por data de pagamento (paidAt)
     const revenues = await Revenue.findAll({
-      where: {
-        date: { [Op.between]: [startDate, endDate] },
-        status: 'confirmed'
-      }
+      where: { date: { [Op.between]: [startDate, endDate] }, status: 'confirmed' }
     });
     
     const sales = await Sale.findAll({
-      where: {
-        date: { [Op.between]: [startDate, endDate] }
-      }
+      where: { date: { [Op.between]: [startDate, endDate] } }
     });
     
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         paid: true,
-        paidAt: {
-          [Op.between]: [new Date(startDate + 'T00:00:00'), new Date(endDate + 'T23:59:59.999')]
-        }
+        paidAt: { [Op.between]: [new Date(startDate + 'T00:00:00'), new Date(endDate + 'T23:59:59.999')] }
       }
     });
     
@@ -311,10 +312,7 @@ const getSummary = async (req, res) => {
     
     const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0) +
                              sales.reduce((sum, s) => sum + s.commission, 0) +
-                             monthlyPayments.reduce((sum, mp) => {
-                               const rate = 0.5;
-                               return sum + (mp.amount * rate);
-                             }, 0);
+                             monthlyPayments.reduce((sum, mp) => sum + (mp.amount * 0.5), 0);
     
     res.json({
       totalRevenue,
@@ -333,18 +331,11 @@ const getAll = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const where = {};
-    
-    if (startDate && endDate) {
-      where.date = {
-        [Op.between]: [startDate, endDate],
-      };
-    }
+    if (startDate && endDate) where.date = { [Op.between]: [startDate, endDate] };
     
     const revenues = await Revenue.findAll({
       where,
-      include: [
-        { model: CashRegister, as: 'cashRegister', required: false }
-      ],
+      include: [{ model: CashRegister, as: 'cashRegister', required: false }],
       order: [['date', 'DESC']],
     });
     
@@ -358,18 +349,11 @@ const getAll = async (req, res) => {
 const getByDate = async (req, res) => {
   try {
     const { date } = req.params;
-    
     const revenue = await Revenue.findOne({
       where: { date },
-      include: [
-        { model: CashRegister, as: 'cashRegister', required: false }
-      ],
+      include: [{ model: CashRegister, as: 'cashRegister', required: false }],
     });
-    
-    if (!revenue) {
-      return res.status(404).json({ error: 'Faturamento não encontrado' });
-    }
-    
+    if (!revenue) return res.status(404).json({ error: 'Faturamento não encontrado' });
     res.json(revenue);
   } catch (error) {
     console.error('Erro ao buscar faturamento:', error);
@@ -382,7 +366,6 @@ const getServices = async (req, res) => {
     const { startDate, endDate, month } = req.query;
     let start, end;
 
-    // 🔥 Calcular intervalo
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const [year, mes] = month.split('-').map(Number);
       start = `${year}-${String(mes).padStart(2, '0')}-01`;
@@ -399,20 +382,11 @@ const getServices = async (req, res) => {
       end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
 
-    console.log('📥 Buscando histórico (revenues com deduplicação):', { start, end });
-
-    // 🔥 Buscar revenues confirmados
     const revenues = await Revenue.findAll({
-      where: {
-        date: { [Op.between]: [start, end] },
-        status: 'confirmed'
-      },
+      where: { date: { [Op.between]: [start, end] }, status: 'confirmed' },
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
 
-    console.log(`📦 ${revenues.length} revenues brutos encontrados`);
-
-    // 🔥 DEDUPLICAÇÃO (mesma lógica de antes)
     const uniqueKeys = new Set();
     const uniqueRevenues = [];
 
@@ -424,9 +398,6 @@ const getServices = async (req, res) => {
       }
     });
 
-    console.log(`✅ ${uniqueRevenues.length} revenues únicos (${revenues.length - uniqueRevenues.length} duplicados removidos)`);
-
-    // Formatar para o frontend
     const formatted = uniqueRevenues.map(r => {
       const [year, month, day] = r.date.split('-').map(Number);
       const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
@@ -456,22 +427,10 @@ const getServices = async (req, res) => {
 const deleteRevenue = async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log('🗑️ Tentando excluir revenue:', id);
-
     const revenue = await Revenue.findByPk(id);
-    if (!revenue) {
-      console.log('❌ Revenue não encontrado');
-      return res.status(404).json({ error: 'Serviço não encontrado' });
-    }
-
+    if (!revenue) return res.status(404).json({ error: 'Serviço não encontrado' });
     await revenue.destroy();
-    console.log('✅ Revenue removido:', id);
-
-    res.json({
-      message: 'Serviço removido do histórico com sucesso!',
-      id,
-    });
+    res.json({ message: 'Serviço removido do histórico com sucesso!', id });
   } catch (error) {
     console.error('❌ Erro ao remover revenue:', error);
     res.status(500).json({ error: 'Erro ao remover serviço' });
@@ -482,39 +441,25 @@ const updateRevenue = async (req, res) => {
   try {
     const { id } = req.params;
     const { total, commissions, serviceDescription, service, clientName, barberName } = req.body;
-
-    console.log('✏️ Atualizando revenue:', id);
-
     const revenue = await Revenue.findByPk(id);
-    if (!revenue) {
-      return res.status(404).json({ error: 'Serviço não encontrado' });
-    }
+    if (!revenue) return res.status(404).json({ error: 'Serviço não encontrado' });
 
     const updateData = {};
-
     if (total !== undefined) {
       const parsed = parseFloat(total);
-      if (isNaN(parsed) || parsed < 0) {
-        return res.status(400).json({ error: 'Valor inválido' });
-      }
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Valor inválido' });
       updateData.total = parsed;
     }
-
     if (commissions !== undefined) {
       const parsed = parseFloat(commissions);
-      if (!isNaN(parsed) && parsed >= 0) {
-        updateData.commissions = parsed;
-      }
+      if (!isNaN(parsed) && parsed >= 0) updateData.commissions = parsed;
     }
-
     if (serviceDescription !== undefined) updateData.serviceDescription = serviceDescription;
     if (service !== undefined) updateData.service = service;
     if (clientName !== undefined) updateData.clientName = clientName;
     if (barberName !== undefined) updateData.barberName = barberName;
 
     await revenue.update(updateData);
-
-    console.log('✅ Revenue atualizado:', revenue.id);
     res.json(revenue);
   } catch (error) {
     console.error('❌ Erro ao atualizar revenue:', error);
@@ -523,7 +468,7 @@ const updateRevenue = async (req, res) => {
 };
 
 module.exports = {
-   getFinancialDashboard,
+  getFinancialDashboard,
   getSummary,
   getAll,
   getByDate,
