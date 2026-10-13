@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
 // ============================================================
-// GET BARBER COMMISSION — agora usa Revenue + MonthlyPayment
+// GET BARBER COMMISSION — usa Revenue + MonthlyPayment
 // ============================================================
 const getBarberCommission = async (req, res) => {
   try {
@@ -26,9 +26,7 @@ const getBarberCommission = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
 
-    // ============================================================
-    // 🔥 REVENUES (fonte real: caixa + agendamentos + vendas)
-    // ============================================================
+    // Revenues
     const revenues = await Revenue.findAll({
       where: {
         barberId: barber.id,
@@ -38,9 +36,7 @@ const getBarberCommission = async (req, res) => {
       order: [['date', 'DESC'], ['createdAt', 'DESC']]
     });
 
-    // ============================================================
-    // 🔥 MENSALIDADES pagas pelo barbeiro no período
-    // ============================================================
+    // Mensalidades
     const monthlyPayments = await MonthlyPayment.findAll({
       where: {
         paid: true,
@@ -60,25 +56,24 @@ const getBarberCommission = async (req, res) => {
       order: [['paidAt', 'DESC']]
     });
 
-    // ============================================================
-    // TOTAIS — Serviços
-    // ============================================================
+    // TOTAIS
     let totalServiceRevenue = 0;
     let serviceCommissionTotal = 0;
     let serviceCount = 0;
 
-    // ============================================================
-    // TOTAIS — Produtos
-    // ============================================================
     let totalProductRevenue = 0;
     let productCommissionTotal = 0;
     let productCount = 0;
 
-    // ============================================================
-    // Detalhes
-    // ============================================================
     const serviceDetails = [];
     const productDetails = [];
+
+    // Helper: detectar se o nome é de produto (fallback)
+    const isProductName = (nome) => {
+      const lower = (nome || '').toLowerCase();
+      if (/ x\d/.test(lower)) return true;
+      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo/.test(lower);
+    };
 
     for (const rev of revenues) {
       const sv = Number(rev.serviceValue || 0);
@@ -86,25 +81,24 @@ const getBarberCommission = async (req, res) => {
       const total = Number(rev.total || 0);
       const commission = Number(rev.commissions || 0);
 
-      // Fallback: se os campos não estiverem preenchidos, tenta deduzir
+      // Fallback se os campos não estiverem preenchidos
       let serviceVal = sv;
       let productVal = pv;
 
       if (sv === 0 && pv === 0 && total > 0) {
         const nome = rev.service || '';
-        if (/ x\d/.test(nome)) {
+        if (isProductName(nome)) {
           productVal = total;
         } else {
           serviceVal = total;
         }
       }
 
-      // Dividir a comissão proporcionalmente
+      // Dividir comissão proporcionalmente quando é misto
       let serviceCommission = 0;
       let productCommission = 0;
 
       if (serviceVal > 0 && productVal > 0 && total > 0) {
-        // Misto — divide proporcional
         serviceCommission = commission * (serviceVal / total);
         productCommission = commission * (productVal / total);
       } else if (serviceVal > 0) {
@@ -113,10 +107,7 @@ const getBarberCommission = async (req, res) => {
         productCommission = commission;
       }
 
-      const [y, m, d] = rev.date.split('-');
-      const dataBR = `${d}/${m}/${y}`;
-
-      // Adiciona nos totais de serviço
+      // 🔥 Manda a data CRUA (YYYY-MM-DD) — o frontend formata
       if (serviceVal > 0) {
         serviceCount++;
         totalServiceRevenue += serviceVal;
@@ -124,7 +115,7 @@ const getBarberCommission = async (req, res) => {
 
         serviceDetails.push({
           id: rev.id,
-          date: dataBR,
+          date: rev.date,  // 🔥 YYYY-MM-DD cru
           client: rev.clientName || 'Cliente',
           service: rev.serviceDescription || rev.service || 'Serviço',
           price: serviceVal,
@@ -132,7 +123,6 @@ const getBarberCommission = async (req, res) => {
         });
       }
 
-      // Adiciona nos totais de produto
       if (productVal > 0) {
         productCount++;
         totalProductRevenue += productVal;
@@ -140,7 +130,7 @@ const getBarberCommission = async (req, res) => {
 
         productDetails.push({
           id: rev.id,
-          date: dataBR,
+          date: rev.date,  // 🔥 YYYY-MM-DD cru
           product: rev.serviceDescription || rev.service || 'Produto',
           quantity: 1,
           salePrice: productVal,
@@ -151,15 +141,11 @@ const getBarberCommission = async (req, res) => {
       }
     }
 
-    // ============================================================
-    // TOTAIS — Mensalidades
-    // ============================================================
+    // Totais de mensalidades
     const totalMonthlyRevenue = monthlyPayments.reduce((s, mp) => s + Number(mp.amount || 0), 0);
     const monthlyCommissionTotal = totalMonthlyRevenue * (barber.serviceCommissionRate || 0.5);
 
-    // ============================================================
-    // Montar resultado
-    // ============================================================
+    // Resultado final
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     const totalCommission = serviceCommissionTotal + productCommissionTotal + monthlyCommissionTotal;
 
@@ -182,11 +168,9 @@ const getBarberCommission = async (req, res) => {
         totalProducts: productCount,
         totalProductRevenue: totalProductRevenue,
         productCommission: productCommissionTotal,
-        // 🔥 NOVOS (o frontend pode exibir se quiser)
         totalMonthly: monthlyPayments.length,
         totalMonthlyRevenue: totalMonthlyRevenue,
         monthlyCommission: monthlyCommissionTotal,
-        // Totais gerais
         totalRevenue: totalRevenue,
         totalCommission: totalCommission,
       },
@@ -204,7 +188,7 @@ const getBarberCommission = async (req, res) => {
 };
 
 // ============================================================
-// GET ALL COMMISSIONS — resumo de todos os barbeiros
+// GET ALL COMMISSIONS
 // ============================================================
 const getAllCommissions = async (req, res) => {
   try {
@@ -224,8 +208,13 @@ const getAllCommissions = async (req, res) => {
       attributes: ['id', 'name', 'email', 'phone', 'serviceCommissionRate', 'productCommissionRate']
     });
 
+    const isProductName = (nome) => {
+      const lower = (nome || '').toLowerCase();
+      if (/ x\d/.test(lower)) return true;
+      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo/.test(lower);
+    };
+
     const results = await Promise.all(barbers.map(async (barber) => {
-      // Revenues do barbeiro
       const revenues = await Revenue.findAll({
         where: {
           barberId: barber.id,
@@ -234,7 +223,6 @@ const getAllCommissions = async (req, res) => {
         }
       });
 
-      // Mensalidades do barbeiro
       const monthlyPayments = await MonthlyPayment.findAll({
         where: {
           paid: true,
@@ -251,7 +239,6 @@ const getAllCommissions = async (req, res) => {
         }]
       });
 
-      // Calcular totais
       let serviceRevenue = 0;
       let serviceCommission = 0;
       let serviceCount = 0;
@@ -270,7 +257,7 @@ const getAllCommissions = async (req, res) => {
 
         if (sv === 0 && pv === 0 && total > 0) {
           const nome = rev.service || '';
-          if (/ x\d/.test(nome)) pVal = total;
+          if (isProductName(nome)) pVal = total;
           else sVal = total;
         }
 
