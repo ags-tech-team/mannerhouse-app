@@ -1,4 +1,4 @@
-const { Barber, Revenue, MonthlyPayment, Client } = require('../models');
+const { Barber, Revenue, MonthlyPayment, Client, CashRegister } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
@@ -56,6 +56,58 @@ const getBarberCommission = async (req, res) => {
       order: [['paidAt', 'DESC']]
     });
 
+    // ============================================================
+    // 🔥 PRELOAD: carregar todos os CashRegisters referenciados
+    // pra extrair nomes reais dos items[] (serviço vs produto)
+    // ============================================================
+    const cashRegisterIds = [...new Set(
+      revenues
+        .filter(r => r.cashRegisterId)
+        .map(r => r.cashRegisterId)
+    )];
+
+    const cashRegistersMap = {};
+    if (cashRegisterIds.length > 0) {
+      const caixas = await CashRegister.findAll({
+        where: { id: cashRegisterIds }
+      });
+      caixas.forEach(c => { cashRegistersMap[c.id] = c; });
+    }
+
+    // 🔥 Helper: extrai o nome real de produtos do items[] do caixa
+    const getProductName = (rev) => {
+      const caixa = cashRegistersMap[rev.cashRegisterId];
+      if (!caixa) return rev.serviceDescription || rev.service || 'Produto';
+
+      const item = (caixa.services || []).find(s => String(s.id) === String(rev.sourceItemId));
+      if (!item || !Array.isArray(item.items)) {
+        return rev.serviceDescription || rev.service || 'Produto';
+      }
+
+      const products = item.items.filter(i => i.type === 'product');
+      if (products.length === 0) return rev.serviceDescription || rev.service || 'Produto';
+
+      return products
+        .map(p => (p.quantity && p.quantity > 1) ? `${p.name} x${p.quantity}` : p.name)
+        .join(' + ');
+    };
+
+    // 🔥 Helper: extrai o nome real de serviços do items[] do caixa
+    const getServiceName = (rev) => {
+      const caixa = cashRegistersMap[rev.cashRegisterId];
+      if (!caixa) return rev.serviceDescription || rev.service || 'Serviço';
+
+      const item = (caixa.services || []).find(s => String(s.id) === String(rev.sourceItemId));
+      if (!item || !Array.isArray(item.items)) {
+        return rev.serviceDescription || rev.service || 'Serviço';
+      }
+
+      const services = item.items.filter(i => i.type === 'service');
+      if (services.length === 0) return rev.serviceDescription || rev.service || 'Serviço';
+
+      return services.map(s => s.name).join(' + ');
+    };
+
     // TOTAIS
     let totalServiceRevenue = 0;
     let serviceCommissionTotal = 0;
@@ -68,7 +120,6 @@ const getBarberCommission = async (req, res) => {
     const serviceDetails = [];
     const productDetails = [];
 
-    // Helper: detectar se o nome é de produto (fallback)
     const isProductName = (nome) => {
       const lower = (nome || '').toLowerCase();
       if (/ x\d/.test(lower)) return true;
@@ -81,7 +132,6 @@ const getBarberCommission = async (req, res) => {
       const total = Number(rev.total || 0);
       const commission = Number(rev.commissions || 0);
 
-      // Fallback se os campos não estiverem preenchidos
       let serviceVal = sv;
       let productVal = pv;
 
@@ -107,7 +157,7 @@ const getBarberCommission = async (req, res) => {
         productCommission = commission;
       }
 
-      // Manda a data CRUA (YYYY-MM-DD) — o frontend formata
+      // 🔥 SERVIÇOS — usa nome real
       if (serviceVal > 0) {
         serviceCount++;
         totalServiceRevenue += serviceVal;
@@ -117,12 +167,13 @@ const getBarberCommission = async (req, res) => {
           id: rev.id,
           date: rev.date,
           client: rev.clientName || 'Cliente',
-          service: rev.serviceDescription || rev.service || 'Serviço',
+          service: getServiceName(rev),  // 🔥 nome real
           price: serviceVal,
           commission: serviceCommission,
         });
       }
 
+      // 🔥 PRODUTOS — usa nome real
       if (productVal > 0) {
         productCount++;
         totalProductRevenue += productVal;
@@ -131,7 +182,7 @@ const getBarberCommission = async (req, res) => {
         productDetails.push({
           id: rev.id,
           date: rev.date,
-          product: rev.serviceDescription || rev.service || 'Produto',
+          product: getProductName(rev),  // 🔥 nome real
           quantity: 1,
           salePrice: productVal,
           costPrice: 0,
@@ -141,13 +192,10 @@ const getBarberCommission = async (req, res) => {
       }
     }
 
-    // Totais de mensalidades
     const totalMonthlyRevenue = monthlyPayments.reduce((s, mp) => s + Number(mp.amount || 0), 0);
     const monthlyCommissionTotal = totalMonthlyRevenue * (barber.serviceCommissionRate || 0.5);
 
-    // 🔥 NOVO: Detalhes das mensalidades pra exibir na tabela
     const monthlyDetails = monthlyPayments.map(mp => {
-      // paidAt é uma data; formata YYYY-MM-DD
       let dateStr = mp.month + '-01';
       if (mp.paidAt) {
         const d = new Date(mp.paidAt);
@@ -167,7 +215,6 @@ const getBarberCommission = async (req, res) => {
       };
     });
 
-    // Resultado final
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     const totalCommission = serviceCommissionTotal + productCommissionTotal + monthlyCommissionTotal;
 
@@ -199,7 +246,7 @@ const getBarberCommission = async (req, res) => {
       details: {
         services: serviceDetails,
         products: productDetails,
-        monthly: monthlyDetails, // 🔥 NOVO
+        monthly: monthlyDetails,
       }
     };
 
