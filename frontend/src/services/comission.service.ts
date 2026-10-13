@@ -38,6 +38,11 @@ export interface BarberCommissionDetail {
     totalProducts: number;
     totalProductRevenue: number;
     productCommission: number;
+    // 🔥 NOVOS
+    totalMonthly?: number;
+    totalMonthlyRevenue?: number;
+    monthlyCommission?: number;
+    // Totais
     totalRevenue: number;
     totalCommission: number;
   };
