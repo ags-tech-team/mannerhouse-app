@@ -38,11 +38,9 @@ export interface BarberCommissionDetail {
     totalProducts: number;
     totalProductRevenue: number;
     productCommission: number;
-    // 🔥 NOVOS
     totalMonthly?: number;
     totalMonthlyRevenue?: number;
     monthlyCommission?: number;
-    // Totais
     totalRevenue: number;
     totalCommission: number;
   };
@@ -63,6 +61,15 @@ export interface BarberCommissionDetail {
       salePrice: number;
       costPrice: number;
       profit: number;
+      commission: number;
+    }>;
+    // 🔥 NOVO
+    monthly?: Array<{
+      id: string;
+      date: string;
+      client: string;
+      month: string;
+      amount: number;
       commission: number;
     }>;
   };

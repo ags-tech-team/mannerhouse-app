@@ -178,18 +178,23 @@ const AdminBarbers = () => {
     }
   };
 
-  // 🔥 formatDate corrigido — aceita YYYY-MM-DD e DD/MM/YYYY
+  // 🔥 formatDate — aceita YYYY-MM-DD e DD/MM/YYYY
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
-    // Se já vem em DD/MM/YYYY, devolve como está
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr;
-    // Se vem em YYYY-MM-DD, converte sem usar new Date()
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       const [y, m, d] = dateStr.split('-');
       return `${d}/${m}/${y}`;
     }
-    // Fallback
     return dateStr;
+  };
+
+  // 🔥 formatMonthRef — converte "2026-10" em "Outubro/2026"
+  const formatMonthRef = (monthStr: string) => {
+    if (!monthStr) return '';
+    const [y, m] = monthStr.split('-');
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return `${months[Number(m) - 1]}/${y}`;
   };
 
   const formatMonth = (month: string) => {
@@ -496,9 +501,56 @@ const AdminBarbers = () => {
                     </div>
                   )}
 
-                  {barberDetail.details.services.length === 0 && barberDetail.details.products.length === 0 && (
+                  {/* 🔥 NOVO: Mensalidades */}
+                  {barberDetail.details.monthly && barberDetail.details.monthly.length > 0 && (
+                    <div>
+                      <h3 className="text-base sm:text-lg font-semibold text-[#060606] mb-2 sm:mb-3 flex items-center gap-2">
+                        <Calendar size={16} className="sm:w-[18px] sm:h-[18px] text-[#9c7f64]" />
+                        Mensalidades ({barberDetail.details.monthly.length})
+                      </h3>
+                      <div className="overflow-x-auto border rounded-lg">
+                        <div className="min-w-[500px]">
+                          <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
+                            <thead className="bg-[#f5f0e8]">
+                              <tr>
+                                <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Data Pgto</th>
+                                <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Cliente</th>
+                                <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Mês Ref.</th>
+                                <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Valor</th>
+                                <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {barberDetail.details.monthly.map((m: any) => (
+                                <tr key={m.id} className="hover:bg-gray-50">
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">{formatDate(m.date)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap truncate max-w-[60px] sm:max-w-none">{m.client}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">{formatMonthRef(m.month)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right font-medium">R$ {m.amount.toFixed(2)}</td>
+                                  <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600 font-medium">R$ {m.commission.toFixed(2)}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-[#f5f0e8] font-bold">
+                                <td colSpan={3} className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">Total</td>
+                                <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right">
+                                  R$ {(barberDetail.summary.totalMonthlyRevenue || 0).toFixed(2)}
+                                </td>
+                                <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-right text-green-600">
+                                  R$ {(barberDetail.summary.monthlyCommission || 0).toFixed(2)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {barberDetail.details.services.length === 0 &&
+                   barberDetail.details.products.length === 0 &&
+                   (!barberDetail.details.monthly || barberDetail.details.monthly.length === 0) && (
                     <div className="text-center py-8 sm:py-12 text-[#7f7c7a] bg-gray-50 rounded-lg">
-                      <p className="text-base sm:text-lg">Nenhum serviço ou venda registrado neste período</p>
+                      <p className="text-base sm:text-lg">Nenhum serviço, produto ou mensalidade registrado neste período</p>
                       <p className="text-xs sm:text-sm mt-1">{formatMonth(selectedMonth)}</p>
                     </div>
                   )}

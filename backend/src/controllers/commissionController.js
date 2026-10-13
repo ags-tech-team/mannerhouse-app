@@ -72,7 +72,7 @@ const getBarberCommission = async (req, res) => {
     const isProductName = (nome) => {
       const lower = (nome || '').toLowerCase();
       if (/ x\d/.test(lower)) return true;
-      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo/.test(lower);
+      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo|sol\b/.test(lower);
     };
 
     for (const rev of revenues) {
@@ -107,7 +107,7 @@ const getBarberCommission = async (req, res) => {
         productCommission = commission;
       }
 
-      // 🔥 Manda a data CRUA (YYYY-MM-DD) — o frontend formata
+      // Manda a data CRUA (YYYY-MM-DD) — o frontend formata
       if (serviceVal > 0) {
         serviceCount++;
         totalServiceRevenue += serviceVal;
@@ -115,7 +115,7 @@ const getBarberCommission = async (req, res) => {
 
         serviceDetails.push({
           id: rev.id,
-          date: rev.date,  // 🔥 YYYY-MM-DD cru
+          date: rev.date,
           client: rev.clientName || 'Cliente',
           service: rev.serviceDescription || rev.service || 'Serviço',
           price: serviceVal,
@@ -130,7 +130,7 @@ const getBarberCommission = async (req, res) => {
 
         productDetails.push({
           id: rev.id,
-          date: rev.date,  // 🔥 YYYY-MM-DD cru
+          date: rev.date,
           product: rev.serviceDescription || rev.service || 'Produto',
           quantity: 1,
           salePrice: productVal,
@@ -144,6 +144,28 @@ const getBarberCommission = async (req, res) => {
     // Totais de mensalidades
     const totalMonthlyRevenue = monthlyPayments.reduce((s, mp) => s + Number(mp.amount || 0), 0);
     const monthlyCommissionTotal = totalMonthlyRevenue * (barber.serviceCommissionRate || 0.5);
+
+    // 🔥 NOVO: Detalhes das mensalidades pra exibir na tabela
+    const monthlyDetails = monthlyPayments.map(mp => {
+      // paidAt é uma data; formata YYYY-MM-DD
+      let dateStr = mp.month + '-01';
+      if (mp.paidAt) {
+        const d = new Date(mp.paidAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateStr = `${y}-${m}-${day}`;
+      }
+
+      return {
+        id: mp.id,
+        date: dateStr,
+        client: mp.client?.name || 'Cliente',
+        month: mp.month,
+        amount: Number(mp.amount || 0),
+        commission: Number(mp.amount || 0) * (barber.serviceCommissionRate || 0.5),
+      };
+    });
 
     // Resultado final
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
@@ -177,6 +199,7 @@ const getBarberCommission = async (req, res) => {
       details: {
         services: serviceDetails,
         products: productDetails,
+        monthly: monthlyDetails, // 🔥 NOVO
       }
     };
 
@@ -211,7 +234,7 @@ const getAllCommissions = async (req, res) => {
     const isProductName = (nome) => {
       const lower = (nome || '').toLowerCase();
       if (/ x\d/.test(lower)) return true;
-      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo/.test(lower);
+      return /cerveja|coca|heineken|monster|red bull|budweiser|corona|água|agua|balm|pomada|shampoo|leavin|pente|óleo|oleo|sol\b/.test(lower);
     };
 
     const results = await Promise.all(barbers.map(async (barber) => {
