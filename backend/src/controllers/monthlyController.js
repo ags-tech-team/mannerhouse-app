@@ -12,6 +12,9 @@ const getPlanos = async () => {
   return map;
 };
 
+// ============================================================
+// 🔥 GET MONTHLY CLIENTS — CORRIGIDO
+// ============================================================
 const getMonthlyClients = async (req, res) => {
   try {
     const { month } = req.query;
@@ -23,10 +26,11 @@ const getMonthlyClients = async (req, res) => {
         {
           model: MonthlyPayment,
           as: 'MonthlyPayments',
-          where: { month: currentMonth },
           required: false,
-          order: [['month', 'DESC']],
+          // 🔥 CORRIGIDO: traz os últimos 12 pagamentos (qualquer mês)
+          // O frontend filtra pelo mês quando precisa (hasPaidThisMonth)
           limit: 12,
+          order: [['paidAt', 'DESC']],
         },
         {
           model: Barber,
@@ -44,6 +48,9 @@ const getMonthlyClients = async (req, res) => {
   }
 };
 
+// ============================================================
+// CREATE MONTHLY CLIENT
+// ============================================================
 const createMonthlyClient = async (req, res) => {
   try {
     const { name, phone, monthlyFee, barberId, paymentMethod, notes, planType } = req.body;
@@ -103,6 +110,9 @@ const createMonthlyClient = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE MONTHLY STATUS
+// ============================================================
 const updateMonthlyStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -151,6 +161,9 @@ const updateMonthlyStatus = async (req, res) => {
   }
 };
 
+// ============================================================
+// CONFIRM MONTHLY PAYMENT
+// ============================================================
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -204,6 +217,9 @@ const confirmMonthlyPayment = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET PAYMENT HISTORY
+// ============================================================
 const getPaymentHistory = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -228,6 +244,9 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET MONTHLY PAYMENTS
+// ============================================================
 const getMonthlyPayments = async (req, res) => {
   try {
     const { month } = req.query;
@@ -270,6 +289,9 @@ const getMonthlyPayments = async (req, res) => {
   }
 };
 
+// ============================================================
+// REMOVE PAYMENT
+// ============================================================
 const removePayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -309,6 +331,9 @@ const removePayment = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE PAYMENT
+// ============================================================
 const updatePayment = async (req, res) => {
   try {
     const { id } = req.params;
