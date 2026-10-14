@@ -56,18 +56,17 @@ const AdminMensalistas = () => {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]); // 🔥 NOVO: planos dinâmicos
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
-  const [showEditPlansModal, setShowEditPlansModal] = useState(false); // 🔥 NOVO
+  const [showEditPlansModal, setShowEditPlansModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [editingBarberId, setEditingBarberId] = useState('');
   const [editingPlanType, setEditingPlanType] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [clientToRemove, setClientToRemove] = useState<Client | null>(null);
 
-  // 🔥 Estado dos planos pra edição
   const [editingPlans, setEditingPlans] = useState<Record<string, number>>({});
   const [savingPlans, setSavingPlans] = useState(false);
 
@@ -173,6 +172,16 @@ const AdminMensalistas = () => {
     }
     const [year, month] = payment.month.split('-');
     return new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  };
+
+  // 🔥 NOVO: formato curto pra caber na coluna
+  const formatPaymentDateShort = (payment: MonthlyPayment | null) => {
+    if (!payment) return 'Nunca';
+    const d = payment.paidAt ? new Date(payment.paidAt) : new Date(parseInt(payment.month.split('-')[0]), parseInt(payment.month.split('-')[1]) - 1, 1);
+    const day = String(d.getDate()).padStart(2, '0');
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const y = d.getFullYear();
+    return `${day}/${m}/${y}`;
   };
 
   const handleSelectClient = (client: Client) => {
@@ -297,7 +306,6 @@ const AdminMensalistas = () => {
     }
   };
 
-  // 🔥 NOVO: abrir modal de edição de planos
   const handleOpenEditPlans = () => {
     const editing: Record<string, number> = {};
     plans.forEach(p => { editing[p.id] = p.price; });
@@ -305,7 +313,6 @@ const AdminMensalistas = () => {
     setShowEditPlansModal(true);
   };
 
-  // 🔥 NOVO: salvar planos
   const handleSavePlans = async () => {
     setSavingPlans(true);
     try {
@@ -369,7 +376,6 @@ const AdminMensalistas = () => {
           <p className="text-sm sm:text-base text-[#7f7c7a]">Gerencie clientes com assinatura mensal</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
-          {/* 🔥 NOVO: botão editar planos */}
           <button
             onClick={handleOpenEditPlans}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-[#9c7f64] text-[#9c7f64] hover:bg-[#9c7f64]/10 px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
@@ -489,6 +495,8 @@ const AdminMensalistas = () => {
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Plano</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Barbeiro</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mensalidade</th>
+                  {/* 🔥 NOVO: coluna Último Pgto */}
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Último Pgto</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mês Atual</th>
                   <th className="px-2 sm:px-3 py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Ações</th>
                 </tr>
@@ -496,6 +504,7 @@ const AdminMensalistas = () => {
               <tbody className="divide-y divide-gray-200">
                 {filteredClients.map((client) => {
                   const paid = hasPaidThisMonth(client);
+                  const lastPayment = getLastPayment(client);
 
                   return (
                     <tr key={client.id} className="hover:bg-gray-50">
@@ -530,6 +539,16 @@ const AdminMensalistas = () => {
                       </td>
                       <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
                         <span className="font-medium text-[#9c7f64] text-[10px] sm:text-sm">{formatCurrency(client.monthlyFee || 0)}</span>
+                      </td>
+                      {/* 🔥 NOVO: célula do último pagamento */}
+                      <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
+                        {lastPayment ? (
+                          <span className="text-[10px] sm:text-sm text-[#060606]">
+                            {formatPaymentDateShort(lastPayment)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] sm:text-sm text-[#7f7c7a]">Nunca</span>
+                        )}
                       </td>
                       <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
                         {paid ? (
@@ -568,7 +587,7 @@ const AdminMensalistas = () => {
 
       {/* ==================== MODAIS ==================== */}
 
-      {/* 🔥 NOVO: Modal Editar Valores dos Planos */}
+      {/* Modal Editar Valores dos Planos */}
       {showEditPlansModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -640,7 +659,7 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO PARA REMOVER */}
+      {/* Modal Confirmar Remoção */}
       {showConfirmModal && clientToRemove && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
@@ -673,7 +692,7 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL NOVA ASSINATURA */}
+      {/* Modal Nova Assinatura */}
       {showNewClientModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -833,7 +852,7 @@ const AdminMensalistas = () => {
         </div>
       )}
 
-      {/* MODAL EDITAR MENSALISTA */}
+      {/* Modal Editar Mensalista */}
       {showModal && selectedClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">

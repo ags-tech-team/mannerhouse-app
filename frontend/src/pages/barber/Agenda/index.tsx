@@ -62,14 +62,11 @@ const BarberAgenda = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   
-  // MÚLTIPLOS SERVIÇOS
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
-  // AUTO-COMPLETE
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   
-  // 🔥 VALOR PERSONALIZADO
   const valorPersonalizado = useNumberInput();
   
   const [formData, setFormData] = useState({
@@ -80,7 +77,6 @@ const BarberAgenda = () => {
   
   const price = useNumberInput();
 
-  // Status options
   const statusOptions = [
     { value: 'pending', label: '⏳ Pendente', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'confirmed', label: '✅ Confirmado', color: 'bg-blue-100 text-blue-800' },
@@ -98,7 +94,6 @@ const BarberAgenda = () => {
     }));
   };
 
-  // HANDLE BARBER CHANGE
   const handleBarberChange = (barberId: string) => {
     setSelectedBarberId(barberId);
     localStorage.setItem('@mannerhouse:selectedBarber', barberId);
@@ -109,27 +104,25 @@ const BarberAgenda = () => {
   };
 
   const loadBarbers = useCallback(async () => {
-  try {
-    const response = await api.get('/barbers');
-    // 🔥 FILTRAR O LUIZ
-    const activeBarbers = response.data.filter((b: Barber) => 
-      b.isActive && b.name !== 'Luiz '
-    );
-    setBarbers(activeBarbers);
-    const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
-    if (savedBarberId && activeBarbers.some(b => b.id === savedBarberId)) {
-      setSelectedBarberId(savedBarberId);
-    } else if (activeBarbers.length > 0) {
-      setSelectedBarberId(activeBarbers[0].id);
-      localStorage.setItem('@mannerhouse:selectedBarber', activeBarbers[0].id);
-      localStorage.setItem('@mannerhouse:selectedBarberName', activeBarbers[0].name);
+    try {
+      const response = await api.get('/barbers');
+      const activeBarbers = response.data.filter((b: Barber) => 
+        b.isActive && b.name !== 'Luiz '
+      );
+      setBarbers(activeBarbers);
+      const savedBarberId = localStorage.getItem('@mannerhouse:selectedBarber');
+      if (savedBarberId && activeBarbers.some(b => b.id === savedBarberId)) {
+        setSelectedBarberId(savedBarberId);
+      } else if (activeBarbers.length > 0) {
+        setSelectedBarberId(activeBarbers[0].id);
+        localStorage.setItem('@mannerhouse:selectedBarber', activeBarbers[0].id);
+        localStorage.setItem('@mannerhouse:selectedBarberName', activeBarbers[0].name);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar barbeiros:', error);
     }
-  } catch (error) {
-    console.error('Erro ao carregar barbeiros:', error);
-  }
-}, []);
+  }, []);
 
-  // Carregar agendamentos
   const loadAppointments = useCallback(async () => {
     if (!selectedBarberId) return;
     setLoading(true);
@@ -147,7 +140,6 @@ const BarberAgenda = () => {
     }
   }, [selectedBarberId, currentDate]);
 
-  // Carregar horários disponíveis
   const loadAvailableTimes = useCallback(async () => {
     if (!selectedBarberId || !selectedDate) return;
     setLoadingTimes(true);
@@ -172,7 +164,6 @@ const BarberAgenda = () => {
     return selectedServices.map(s => s.service.name).join(' + ');
   };
 
-  // Carregar dados iniciais
   useEffect(() => {
     loadBarbers();
   }, [loadBarbers]);
@@ -189,7 +180,6 @@ const BarberAgenda = () => {
     }
   }, [selectedDate, loadAvailableTimes]);
 
-  // Navegação do calendário
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);
     newDate.setMonth(currentDate.getMonth() + delta);
@@ -236,14 +226,10 @@ const BarberAgenda = () => {
       return;
     }
 
-    // 🔥 VERIFICAR SE TEM MENSALISTA
     const hasMensalista = selectedServices.some(s => s.service.id === 'mensalista');
-    
-    // 🔥 USAR VALOR PERSONALIZADO SE PREENCHIDO
     const valorDigitado = valorPersonalizado.getNumberValue();
     let total = valorDigitado > 0 ? valorDigitado : getTotalServices();
     
-    // 🔥 SE TIVER MENSALISTA, TOTAL = 0
     if (hasMensalista) {
       total = 0;
     }
@@ -261,18 +247,7 @@ const BarberAgenda = () => {
 
       const barber = barbers.find(b => b.id === selectedBarberId);
       const taxaComissao = barber?.serviceCommissionRate || 0.50;
-      
-      // 🔥 COMISSÃO SÓ É CALCULADA SE NÃO TIVER MENSALISTA
       const comissao = hasMensalista ? 0 : (total * taxaComissao);
-
-      console.log('📤 CRIANDO AGENDAMENTO:');
-      console.log('  client:', clientName.trim());
-      console.log('  phone:', formData.clientPhone.trim());
-      console.log('  barberId:', selectedBarberId);
-      console.log('  service:', serviceNames);
-      console.log('  price:', total);
-      console.log('  hasMensalista:', hasMensalista);
-      console.log('  commission:', comissao);
 
       await appointmentService.create({
         barberId: selectedBarberId,
@@ -306,19 +281,16 @@ const BarberAgenda = () => {
 
   const openDetailModal = async (appointment: Appointment) => {
     try {
-      // 🔥 BUSCAR OS DADOS COMPLETOS DO AGENDAMENTO
       const fullAppointment = await appointmentService.getById(appointment.id);
       setSelectedAppointment(fullAppointment);
       setShowDetailModal(true);
     } catch (error) {
       console.error('Erro ao carregar detalhes do agendamento:', error);
-      // Fallback: usar os dados que já temos
       setSelectedAppointment(appointment);
       setShowDetailModal(true);
     }
   };
 
-  // ATUALIZAR STATUS
   const handleUpdateStatus = async (status: string) => {
     if (!selectedAppointment) return;
     try {
@@ -334,7 +306,6 @@ const BarberAgenda = () => {
     }
   };
 
-  // DELETAR AGENDAMENTO
   const handleDeleteAppointment = async () => {
     if (!selectedAppointment) return;
     if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
@@ -349,7 +320,6 @@ const BarberAgenda = () => {
     }
   };
 
-  // Gerar dias do mês
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -476,7 +446,6 @@ const BarberAgenda = () => {
                     )}
                   </div>
                   
-                  {/* 🔥 PARTE CORRIGIDA: LISTA COM SCROLL */}
                   <div className="mt-0.5 sm:mt-1 space-y-0.5 max-h-[50px] sm:max-h-[70px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#9c7f64] scrollbar-track-gray-100">
                     {day.appointments.map((app) => {
                       const isCompleted = app.status === 'completed';
@@ -500,7 +469,6 @@ const BarberAgenda = () => {
                       );
                     })}
                   </div>
-                  {/* FIM DA PARTE CORRIGIDA */}
                 </>
               )}
             </div>
@@ -514,7 +482,7 @@ const BarberAgenda = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#060606]">📋 Detalhes do Agendamento</h2>
-              <button onClick={closeModal} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
+              <button onClick={() => setShowDetailModal(false)} className="text-[#7f7c7a] hover:text-[#060606]"><X size={24} /></button>
             </div>
             <div className="space-y-4">
               <div className="bg-[#f5f0e8] p-4 rounded-lg">
@@ -530,7 +498,7 @@ const BarberAgenda = () => {
                 <div><p className="text-sm text-[#7f7c7a]">✂️ Serviço</p><p className="font-medium">{selectedAppointment.serviceDescription || 'Serviço'}</p></div>
                 <div><p className="text-sm text-[#7f7c7a]">💰 Valor</p><p className="font-medium text-[#9c7f64]">R$ {selectedAppointment.price?.toFixed(2) || '0,00'}</p></div>
               </div>
-              <div><p className="text-sm text-[#7f7c7a]">💵 Comissão</p><p className="font-medium text-green-600">R$ {selectedAppointment.commission?.toFixed(2) || '0,00'}</p></div>
+              {/* 🔥 REMOVIDO: linha de comissão */}
               {selectedAppointment.serviceDescription && <div><p className="text-sm text-[#7f7c7a]">📝 Descrição</p><p className="text-sm text-[#060606]">{selectedAppointment.serviceDescription}</p></div>}
               {selectedAppointment.notes && <div><p className="text-sm text-[#7f7c7a]">📌 Observações</p><p className="text-sm text-[#060606]">{selectedAppointment.notes}</p></div>}
               <div className="border-t pt-4">
@@ -617,7 +585,6 @@ const BarberAgenda = () => {
                 </div>
               </div>
 
-              {/* MULTI SERVIÇOS */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   <Scissors size={16} className="inline mr-1" /> Serviços
@@ -629,7 +596,6 @@ const BarberAgenda = () => {
                 />
               </div>
 
-              {/* 🔥 VALOR PERSONALIZADO */}
               <div>
                 <label className="block text-sm font-medium text-[#060606] mb-1">
                   <DollarSign size={16} className="inline mr-1" /> Valor Personalizado (R$)
@@ -651,7 +617,6 @@ const BarberAgenda = () => {
                 </p>
               </div>
 
-              {/* 🔥 MOSTRAR COMISSÃO CALCULADA */}
               {(getTotalServices() > 0 || valorPersonalizado.getNumberValue() > 0) && (
                 <div className="bg-[#f5f0e8] rounded-lg p-3">
                   <div className="flex justify-between text-sm">
@@ -660,12 +625,6 @@ const BarberAgenda = () => {
                       R$ {(valorPersonalizado.getNumberValue() > 0 ? valorPersonalizado.getNumberValue() : getTotalServices()).toFixed(2)}
                     </span>
                   </div>
-                  {(() => {
-                    const total = valorPersonalizado.getNumberValue() > 0 ? valorPersonalizado.getNumberValue() : getTotalServices();
-                    const barber = barbers.find(b => b.id === selectedBarberId);
-                    const taxa = barber?.serviceCommissionRate || 0.50;
-                    const comissao = total * taxa;
-                  })()}
                 </div>
               )}
 
