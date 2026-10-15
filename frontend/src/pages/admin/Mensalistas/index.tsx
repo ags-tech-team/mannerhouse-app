@@ -51,6 +51,9 @@ interface NewClientData {
   notes: string;
 }
 
+// 🔥 Nomes dos dias pra gerar label dinâmico
+const DIA_NOMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
 const AdminMensalistas = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -174,7 +177,6 @@ const AdminMensalistas = () => {
     return new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
-  // 🔥 NOVO: formato curto pra caber na coluna
   const formatPaymentDateShort = (payment: MonthlyPayment | null) => {
     if (!payment) return 'Nunca';
     const d = payment.paidAt ? new Date(payment.paidAt) : new Date(parseInt(payment.month.split('-')[0]), parseInt(payment.month.split('-')[1]) - 1, 1);
@@ -355,16 +357,21 @@ const AdminMensalistas = () => {
   const getPendingThisMonth = () =>
     clients.filter(c => c.isMonthly && !hasPaidThisMonth(c)).reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
 
+  // 🔥 CORRIGIDO: label dinâmico dos dias baseado no array `days` do plano
+  const getPlanDiasLabel = (plan: Plan) => {
+    if (!Array.isArray(plan.days) || plan.days.length === 0) return '';
+    if (plan.days.length === 1) return DIA_NOMES[plan.days[0]];
+    const primeiro = DIA_NOMES[plan.days[0]];
+    const ultimo = DIA_NOMES[plan.days[plan.days.length - 1]];
+    return `${primeiro} a ${ultimo}`;
+  };
+
+  // 🔥 CORRIGIDO: nome do plano + dias
   const getPlanLabel = (planType?: string | null) => {
     if (!planType) return null;
     const p = plans.find(x => x.id === planType);
     if (!p) return null;
-    const diasLabel = Array.isArray(p.days) && p.days.includes(5) ? 'Seg a Sáb' : 'Seg a Qui';
-    return `${p.name} (${diasLabel})`;
-  };
-
-  const getPlanDiasLabel = (plan: Plan) => {
-    return Array.isArray(plan.days) && plan.days.includes(5) ? 'Seg a Sáb' : 'Seg a Qui';
+    return `${p.name} (${getPlanDiasLabel(p)})`;
   };
 
   return (
@@ -495,7 +502,6 @@ const AdminMensalistas = () => {
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Plano</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Barbeiro</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mensalidade</th>
-                  {/* 🔥 NOVO: coluna Último Pgto */}
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Último Pgto</th>
                   <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Mês Atual</th>
                   <th className="px-2 sm:px-3 py-2 text-right text-[10px] sm:text-xs font-medium text-[#544941] uppercase whitespace-nowrap">Ações</th>
@@ -540,7 +546,6 @@ const AdminMensalistas = () => {
                       <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
                         <span className="font-medium text-[#9c7f64] text-[10px] sm:text-sm">{formatCurrency(client.monthlyFee || 0)}</span>
                       </td>
-                      {/* 🔥 NOVO: célula do último pagamento */}
                       <td className="px-2 sm:px-3 py-2 sm:py-3 whitespace-nowrap">
                         {lastPayment ? (
                           <span className="text-[10px] sm:text-sm text-[#060606]">
