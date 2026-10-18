@@ -583,7 +583,6 @@ const BarberCaixa = () => {
           date: selectedDate,
           time: selectedTime,
           phone: clientPhoneFinal,
-          // 🔥 NOVO
           discountType: discountType,
           discountValue: discountValue,
         });
@@ -634,7 +633,6 @@ const BarberCaixa = () => {
   });
 
   const totalVendas = servicos.filter((s) => s.status === 'concluido').reduce((acc, s) => acc + s.valor, 0);
-  const totalComissoes = servicos.filter((s) => s.status === 'concluido').reduce((acc, s) => acc + s.comissao, 0);
   const totalServicos = servicos.filter((s) => s.status === 'concluido').length;
   const ticketMedio = totalServicos > 0 ? totalVendas / totalServicos : 0;
 
@@ -769,8 +767,9 @@ const BarberCaixa = () => {
         </div>
       )}
 
+      {/* 🔥 CARDS DE RESUMO: Removido o card de Comissões (era 4, agora são 3) */}
       {(caixa?.isOpen || servicos.length > 0) && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
@@ -784,18 +783,6 @@ const BarberCaixa = () => {
             {caixa?.initialCash !== undefined && (
               <p className="text-xs text-[#7f7c7a] mt-1">Inicial: R$ {caixa.initialCash.toFixed(2)}</p>
             )}
-          </div>
-
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-[#7f7c7a]">Comissões</p>
-                <p className="text-lg sm:text-2xl font-bold text-[#060606]">R$ {totalComissoes.toFixed(2)}</p>
-              </div>
-              <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
-                <TrendingUp size={16} className="sm:w-5 sm:h-5 text-orange-600" />
-              </div>
-            </div>
           </div>
 
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
@@ -899,7 +886,7 @@ const BarberCaixa = () => {
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Barbeiro</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Serviço</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Valor</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Comissão</th>
+                    {/* 🔥 REMOVIDA A COLUNA DE COMISSÃO */}
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Pagto</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-[#544941] uppercase">Status</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-right text-xs font-medium text-[#544941] uppercase">Ações</th>
@@ -907,9 +894,9 @@ const BarberCaixa = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {loading ? (
-                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">Carregando...</td></tr>
+                    <tr><td colSpan={7} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">Carregando...</td></tr>
                   ) : filteredServicos.length === 0 ? (
-                    <tr><td colSpan={8} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">
+                    <tr><td colSpan={7} className="px-3 sm:px-6 py-4 text-center text-[#7f7c7a] text-sm">
                       {caixa?.isOpen ? 'Nenhum registro' : 'Caixa fechado'}
                     </td></tr>
                   ) : (
@@ -946,9 +933,7 @@ const BarberCaixa = () => {
                             )}
                             <span className="text-[#060606] font-medium">R$ {servico.valor.toFixed(2)}</span>
                           </td>
-                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
-                            R$ {servico.comissao.toFixed(2)}
-                          </td>
+                          {/* 🔥 REMOVIDA A CÉLULA DE COMISSÃO */}
                           <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-[#060606] text-xs sm:text-sm">
                             {getPaymentText(servico.formaPagamento)}
                           </td>
@@ -1243,7 +1228,7 @@ const BarberCaixa = () => {
                 </div>
               )}
 
-              {/* Resumo */}
+              {/* Resumo: REMOVIDA A COMISSÃO */}
               {(selectedServices.length > 0 || selectedProducts.length > 0) && (
                 <div className="bg-[#f5f0e8] rounded-lg p-3 space-y-1">
                   {selectedServices.length > 0 && (
@@ -1274,6 +1259,7 @@ const BarberCaixa = () => {
                       R$ {getFinalTotal().toFixed(2)}
                     </span>
                   </div>
+                  {/* 🔥 REMOVIDA A LINHA DE COMISSÃO DO BARBEIRO AQUI */}
                 </div>
               )}
 

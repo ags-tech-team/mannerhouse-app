@@ -48,6 +48,7 @@ interface Service {
   status: string;
   notes: string;
   createdAt: string;
+  isProductOnly?: boolean;
 }
 
 interface ProductSale {
@@ -68,7 +69,7 @@ interface ProductSale {
 const BarberHistorico = () => {
   const { user, verifyPassword} = useAuth();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'payments' | 'services' | 'products'>('payments');
+  const [activeTab, setActiveTab] = useState<'payments' | 'services'>('payments'); // Removido 'products'
   
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -98,44 +99,24 @@ const BarberHistorico = () => {
     loadData();
   }, [selectedMonth]);
 
-  // 🔥 FUNÇÃO PARA FORMATAR DATA (SEM NEW DATE)
   const formatDateDisplay = (date: string) => {
     if (!date) return '';
-    
-    // Se já estiver no formato DD/MM/YYYY, retorna direto
-    if (/^\d{2}\/\d{2}\/\d{4}/.test(date)) {
-      return date;
-    }
-    
-    // Se for ISO (YYYY-MM-DD), converte manualmente
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(date)) return date;
     const datePart = date.split('T')[0];
     if (!datePart || !datePart.includes('-')) return date;
-    
     const [year, month, day] = datePart.split('-').map(Number);
     if (!year || !month || !day) return date;
-    
     return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
   };
 
-  // 🔥 FUNÇÃO PARA FORMATAR DATA + HORA
   const formatDateTimeDisplay = (date: string, time?: string) => {
     if (!date) return '';
-    
     const formattedDate = formatDateDisplay(date);
-    
-    if (time) {
-      return `${formattedDate} ${time}`;
-    }
-    
-    // Se tiver hora no formato ISO
+    if (time) return `${formattedDate} ${time}`;
     if (date.includes('T')) {
       const timePart = date.split('T')[1];
-      if (timePart) {
-        const hours = timePart.substring(0, 5);
-        return `${formattedDate} ${hours}`;
-      }
+      if (timePart) return `${formattedDate} ${timePart.substring(0, 5)}`;
     }
-    
     return formattedDate;
   };
 
@@ -143,28 +124,15 @@ const BarberHistorico = () => {
     setLoading(true);
     try {
       const [year, month] = selectedMonth.split('-').map(Number);
-      
       if (!year || !month || month < 1 || month > 12) {
-        console.error('❌ Mês inválido:', selectedMonth);
         setLoading(false);
         return;
       }
 
-      // Carregar pagamentos
-      const paymentsRes = await api.get('/monthly/payments', {
-        params: { month: selectedMonth }
-      });
+      const paymentsRes = await api.get('/monthly/payments', { params: { month: selectedMonth } });
       setPayments(paymentsRes.data.payments || []);
 
-      // 🔥 Carregar serviços – agora com parâmetro month (e não startDate/endDate)
-      console.log('📤 Enviando requisição para /revenues/services com month:', selectedMonth);
-      const servicesRes = await api.get('/revenues/services', {
-        params: { month: selectedMonth }
-      });
-
-      console.log('📦 Resposta recebida:', servicesRes.data.length);
-
-      // 🔥 Mapear os dados brutos para o formato Service
+      const servicesRes = await api.get('/revenues/services', { params: { month: selectedMonth } });
       const rawServices = (servicesRes.data || []).map((r: any) => ({
         id: r.id,
         date: r.date,
@@ -180,20 +148,15 @@ const BarberHistorico = () => {
         createdAt: r.createdAt,
       }));
 
-      // 🔥 DEDUPLICAR usando chave composta (data + cliente + horário + valor + serviço)
       const uniqueMap = new Map();
       rawServices.forEach((service: any) => {
         const key = `${service.date}|${service.client.name}|${service.time}|${service.price}|${service.service}`;
-        if (!uniqueMap.has(key)) {
-          uniqueMap.set(key, service);
-        }
+        if (!uniqueMap.has(key)) uniqueMap.set(key, service);
       });
 
       const formattedServices = Array.from(uniqueMap.values());
-      console.log(`✅ Removidas ${rawServices.length - formattedServices.length} duplicatas`);
       setServices(formattedServices);
 
-      // Carregar produtos vendidos
       const productsRes = await api.get('/sales', {
         params: { startDate: selectedMonth + '-01', endDate: selectedMonth + '-' + new Date(year, month, 0).getDate() }
       });
@@ -232,7 +195,6 @@ const BarberHistorico = () => {
     }
 
     const isValid = await verifyPassword(password); 
-    
     if (!isValid) {
       setPasswordError('Senha incorreta!');
       return;
@@ -245,10 +207,7 @@ const BarberHistorico = () => {
     } else if (actionType === 'edit') {
       setShowEditModal(true);
       if (selectedItemType === 'payment') {
-        setEditData({
-          amount: selectedItem.amount,
-          notes: selectedItem.notes || '',
-        });
+        setEditData({ amount: selectedItem.amount, notes: selectedItem.notes || '' });
       } else if (selectedItemType === 'service') {
         setEditData({
           price: selectedItem.price,
@@ -256,27 +215,19 @@ const BarberHistorico = () => {
           notes: selectedItem.notes || '',
         });
       } else if (selectedItemType === 'product') {
-        setEditData({
-          salePrice: selectedItem.salePrice,
-          quantity: selectedItem.quantity,
-        });
+        setEditData({ salePrice: selectedItem.salePrice, quantity: selectedItem.quantity });
       }
     }
   };
 
   const handleDelete = async () => {
     if (!selectedItem || !selectedItemType) return;
-    
     if (!confirm('Tem certeza que deseja excluir este item? Isso afetará o faturamento.')) return;
 
     try {
-      if (selectedItemType === 'payment') {
-        await api.delete(`/monthly/payment/${selectedItem.id}`);
-      } else if (selectedItemType === 'service') {
-        await api.delete(`/revenues/${selectedItem.id}`);
-      } else if (selectedItemType === 'product') {
-        await api.delete(`/sales/${selectedItem.id}`);
-      }
+      if (selectedItemType === 'payment') await api.delete(`/monthly/payment/${selectedItem.id}`);
+      else if (selectedItemType === 'service') await api.delete(`/revenues/${selectedItem.id}`);
+      else if (selectedItemType === 'product') await api.delete(`/sales/${selectedItem.id}`);
       
       alert('✅ Item excluído com sucesso! O faturamento foi atualizado.');
       await loadData();
@@ -323,13 +274,9 @@ const BarberHistorico = () => {
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  // 🔥 FUNÇÃO PARA FORMATAR DATA DO PAGAMENTO (USANDO A MESMA LÓGICA)
   const formatPaymentDate = (date: string) => {
     if (!date) return '-';
     return formatDateTimeDisplay(date);
@@ -339,21 +286,40 @@ const BarberHistorico = () => {
     return paid ? '✅ Pago' : '⏳ Pendente';
   };
 
+  // 🔥 MESCLAGEM DE SERVIÇOS E PRODUTOS NA MESMA ABA
+  const allServicesAndProducts: Service[] = [
+    ...services,
+    ...products.map(p => ({
+      id: p.id,
+      date: p.date,
+      time: p.createdAt ? new Date(p.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+      client: { name: p.client?.name || 'Cliente removido', phone: '' },
+      barber: { name: p.barber?.name || 'Barbeiro removido' },
+      service: `${p.product?.name || 'Produto removido'} x${p.quantity}`,
+      serviceDescription: `${p.product?.name || 'Produto removido'} x${p.quantity}`,
+      price: p.salePrice * p.quantity,
+      commission: p.commission,
+      status: 'completed',
+      notes: '',
+      createdAt: p.createdAt,
+      isProductOnly: true // Flag pra diferenciar visualmente
+    }))
+  ].sort((a, b) => {
+    // Ordena da data mais recente para a mais antiga
+    const dateA = new Date(`${a.date}T${a.time || '00:00'}`).getTime();
+    const dateB = new Date(`${b.date}T${b.time || '00:00'}`).getTime();
+    return dateB - dateA;
+  });
+
   const filteredPayments = payments.filter(p =>
     p.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.client?.phone?.includes(searchTerm)
   );
 
-  const filteredServices = services.filter(s =>
+  const filteredServices = allServicesAndProducts.filter(s =>
     s.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.barber?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.service?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredProducts = products.filter(p =>
-    p.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.barber?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const formatMonthDisplay = (monthString: string) => {
@@ -407,18 +373,7 @@ const BarberHistorico = () => {
           }`}
         >
           <Scissors size={16} className="inline mr-2" />
-          Serviços ({services.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('products')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            activeTab === 'products'
-              ? 'border-[#9c7f64] text-[#9c7f64]'
-              : 'border-transparent text-[#7f7c7a] hover:text-[#060606]'
-          }`}
-        >
-          <Package size={16} className="inline mr-2" />
-          Produtos ({products.length})
+          Serviços e Produtos ({allServicesAndProducts.length})
         </button>
       </nav>
     </div>
@@ -437,7 +392,6 @@ const BarberHistorico = () => {
         <span className="text-sm text-[#7f7c7a]">
           {activeTab === 'payments' && filteredPayments.length}
           {activeTab === 'services' && filteredServices.length}
-          {activeTab === 'products' && filteredProducts.length}
           {' '}registros
         </span>
       </div>
@@ -504,7 +458,7 @@ const BarberHistorico = () => {
           </div>
         )}
 
-        {/* TAB: SERVIÇOS */}
+        {/* TAB: SERVIÇOS E PRODUTOS */}
         {activeTab === 'services' && (
           <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="w-full divide-y divide-gray-200 text-xs">
@@ -513,16 +467,15 @@ const BarberHistorico = () => {
                   <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Data/Hora</th>
                   <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Cliente</th>
                   <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Barbeiro</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Serviço</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Item</th>
                   <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Valor</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Comissão</th>
                   <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredServices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-2 py-3 text-center text-[#7f7c7a]">Nenhum serviço concluído</td>
+                    <td colSpan={6} className="px-2 py-3 text-center text-[#7f7c7a]">Nenhum serviço ou produto registrado</td>
                   </tr>
                 ) : (
                   filteredServices.map((service) => (
@@ -530,61 +483,16 @@ const BarberHistorico = () => {
                       <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{service.date} {service.time}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-[#060606] font-medium">{service.client?.name || 'Cliente'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{service.barber?.name || 'Desconhecido'}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{service.serviceDescription || service.service}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-right font-medium text-[#9c7f64]">{formatCurrency(service.price)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-right text-green-600">{formatCurrency(service.commission)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-right space-x-1">
-                        <button onClick={() => openPasswordModal(service, 'service', 'edit')} className="text-blue-600 hover:text-blue-800 transition" title="Editar">
-                          <Edit size={14} />
-                        </button>
-                        <button onClick={() => openPasswordModal(service, 'service', 'delete')} className="text-red-500 hover:text-red-700 transition" title="Excluir">
-                          <Trash2 size={14} />
-                        </button>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606] flex items-center gap-1">
+                        {service.isProductOnly ? <Package size={12} className="text-blue-500"/> : <Scissors size={12} className="text-[#9c7f64]"/>}
+                        {service.serviceDescription || service.service}
                       </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* TAB: PRODUTOS */}
-        {activeTab === 'products' && (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200 text-xs">
-              <thead className="bg-[#f5f0e8]">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Data</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Produto</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Cliente</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-[#544941] uppercase tracking-wider">Barbeiro</th>
-                  <th className="px-2 py-1.5 text-center font-medium text-[#544941] uppercase tracking-wider">Qtd</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Venda</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Comissão</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-[#544941] uppercase tracking-wider">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-2 py-3 text-center text-[#7f7c7a]">Nenhum produto vendido</td>
-                  </tr>
-                ) : (
-                  filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{formatDateDisplay(product.date)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606] font-medium">{product.product?.name || 'Produto removido'}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{product.client?.name || 'Cliente removido'}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-[#060606]">{product.barber?.name || 'Barbeiro removido'}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-center text-[#060606]">{product.quantity}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-right font-medium text-[#9c7f64]">{formatCurrency(product.salePrice * product.quantity)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap text-right text-green-600">{formatCurrency(product.commission)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-right font-medium text-[#9c7f64]">{formatCurrency(service.price)}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-right space-x-1">
-                        <button onClick={() => openPasswordModal(product, 'product', 'edit')} className="text-blue-600 hover:text-blue-800 transition" title="Editar">
+                        <button onClick={() => openPasswordModal(service, service.isProductOnly ? 'product' : 'service', 'edit')} className="text-blue-600 hover:text-blue-800 transition" title="Editar">
                           <Edit size={14} />
                         </button>
-                        <button onClick={() => openPasswordModal(product, 'product', 'delete')} className="text-red-500 hover:text-red-700 transition" title="Excluir">
+                        <button onClick={() => openPasswordModal(service, service.isProductOnly ? 'product' : 'service', 'delete')} className="text-red-500 hover:text-red-700 transition" title="Excluir">
                           <Trash2 size={14} />
                         </button>
                       </td>
