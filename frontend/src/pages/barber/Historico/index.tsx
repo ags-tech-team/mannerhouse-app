@@ -69,7 +69,7 @@ interface ProductSale {
 const BarberHistorico = () => {
   const { user, verifyPassword} = useAuth();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'payments' | 'services'>('payments'); // Removido 'products'
+  const [activeTab, setActiveTab] = useState<'payments' | 'services'>('payments');
   
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -157,8 +157,9 @@ const BarberHistorico = () => {
       const formattedServices = Array.from(uniqueMap.values());
       setServices(formattedServices);
 
+      // 🔥 MUDANÇA: Enviar 'month' em vez de startDate/endDate
       const productsRes = await api.get('/sales', {
-        params: { startDate: selectedMonth + '-01', endDate: selectedMonth + '-' + new Date(year, month, 0).getDate() }
+        params: { month: selectedMonth }
       });
       setProducts(productsRes.data || []);
 
@@ -289,21 +290,27 @@ const BarberHistorico = () => {
   // 🔥 MESCLAGEM DE SERVIÇOS E PRODUTOS NA MESMA ABA
   const allServicesAndProducts: Service[] = [
     ...services,
-    ...products.map(p => ({
-      id: p.id,
-      date: p.date,
-      time: p.createdAt ? new Date(p.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
-      client: { name: p.client?.name || 'Cliente removido', phone: '' },
-      barber: { name: p.barber?.name || 'Barbeiro removido' },
-      service: `${p.product?.name || 'Produto removido'} x${p.quantity}`,
-      serviceDescription: `${p.product?.name || 'Produto removido'} x${p.quantity}`,
-      price: p.salePrice * p.quantity,
-      commission: p.commission,
-      status: 'completed',
-      notes: '',
-      createdAt: p.createdAt,
-      isProductOnly: true // Flag pra diferenciar visualmente
-    }))
+    ...products.map(p => {
+      // 🔥 PROTEÇÃO CONTRA PRODUTO NULO
+      const productName = p.product?.name || 'Produto removido';
+      const qty = p.quantity || 1;
+      
+      return {
+        id: p.id,
+        date: p.date,
+        time: p.createdAt ? new Date(p.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        client: { name: p.client?.name || 'Cliente removido', phone: '' },
+        barber: { name: p.barber?.name || 'Barbeiro removido' },
+        service: `${productName} x${qty}`,
+        serviceDescription: `${productName} x${qty}`,
+        price: (p.salePrice || 0) * qty,
+        commission: p.commission || 0,
+        status: 'completed',
+        notes: '',
+        createdAt: p.createdAt,
+        isProductOnly: true // Flag pra diferenciar visualmente
+      };
+    })
   ].sort((a, b) => {
     // Ordena da data mais recente para a mais antiga
     const dateA = new Date(`${a.date}T${a.time || '00:00'}`).getTime();

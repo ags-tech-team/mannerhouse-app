@@ -5,14 +5,20 @@ const dateHelper = require('../utils/dateHelper');
 
 const getAll = async (req, res) => {
   try {
-    const { startDate, endDate, barberId } = req.query;
+    const { startDate, endDate, barberId, month } = req.query;
     const where = {};
     
-    if (startDate && endDate) {
-      where.date = {
-        [Op.between]: [startDate, endDate],
-      };
+    // 🔥 CORRIGIDO: Aceita filtro por 'month' (YYYY-MM) ou startDate/endDate
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [year, mes] = month.split('-').map(Number);
+      const start = `${year}-${String(mes).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, mes, 0).getDate();
+      const end = `${year}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      where.date = { [Op.between]: [start, end] };
+    } else if (startDate && endDate) {
+      where.date = { [Op.between]: [startDate, endDate] };
     }
+    
     if (barberId) where.barberId = barberId;
     
     const sales = await Sale.findAll({
@@ -27,7 +33,7 @@ const getAll = async (req, res) => {
         { 
           model: Product, 
           as: 'product',
-          attributes: ['id', 'name', 'price', 'costPrice'],
+          attributes: ['id', 'name', 'price', 'costPrice', 'hasCommission'], // 🔥 hasCommission adicionado
           required: false
         },
         { 
@@ -144,13 +150,13 @@ const create = async (req, res) => {
     let commission = 0;
     
     if (product.hasCommission !== false) {
-      commission = profit * 0.50;
+      commission = profit * (barber.productCommissionRate || 0.50); // 🔥 Usa a taxa do barbeiro
     }
     
     console.log(`📊 Produto: ${product.name}`);
     console.log(`   hasCommission: ${product.hasCommission}`);
     console.log(`   Profit: R$ ${profit.toFixed(2)}`);
-    console.log(`   Taxa comissão: ${barber.productCommissionRate * 100}%`);
+    console.log(`   Taxa comissão: ${(barber.productCommissionRate * 100).toFixed(0)}%`);
     console.log(`   Comissão: R$ ${commission.toFixed(2)}`);
     
     const sale = await Sale.create({
@@ -166,7 +172,6 @@ const create = async (req, res) => {
       paymentMethod: paymentMethod || 'dinheiro',
     });
     
-    // 🔥 Decrement atômico
     await Product.decrement('stock', { by: quantity, where: { id: productId } });
     
     if (cashRegister) {
@@ -177,7 +182,7 @@ const create = async (req, res) => {
       services.push({
         id: sale.id,
         type: 'product',
-        productId: product.id,     // 🔥 ADICIONADO: garante que updateServices/removeService achem
+        productId: product.id,
         client: client.name,
         clientId: client.id,
         product: product.name,
@@ -198,7 +203,6 @@ const create = async (req, res) => {
       });
       
       console.log(`✅ Venda adicionada ao caixa. Total: R$ ${(product.price * quantity).toFixed(2)}`);
-      console.log(`   Comissão: R$ ${commission.toFixed(2)} ${!product.hasCommission ? '(produto sem comissão)' : ''}`);
     }
     
     const created = await Sale.findByPk(sale.id, {
@@ -222,12 +226,9 @@ const create = async (req, res) => {
   }
 };
 
-// 🔥 CORRIGIDO — evita dupla restauração de estoque
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    console.log('🗑️ Tentando excluir venda:', id);
     
     const sale = await Sale.findByPk(id, {
       include: [
@@ -240,15 +241,9 @@ const remove = async (req, res) => {
     });
     
     if (!sale) {
-      console.log('❌ Venda não encontrada:', id);
       return res.status(404).json({ error: 'Venda não encontrada' });
     }
-    
-    console.log('✅ Venda encontrada:', sale.id);
 
-    // 🔥 Verificar se a Sale ainda está em algum caixa aberto
-    // Se estiver, quem remove do caixa (removeService) é quem restaura o estoque.
-    // Assim evitamos restauração dupla.
     const hoje = dateHelper.getTodayLocal();
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -263,18 +258,13 @@ const remove = async (req, res) => {
       stillInCashRegister = services.some(s => s.id === sale.id);
     }
 
-    // 🔥 Só restaura se NÃO estiver mais no caixa
     if (sale.product && !stillInCashRegister) {
-      console.log(`📦 Restaurando estoque do produto ${sale.product.name}: +${sale.quantity}`);
       await Product.increment('stock', {
         by: sale.quantity,
         where: { id: sale.productId }
       });
-    } else if (sale.product && stillInCashRegister) {
-      console.log(`ℹ️ Venda ainda está no caixa — estoque será restaurado ao remover do caixa`);
     }
     
-    // Remover do caixa (se ainda estiver lá — caso de uso antigo)
     if (cashRegister && stillInCashRegister) {
       const services = cashRegister.services || [];
       const updatedServices = services.filter(s => s.id !== sale.id);
@@ -288,13 +278,10 @@ const remove = async (req, res) => {
         totalCommissions: totalCommissions,
         servicesCount: updatedServices.length
       });
-      
-      console.log(`🗑️ Venda ${id} removida do caixa`);
     }
     
     await sale.destroy();
     
-    console.log('✅ Venda excluída com sucesso!');
     res.json({ 
       message: 'Venda excluída com sucesso! Estoque restaurado.',
       product: sale.product?.name,
@@ -306,7 +293,6 @@ const remove = async (req, res) => {
   }
 };
 
-// ATUALIZAR VENDA
 const update = async (req, res) => {
   try {
     const { id } = req.params;
@@ -315,7 +301,7 @@ const update = async (req, res) => {
     const sale = await Sale.findByPk(id, {
       include: [
         { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice'] },
-        { model: Barber, as: 'barber', attributes: ['id', 'name'] }
+        { model: Barber, as: 'barber', attributes: ['id', 'name', 'productCommissionRate'] } // 🔥 Inclui taxa
       ]
     });
     
@@ -323,7 +309,6 @@ const update = async (req, res) => {
       return res.status(404).json({ error: 'Venda não encontrada' });
     }
 
-    // 🔥 Ajustar estoque pelo diff de quantidade
     const oldQty = sale.quantity;
     const newQty = Number(quantity) || oldQty;
     const diff = newQty - oldQty;
