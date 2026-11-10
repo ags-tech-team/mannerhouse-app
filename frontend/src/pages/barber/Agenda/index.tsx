@@ -346,8 +346,20 @@ const BarberAgenda = () => {
 
   const { weekdays, days } = getDaysInMonth();
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    
+    // Se já estiver no formato DD/MM/YYYY, retorna direto
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) return dateStr;
+    
+    // Se for ISO (YYYY-MM-DD), converte manualmente sem usar UTC
+    const datePart = dateStr.split('T')[0];
+    if (!datePart || !datePart.includes('-')) return dateStr;
+    
+    const [year, month, day] = datePart.split('-').map(Number);
+    if (!year || !month || !day) return dateStr;
+    
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
   };
 
   const getStatusLabel = (status: string) => {
