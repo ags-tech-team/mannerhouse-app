@@ -7,6 +7,7 @@ export interface Sale {
   productId: string;
   quantity: number;
   salePrice: number;
+  chargedTotal?: number | null;
   costPrice: number;
   profit: number;
   commission: number;

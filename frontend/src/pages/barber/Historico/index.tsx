@@ -59,6 +59,7 @@ interface ProductSale {
   product: { name: string };
   quantity: number;
   salePrice: number;
+  chargedTotal?: number | null;
   costPrice: number;
   profit: number;
   commission: number;
@@ -208,7 +209,7 @@ const BarberHistorico = () => {
     } else if (actionType === 'edit') {
       setShowEditModal(true);
       if (selectedItemType === 'payment') {
-        setEditData({ amount: selectedItem.amount, notes: selectedItem.notes || '' });
+        setEditData({ amount: selectedItem.baseAmount ?? selectedItem.amount, notes: selectedItem.notes || '' });
       } else if (selectedItemType === 'service') {
         setEditData({
           price: selectedItem.price,
@@ -303,7 +304,7 @@ const BarberHistorico = () => {
         barber: { name: p.barber?.name || 'Barbeiro removido' },
         service: `${productName} x${qty}`,
         serviceDescription: `${productName} x${qty}`,
-        price: (p.salePrice || 0) * qty,
+        price: p.chargedTotal ?? (p.salePrice || 0) * qty,
         commission: p.commission || 0,
         status: 'completed',
         notes: '',
@@ -575,7 +576,7 @@ const BarberHistorico = () => {
             {selectedItemType === 'payment' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-[#060606] mb-1">Valor (R$)</label>
+                  <label className="block text-sm font-medium text-[#060606] mb-1">Valor-base (R$)</label>
                   <input
                     type="number"
                     step="0.01"

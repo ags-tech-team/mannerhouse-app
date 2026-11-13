@@ -6,6 +6,8 @@ const dateHelper = require('../utils/dateHelper');
 // ============================================================
 // HELPERS
 // ============================================================
+const { cardTotal } = require('../utils/cardPayment');
+
 const findServiceByIdentifier = async (identifier) => {
   if (!identifier) return null;
   let svc = await Service.findOne({ where: { id: identifier } });
@@ -22,7 +24,7 @@ const calcularTotaisPorPagamento = (services = []) => {
     const price = s.price || s.valor || 0;
     const method = (s.paymentMethod || s.formaPagamento || 'dinheiro').toLowerCase();
     if (totais[method] !== undefined) totais[method] += price;
-    else if (method === 'cartao' || method === 'cartão') totais.credito += price;
+    else if (method === 'credito' || method === 'cartao' || method === 'cartão') totais.credito += price;
     else totais.outros += price;
   });
   return totais;
@@ -81,6 +83,8 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
   let atualizados = 0;
 
   for (const service of servicosReais) {
+    // A loja já registra este lançamento em Sale.
+    if (service.saleId) continue;
     const barber = await Barber.findByPk(service.barberId);
     let clientName = 'Cliente';
     let clientId = service.clientId || null;
@@ -121,6 +125,13 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       }
     }
 
+    const total = Number(service.price || 0);
+    const classifiedTotal = serviceValue + productValue;
+    if (classifiedTotal > 0 && Array.isArray(service.items) && service.items.length > 0) {
+      serviceValue = Math.round(total * serviceValue / classifiedTotal * 100) / 100;
+      productValue = Math.round((total - serviceValue) * 100) / 100;
+    }
+
     const sourceId = String(service.id);
     let revenue = await Revenue.findOne({ where: { sourceItemId: sourceId } });
 
@@ -129,7 +140,7 @@ const fecharCaixaInterno = async (caixa, closedByBarberId = null) => {
       barberId: service.barberId || null,
       clientId,
       date: caixa.date,
-      total: Number(service.price || 0),
+      total,
       serviceValue,     // 🔥 NOVO
       productValue,     // 🔥 NOVO
       commissions: Number(service.commission || 0),
@@ -386,7 +397,7 @@ const addService = async (req, res) => {
     // 🔥 APLICAR DESCONTO + CALCULAR COMISSÃO SOBRE O LÍQUIDO
     // ============================================================
     const discountAmount = calcularDesconto(subtotal, discountType, discountValue);
-    const finalPrice = subtotal - discountAmount;
+    const finalPrice = cardTotal(subtotal - discountAmount, paymentMethod);
 
     // Separar totals por tipo
     const totalServices = normalizedItems.filter(i => i.type === 'service').reduce((s, i) => s + i.price, 0);
@@ -663,11 +674,18 @@ const updateServices = async (req, res) => {
 
     const updatedServices = currentServices.map((s) => {
       const updated = services.find((u) => u.id === s.id);
-      if (updated) return { ...s, ...updated };
+      if (updated) {
+        const method = updated.formaPagamento || updated.paymentMethod || s.paymentMethod;
+        const price = updated.originalPrice == null
+          ? Number(updated.valor ?? updated.price ?? s.price ?? 0)
+          : cardTotal(Number(updated.originalPrice) - Number(updated.discountAmount || 0), method);
+        const commission = updated.comissao ?? updated.commission ?? s.commission;
+        return { ...s, ...updated, price, valor: price, commission, paymentMethod: method };
+      }
       return s;
     });
 
-    const totalRevenue = updatedServices.reduce((sum, s) => sum + (s.price || s.valor || 0), 0);
+    const totalRevenue = updatedServices.reduce((sum, s) => sum + Number(s.price ?? s.valor ?? 0), 0);
     const totalCommissions = updatedServices.reduce((sum, s) => sum + (s.commission || s.comissao || 0), 0);
 
     await cashRegister.update({

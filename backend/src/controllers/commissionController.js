@@ -1,3 +1,4 @@
+const { monthlyBase } = require('../utils/cardPayment');
 const { Barber, Revenue, MonthlyPayment, Client, CashRegister } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
@@ -193,7 +194,7 @@ const getBarberCommission = async (req, res) => {
     }
 
     const totalMonthlyRevenue = monthlyPayments.reduce((s, mp) => s + Number(mp.amount || 0), 0);
-    const monthlyCommissionTotal = totalMonthlyRevenue * (barber.serviceCommissionRate || 0.5);
+    const monthlyCommissionTotal = monthlyPayments.reduce((sum, payment) => sum + monthlyBase(payment), 0) * (barber.serviceCommissionRate || 0.5);
 
     const monthlyDetails = monthlyPayments.map(mp => {
       let dateStr = mp.month + '-01';
@@ -211,7 +212,7 @@ const getBarberCommission = async (req, res) => {
         client: mp.client?.name || 'Cliente',
         month: mp.month,
         amount: Number(mp.amount || 0),
-        commission: Number(mp.amount || 0) * (barber.serviceCommissionRate || 0.5),
+        commission: monthlyBase(mp) * (barber.serviceCommissionRate || 0.5),
       };
     });
 
@@ -352,7 +353,7 @@ const getAllCommissions = async (req, res) => {
       }
 
       const monthlyRevenue = monthlyPayments.reduce((s, mp) => s + Number(mp.amount || 0), 0);
-      const monthlyCommission = monthlyRevenue * (barber.serviceCommissionRate || 0.5);
+      const monthlyCommission = monthlyPayments.reduce((sum, payment) => sum + monthlyBase(payment), 0) * (barber.serviceCommissionRate || 0.5);
 
       return {
         barberId: barber.id,

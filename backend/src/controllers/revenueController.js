@@ -1,3 +1,4 @@
+const { saleTotal, monthlyBase } = require('../utils/cardPayment');
 const { Revenue, CashRegister, Expense, Appointment, Sale, Barber, Product, MonthlyPayment, Client } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
@@ -122,7 +123,7 @@ const getFinancialDashboard = async (req, res) => {
       }
     }
 
-    const totalProductFromSales = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalProductFromSales = sales.reduce((sum, s) => sum + saleTotal(s), 0);
     const totalProductRevenue = totalProductFromRevenues + totalProductFromSales;
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
@@ -131,7 +132,7 @@ const getFinancialDashboard = async (req, res) => {
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
       const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-      return sum + (mp.amount * rate);
+      return sum + (monthlyBase(mp) * rate);
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
@@ -165,7 +166,7 @@ const getFinancialDashboard = async (req, res) => {
       const barberId = mp.client?.barberId || 'sem-barbeiro';
       if (barberId !== 'sem-barbeiro' && commissionsByBarber[barberId]) {
         const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-        commissionsByBarber[barberId].monthlyCommission += mp.amount * rate;
+        commissionsByBarber[barberId].monthlyCommission += monthlyBase(mp) * rate;
       }
     });
     
@@ -228,7 +229,7 @@ const getFinancialDashboard = async (req, res) => {
           barber: s.barber?.name || 'Desconhecido',
           product: s.product?.name || 'Produto',
           quantity: s.quantity,
-          total: s.salePrice * s.quantity,
+          total: saleTotal(s),
           commission: s.commission,
           hasCommission: s.product?.hasCommission !== false
         })),
@@ -237,7 +238,7 @@ const getFinancialDashboard = async (req, res) => {
           client: mp.client?.name || 'Desconhecido',
           barber: mp.client?.barber?.name || 'Sem Barbeiro',
           amount: mp.amount,
-          commission: mp.amount * (mp.client?.barber?.serviceCommissionRate || 0.5),
+          commission: monthlyBase(mp) * (mp.client?.barber?.serviceCommissionRate || 0.5),
           commissionRate: (mp.client?.barber?.serviceCommissionRate || 0.5) * 100,
           month: mp.month,
           paidAt: mp.paidAt
@@ -307,12 +308,12 @@ const getSummary = async (req, res) => {
     });
     
     const totalRevenue = revenues.reduce((sum, r) => sum + r.total, 0) +
-                         sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0) +
+                         sales.reduce((sum, s) => sum + saleTotal(s), 0) +
                          monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     
     const totalCommissions = revenues.reduce((sum, r) => sum + r.commissions, 0) +
                              sales.reduce((sum, s) => sum + s.commission, 0) +
-                             monthlyPayments.reduce((sum, mp) => sum + (mp.amount * 0.5), 0);
+                             monthlyPayments.reduce((sum, mp) => sum + (monthlyBase(mp) * 0.5), 0);
     
     res.json({
       totalRevenue,

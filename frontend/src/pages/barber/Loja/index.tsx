@@ -1,3 +1,4 @@
+import { cardTotal, paymentOptions } from '../../../utils/cardPayment';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { productService } from '../../../services/product.service';
@@ -132,6 +133,10 @@ const BarberLoja = () => {
     return cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
   };
 
+  const getChargedTotal = () => cart.reduce(
+    (sum, item) => sum + cardTotal(item.product.price * item.quantity, paymentMethod), 0
+  );
+
   const getTotalProfit = () => {
     return cart.reduce((sum, item) => sum + ((item.product.price - item.product.costPrice) * item.quantity), 0);
   };
@@ -172,8 +177,9 @@ const BarberLoja = () => {
 
     setSaleLoading(true);
     try {
+      let chargedTotal = 0;
       for (const item of cart) {
-        await saleService.create({
+        const sale = await saleService.create({
           barberId: selectedBarberId,
           clientName: clientName,
           clientPhone: clientPhone || '(00) 00000-0000',
@@ -181,6 +187,8 @@ const BarberLoja = () => {
           quantity: item.quantity,
           paymentMethod: paymentMethod,
         });
+        chargedTotal += sale.chargedTotal ?? sale.salePrice * sale.quantity;
+        setCart(current => current.filter(entry => entry.product.id !== item.product.id));
       }
 
       setCart([]);
@@ -189,7 +197,7 @@ const BarberLoja = () => {
       setSelectedClient(null);
       setShowPaymentModal(false);
       setShowCart(false);
-      setSuccessMessage(`Venda finalizada com sucesso! Total: R$ ${getTotal().toFixed(2)}`);
+      setSuccessMessage(`Venda finalizada com sucesso! Total: R$ ${chargedTotal.toFixed(2)}`);
 
       await loadProducts();
       setTimeout(() => setSuccessMessage(''), 5000);
@@ -485,7 +493,7 @@ const BarberLoja = () => {
                   Forma de Pagamento
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['dinheiro', 'pix', 'cartao', 'debito'].map((method) => (
+                  {paymentOptions.map(({ value: method, label }) => (
                     <button
                       key={method}
                       type="button"
@@ -497,10 +505,7 @@ const BarberLoja = () => {
                       }`}
                     >
                       <CreditCard size={16} />
-                      {method === 'dinheiro' && 'Dinheiro'}
-                      {method === 'pix' && 'PIX'}
-                      {method === 'cartao' && 'Cartão'}
-                      {method === 'debito' && 'Débito'}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -516,10 +521,16 @@ const BarberLoja = () => {
                   <span className="text-[#7f7c7a]">Quantidade:</span>
                   <span>{cart.reduce((sum, item) => sum + item.quantity, 0)} unidades</span>
                 </div>
+                {getChargedTotal() > getTotal() && (
+                  <div className="flex justify-between">
+                    <span>Acréscimo do cartão</span>
+                    <span>R$ {(getChargedTotal() - getTotal()).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-[#7f7c7a]">Total:</span>
                   <span className="font-bold text-lg text-[#9c7f64]">
-                    R$ {getTotal().toFixed(2)}
+                    R$ {getChargedTotal().toFixed(2)}
                   </span>
                 </div>
               </div>

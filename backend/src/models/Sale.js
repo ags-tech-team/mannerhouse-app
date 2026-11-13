@@ -48,6 +48,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       field: 'sale_price',
     },
+    chargedTotal: { type: DataTypes.FLOAT, field: 'charged_total' },
     costPrice: {
       type: DataTypes.FLOAT,
       allowNull: false,

@@ -1,3 +1,4 @@
+import { cardTotal } from '../../../utils/cardPayment';
 import { useState, useEffect } from 'react';
 import {
   Search, Filter, Plus, X, Check, DollarSign, TrendingUp, Users, Clock,
@@ -50,7 +51,7 @@ interface ServicoFaturamento {
   data: string;
   hora: string;
   status: 'concluido' | 'pendente' | 'cancelado';
-  formaPagamento: 'dinheiro' | 'credito' | 'pix' | 'debito';
+  formaPagamento: 'dinheiro' | 'credito' | 'cartao' | 'pix' | 'debito';
   observacao?: string;
   items?: ServicoItem[];
 }
@@ -154,7 +155,8 @@ const BarberCaixa = () => {
     return Math.min(desc, subtotal);
   };
 
-  const getFinalTotal = () => Math.max(0, getSubtotal() - getDiscountAmount());
+  const getBaseTotal = () => Math.max(0, getSubtotal() - getDiscountAmount());
+  const getFinalTotal = () => cardTotal(getBaseTotal(), formData.formaPagamento);
 
   // 🔥 Comissão calculada sobre o valor líquido, com distribuição proporcional
   const getCommissionServices = () => {
@@ -295,7 +297,7 @@ const BarberCaixa = () => {
           barbeiroId: s.barbeiroId || s.barberId || '',
           servico: s.servico || s.service || 'Serviço',
           servicoId: s.servicoId || s.serviceId || '',
-          valor: s.valor || s.price || 0,
+          valor: s.price ?? s.valor ?? 0,
           originalPrice: s.originalPrice,
           discountAmount: s.discountAmount,
           discountType: s.discountType,
@@ -365,7 +367,7 @@ const BarberCaixa = () => {
         clienteTelefone: servico.telefone || '',
         barbeiroId: servico.barbeiroId,
         barbeiroNome: servico.barbeiro,
-        formaPagamento: servico.formaPagamento,
+        formaPagamento: servico.formaPagamento === 'cartao' ? 'credito' : servico.formaPagamento,
         observacao: servico.observacao || '',
       });
       setSelectedDate(servico.data || new Date().toISOString().split('T')[0]);
@@ -572,7 +574,7 @@ const BarberCaixa = () => {
           }
           return s;
         });
-        await cashRegisterService.updateServices(updatedServicos);
+        await cashRegisterService.updateServices(updatedServicos.filter(s => s.id === editingServico.id));
         await loadData();
       } else {
         await cashRegisterService.addService({
@@ -1253,6 +1255,12 @@ const BarberCaixa = () => {
                       <span className="font-medium">- R$ {getDiscountAmount().toFixed(2)}</span>
                     </div>
                   )}
+                  {getFinalTotal() > getBaseTotal() && (
+                    <div className="flex justify-between text-sm">
+                      <span>Acréscimo do cartão</span>
+                      <span>R$ {(getFinalTotal() - getBaseTotal()).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-gray-300 pt-1 mt-1">
                     <span className="text-sm font-bold text-[#060606]">Total:</span>
                     <span className="text-base font-bold text-[#9c7f64]">
@@ -1269,8 +1277,8 @@ const BarberCaixa = () => {
                   onChange={(e) => setFormData({ ...formData, formaPagamento: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm" required>
                   <option value="dinheiro">Dinheiro</option>
-                  <option value="credito">Crédito</option>
-                  <option value="debito">Débito</option>
+                  <option value="credito">Crédito (+8%)</option>
+                  <option value="debito">Débito (+5%)</option>
                   <option value="pix">PIX</option>
                 </select>
               </div>

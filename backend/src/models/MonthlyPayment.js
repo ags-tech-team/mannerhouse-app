@@ -25,6 +25,8 @@ module.exports = (sequelize, DataTypes) => {
         min: 0,
       },
     },
+    baseAmount: { type: DataTypes.FLOAT, field: 'base_amount' },
+    paymentMethod: { type: DataTypes.STRING, field: 'payment_method' },
     paid: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

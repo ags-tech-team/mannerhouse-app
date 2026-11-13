@@ -1,3 +1,4 @@
+const { cardTotal } = require('../utils/cardPayment');
 const { Appointment, Barber, Client, CashRegister, Revenue, Service } = require('../models');
 const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
@@ -224,7 +225,10 @@ const create = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, paymentMethod = 'dinheiro' } = req.body;
+    if (!['dinheiro', 'pix', 'debito', 'cartao', 'credito'].includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Forma de pagamento inválida' });
+    }
 
     const appointment = await Appointment.findByPk(id);
     if (!appointment) return res.status(404).json({ error: 'Agendamento não encontrado' });
@@ -237,6 +241,7 @@ const updateStatus = async (req, res) => {
     let revenueCreated = false;
 
     if (status === 'completed' && oldStatus !== 'completed') {
+      const chargedTotal = cardTotal(appointment.price || 0, paymentMethod);
       const hoje = dateHelper.getTodayLocal();
 
       if (appointment.date !== hoje) {
@@ -274,16 +279,17 @@ const updateStatus = async (req, res) => {
           service: serviceName, servico: serviceName,
           serviceDescription: appointment.serviceDescription || '',
           serviceId: appointment.service || '',
-          price: appointment.price || 0,
+          originalPrice: Number(appointment.price || 0),
+          price: chargedTotal,
           commission, comissao: commission,
-          paymentMethod: 'dinheiro',
+          paymentMethod,
           time: appointment.time,
           date: hoje,
         });
 
         await cashRegister.update({
           services,
-          totalRevenue: totalRevenue + (appointment.price || 0),
+          totalRevenue: totalRevenue + chargedTotal,
           totalCommissions: totalCommissions + commission,
           servicesCount: services.length,
         });
@@ -294,7 +300,9 @@ const updateStatus = async (req, res) => {
             barberId: appointment.barberId,
             clientId: appointment.clientId,
             date: hoje,
-            total: appointment.price || 0,
+            total: chargedTotal,
+            serviceValue: chargedTotal,
+            sourceItemId: String(appointment.id),
             commissions: commission,
             servicesCount: 1,
             clientName, barberName,
@@ -313,7 +321,9 @@ const updateStatus = async (req, res) => {
             barberId: appointment.barberId,
             clientId: appointment.clientId,
             date: hoje,
-            total: appointment.price || 0,
+            total: chargedTotal,
+            serviceValue: chargedTotal,
+            sourceItemId: String(appointment.id),
             commissions: commission,
             servicesCount: 1,
             clientName, barberName,

@@ -1,3 +1,4 @@
+const { saleTotal } = require('../utils/cardPayment');
 const { Appointment, Barber, Client, CashRegister, Revenue, Sale, Product } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
@@ -117,7 +118,7 @@ const getBarberDashboard = async (req, res) => {
     });
 
     const totalProductsSold = monthlySales.reduce((sum, s) => sum + (s.quantity || 0), 0);
-    const totalProductRevenue = monthlySales.reduce((sum, s) => sum + ((s.salePrice || 0) * (s.quantity || 0)), 0);
+    const totalProductRevenue = monthlySales.reduce((sum, s) => sum + saleTotal(s), 0);
     const totalProductCommissions = monthlySales.reduce((sum, s) => sum + (s.commission || 0), 0);
 
     const weekStart = dateHelper.subtractDays(hoje, 7);

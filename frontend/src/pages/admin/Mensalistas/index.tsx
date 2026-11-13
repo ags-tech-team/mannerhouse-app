@@ -1,3 +1,4 @@
+import { cardTotal, paymentOptions, type PaymentMethod } from '../../../utils/cardPayment';
 import { useState, useEffect } from 'react';
 import { api } from '../../../api/client';
 import { useNumberInput } from '../../../hooks/useNumberInput';
@@ -47,7 +48,6 @@ interface NewClientData {
   monthlyFee: number;
   planType: string;
   barberId: string;
-  paymentMethod: 'dinheiro' | 'cartao' | 'pix' | 'debito';
   notes: string;
 }
 
@@ -87,9 +87,12 @@ const AdminMensalistas = () => {
     monthlyFee: 0,
     planType: '',
     barberId: '',
-    paymentMethod: 'pix',
     notes: ''
   });
+
+  const [payingClient, setPayingClient] = useState<Client | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const monthlyFee = useNumberInput();
 
@@ -222,7 +225,6 @@ const AdminMensalistas = () => {
         monthlyFee: newClient.monthlyFee,
         planType: newClient.planType || null,
         barberId: newClient.barberId,
-        paymentMethod: newClient.paymentMethod,
         notes: newClient.notes || 'Nova assinatura',
       });
 
@@ -230,7 +232,7 @@ const AdminMensalistas = () => {
       setShowNewClientModal(false);
       setClientName('');
       setClientPhone('');
-      setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', paymentMethod: 'pix', notes: '' });
+      setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', notes: '' });
       alert('✅ Cliente mensalista criado! Aguardando primeiro pagamento.');
     } catch (error: any) {
       console.error('❌ Erro ao criar mensalista:', error);
@@ -294,17 +296,22 @@ const AdminMensalistas = () => {
     }
   };
 
-  const handleConfirmPayment = async (clientId: string) => {
-    if (!confirm(`Confirmar pagamento da mensalidade para ${selectedMonth}?`)) return;
+  const handleConfirmPayment = async () => {
+    if (!payingClient || savingPayment) return;
+    setSavingPayment(true);
     try {
-      await api.post(`/monthly/pay/${clientId}`, {
+      await api.post(`/monthly/pay/${payingClient.id}`, {
+        paymentMethod,
         month: selectedMonth,
         notes: `Pagamento mensalidade - ${selectedMonth}`,
       });
       await loadClients();
+      setPayingClient(null);
       alert('✅ Pagamento confirmado! Comissão enviada para o faturamento.');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao confirmar pagamento');
+    } finally {
+      setSavingPayment(false);
     }
   };
 
@@ -352,7 +359,8 @@ const AdminMensalistas = () => {
     clients.filter(c => c.isMonthly).reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
 
   const getPaidThisMonth = () =>
-    clients.filter(c => c.isMonthly && hasPaidThisMonth(c)).reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
+    clients.filter(c => c.isMonthly).reduce((sum, c) =>
+      sum + (c.MonthlyPayments?.find(p => p.month === selectedMonth && p.paid)?.amount ?? 0), 0);
 
   const getPendingThisMonth = () =>
     clients.filter(c => c.isMonthly && !hasPaidThisMonth(c)).reduce((sum, c) => sum + (c.monthlyFee || 0), 0);
@@ -394,7 +402,7 @@ const AdminMensalistas = () => {
             onClick={() => {
               setClientName('');
               setClientPhone('');
-              setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', paymentMethod: 'pix', notes: '' });
+              setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', notes: '' });
               setShowNewClientModal(true);
             }}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#9c7f64] hover:bg-[#544941] text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
@@ -572,7 +580,7 @@ const AdminMensalistas = () => {
                             <Edit size={14} className="sm:w-[16px] sm:h-[16px]" />
                           </button>
                           {!paid && (
-                            <button onClick={() => handleConfirmPayment(client.id)} className="text-green-600 hover:text-green-800 transition p-1" title="Confirmar pagamento">
+                            <button onClick={() => { setPaymentMethod('pix'); setPayingClient(client); }} className="text-green-600 hover:text-green-800 transition p-1" title="Confirmar pagamento">
                               <Check size={14} className="sm:w-[16px] sm:h-[16px]" />
                             </button>
                           )}
@@ -711,7 +719,7 @@ const AdminMensalistas = () => {
                   setShowNewClientModal(false);
                   setClientName('');
                   setClientPhone('');
-                  setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', paymentMethod: 'pix', notes: '' });
+                  setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', notes: '' });
                 }}
                 className="text-[#7f7c7a] hover:text-[#060606]"
               >
@@ -804,24 +812,6 @@ const AdminMensalistas = () => {
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Pagamento *</label>
-                <div className="relative">
-                  <CreditCard size={14} className="sm:w-[18px] sm:h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-[#7f7c7a]" />
-                  <select
-                    value={newClient.paymentMethod}
-                    onChange={(e) => setNewClient({ ...newClient, paymentMethod: e.target.value as any })}
-                    className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm appearance-none"
-                    required
-                  >
-                    <option value="dinheiro">Dinheiro</option>
-                    <option value="pix">PIX</option>
-                    <option value="cartao">Cartão</option>
-                    <option value="debito">Débito</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
                 <label className="block text-xs sm:text-sm font-medium text-[#060606] mb-1">Observações</label>
                 <textarea
                   value={newClient.notes}
@@ -839,7 +829,7 @@ const AdminMensalistas = () => {
                     setShowNewClientModal(false);
                     setClientName('');
                     setClientPhone('');
-                    setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', paymentMethod: 'pix', notes: '' });
+                    setNewClient({ name: '', phone: '', monthlyFee: 0, planType: '', barberId: '', notes: '' });
                   }}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-[#060606] py-2 sm:py-3 rounded-lg transition text-sm sm:text-base"
                 >
@@ -973,6 +963,32 @@ const AdminMensalistas = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {payingClient && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+          <form
+            className="w-full max-w-sm space-y-4 rounded-lg bg-white p-5"
+            onSubmit={(event) => { event.preventDefault(); void handleConfirmPayment(); }}
+          >
+            <h2 className="text-lg font-semibold">Confirmar mensalidade</h2>
+            <p>{payingClient.name} · {selectedMonth}</p>
+            <label className="block">
+              Forma de pagamento
+              <select className="mt-1 w-full rounded border p-2" value={paymentMethod}
+                onChange={event => setPaymentMethod(event.target.value as PaymentMethod)} disabled={savingPayment}>
+                {paymentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <p>Valor do plano {formatCurrency(payingClient.monthlyFee)}</p>
+            <p className="font-bold">Total a cobrar {formatCurrency(cardTotal(payingClient.monthlyFee, paymentMethod))}</p>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setPayingClient(null)} disabled={savingPayment}>Cancelar</button>
+              <button type="submit" disabled={savingPayment} className="rounded bg-[#9c7f64] px-4 py-2 text-white">
+                {savingPayment ? 'Salvando…' : 'Confirmar'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

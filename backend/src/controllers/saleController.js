@@ -3,6 +3,8 @@ const { Op } = require('sequelize');
 const { findOrCreateClient } = require('../services/clientService');
 const dateHelper = require('../utils/dateHelper');
 
+const { cardTotal, saleTotal } = require('../utils/cardPayment');
+
 const getAll = async (req, res) => {
   try {
     const { startDate, endDate, barberId, month } = req.query;
@@ -69,7 +71,7 @@ const getSummary = async (req, res) => {
     
     const summary = {
       totalSales: sales.length,
-      totalRevenue: sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0),
+      totalRevenue: sales.reduce((sum, s) => sum + saleTotal(s), 0),
       totalProfit: sales.reduce((sum, s) => sum + (s.profit * s.quantity), 0),
       totalCommission: sales.reduce((sum, s) => sum + (s.commission * s.quantity), 0),
     };
@@ -88,7 +90,7 @@ const create = async (req, res) => {
       clientId, 
       productId, 
       quantity = 1, 
-      paymentMethod,
+      paymentMethod: requestedMethod = 'dinheiro',
       clientName,
       clientPhone
     } = req.body;
@@ -109,6 +111,10 @@ const create = async (req, res) => {
       return res.status(404).json({ error: 'Barbeiro não encontrado' });
     }
     
+    const paymentMethod = requestedMethod === 'credito' ? 'cartao' : requestedMethod;
+    if (!['dinheiro', 'pix', 'debito', 'cartao'].includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Forma de pagamento inválida' });
+    }
     const hoje = dateHelper.getTodayLocal();
     const cashRegister = await CashRegister.findOne({
       where: {
@@ -159,12 +165,14 @@ const create = async (req, res) => {
     console.log(`   Taxa comissão: ${(barber.productCommissionRate * 100).toFixed(0)}%`);
     console.log(`   Comissão: R$ ${commission.toFixed(2)}`);
     
+    const chargedTotal = cardTotal(product.price * quantity, paymentMethod);
     const sale = await Sale.create({
       barberId,
       clientId: client.id,
       productId,
       quantity,
       salePrice: product.price,
+      chargedTotal,
       costPrice: product.costPrice,
       profit,
       commission,
@@ -182,12 +190,13 @@ const create = async (req, res) => {
       services.push({
         id: sale.id,
         type: 'product',
+        saleId: sale.id,
         productId: product.id,
         client: client.name,
         clientId: client.id,
         product: product.name,
         quantity,
-        price: product.price * quantity,
+        price: chargedTotal,
         commission,
         hasCommission: product.hasCommission,
         paymentMethod: paymentMethod || 'dinheiro',
@@ -197,12 +206,12 @@ const create = async (req, res) => {
       
       await cashRegister.update({
         services,
-        totalRevenue: totalRevenue + (product.price * quantity),
+        totalRevenue: totalRevenue + chargedTotal,
         totalCommissions: totalCommissions + commission,
         servicesCount: services.length,
       });
       
-      console.log(`✅ Venda adicionada ao caixa. Total: R$ ${(product.price * quantity).toFixed(2)}`);
+      console.log(`✅ Venda adicionada ao caixa. Total: R$ ${chargedTotal.toFixed(2)}`);
     }
     
     const created = await Sale.findByPk(sale.id, {
@@ -300,7 +309,7 @@ const update = async (req, res) => {
     
     const sale = await Sale.findByPk(id, {
       include: [
-        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice', 'hasCommission'] },
         { model: Barber, as: 'barber', attributes: ['id', 'name', 'productCommissionRate'] } // 🔥 Inclui taxa
       ]
     });
@@ -326,17 +335,23 @@ const update = async (req, res) => {
       }
     }
     
-    const newTotal = salePrice * newQty;
+    const basePrice = salePrice ?? sale.salePrice;
+    const method = paymentMethod === 'credito' ? 'cartao' : paymentMethod || sale.paymentMethod;
+    const chargedTotal = sale.chargedTotal != null || paymentMethod
+      ? cardTotal(basePrice * newQty, method)
+      : null;
+    const newTotal = basePrice * newQty;
     const newCost = sale.product.costPrice * newQty;
     const newProfit = newTotal - newCost;
-    const newCommission = newProfit * (sale.barber?.productCommissionRate || 0.5);
+    const newCommission = sale.product.hasCommission === false ? 0 : newProfit * (sale.barber?.productCommissionRate || 0.5);
     
     await sale.update({
-      salePrice,
+      salePrice: basePrice,
+      chargedTotal,
       quantity: newQty,
       profit: newProfit,
       commission: newCommission,
-      paymentMethod: paymentMethod || sale.paymentMethod
+      paymentMethod: method
     });
     
     const hoje = dateHelper.getTodayLocal();
@@ -353,7 +368,10 @@ const update = async (req, res) => {
         if (s.id === sale.id) {
           return {
             ...s,
-            price: salePrice * newQty,
+            price: chargedTotal ?? newTotal,
+            valor: chargedTotal ?? newTotal,
+            paymentMethod: method,
+            formaPagamento: method,
             commission: newCommission,
             quantity: newQty
           };
@@ -375,7 +393,7 @@ const update = async (req, res) => {
     const updated = await Sale.findByPk(id, {
       include: [
         { model: Barber, as: 'barber', attributes: ['id', 'name'] },
-        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice'] },
+        { model: Product, as: 'product', attributes: ['id', 'name', 'price', 'costPrice', 'hasCommission'] },
         { model: Client, as: 'client', attributes: ['id', 'name'] }
       ]
     });

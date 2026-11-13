@@ -3,6 +3,8 @@ const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
 
 // 🔥 HELPER: carrega planos do banco
+const { cardTotal } = require('../utils/cardPayment');
+
 const getPlanos = async () => {
   const plans = await Plan.findAll({ order: [['displayOrder', 'ASC']] });
   const map = {};
@@ -167,7 +169,10 @@ const updateMonthlyStatus = async (req, res) => {
 const confirmMonthlyPayment = async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { month, amount, notes } = req.body;
+    const { month, amount, notes, paymentMethod = 'pix' } = req.body;
+    if (!['dinheiro', 'pix', 'debito', 'cartao', 'credito'].includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Forma de pagamento inválida' });
+    }
 
     const client = await Client.findByPk(clientId, {
       include: [
@@ -191,14 +196,19 @@ const confirmMonthlyPayment = async (req, res) => {
       return res.status(400).json({ error: `Pagamento de ${month} já foi confirmado` });
     }
 
-    const paymentAmount = amount || client.monthlyFee || 0;
+    const paymentAmount = Number(amount ?? client.monthlyFee ?? 0);
+    if (!Number.isFinite(paymentAmount) || paymentAmount < 0) {
+      return res.status(400).json({ error: 'Valor inválido' });
+    }
     const commissionRate = client.barber.serviceCommissionRate || 0.5;
     const commission = paymentAmount * commissionRate;
 
     const payment = await MonthlyPayment.create({
       clientId,
       month,
-      amount: paymentAmount,
+      baseAmount: paymentAmount,
+      paymentMethod,
+      amount: cardTotal(paymentAmount, paymentMethod),
       paid: true,
       paidAt: new Date(),
       notes: notes || `Pagamento mensalidade - ${month}`,
@@ -300,7 +310,7 @@ const removePayment = async (req, res) => {
     if (!payment) return res.status(404).json({ error: 'Pagamento não encontrado' });
 
     const today = new Date().toISOString().split('T')[0];
-    const revenue = await Revenue.findOne({
+    const revenue = payment.baseAmount != null ? null : await Revenue.findOne({
       where: { date: today, total: payment.amount, servicesCount: 1 }
     });
 
@@ -346,7 +356,8 @@ const updatePayment = async (req, res) => {
     if (amount !== undefined) {
       const parsed = parseFloat(amount);
       if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Valor inválido' });
-      updateData.amount = parsed;
+      if (payment.baseAmount != null) updateData.baseAmount = parsed;
+      updateData.amount = cardTotal(parsed, payment.paymentMethod);
     }
     if (notes !== undefined) updateData.notes = notes;
 

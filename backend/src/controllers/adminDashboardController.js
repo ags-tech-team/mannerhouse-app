@@ -1,3 +1,4 @@
+const { saleTotal, monthlyBase } = require('../utils/cardPayment');
 const { 
   Revenue, 
   Expense, 
@@ -76,7 +77,7 @@ const getDashboard = async (req, res) => {
     
     const serviceRevenues = revenues.filter(r => r.barberId !== null);
     const totalServiceRevenue = serviceRevenues.reduce((sum, r) => sum + r.total, 0);
-    const totalProductRevenue = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+    const totalProductRevenue = sales.reduce((sum, s) => sum + saleTotal(s), 0);
     const totalMonthlyRevenue = monthlyPayments.reduce((sum, mp) => sum + mp.amount, 0);
     const totalRevenue = totalServiceRevenue + totalProductRevenue + totalMonthlyRevenue;
     
@@ -84,7 +85,7 @@ const getDashboard = async (req, res) => {
     const totalProductCommissions = sales.reduce((sum, s) => sum + s.commission, 0);
     const totalMonthlyCommissions = monthlyPayments.reduce((sum, mp) => {
       const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-      return sum + (mp.amount * rate);
+      return sum + (monthlyBase(mp) * rate);
     }, 0);
     const totalCommissions = totalServiceCommissions + totalProductCommissions + totalMonthlyCommissions;
     
@@ -120,7 +121,7 @@ const getDashboard = async (req, res) => {
       });
       
       const total = monthRevenues.reduce((sum, r) => sum + r.total, 0) +
-                    monthSales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0) +
+                    monthSales.reduce((sum, s) => sum + saleTotal(s), 0) +
                     monthMonthly.reduce((sum, mp) => sum + mp.amount, 0);
       
       monthlyRevenue.push({
@@ -141,14 +142,14 @@ const getDashboard = async (req, res) => {
       const servicesCount = barberRevenues.length;
       
       const barberSales = sales.filter(s => s.barberId === barber.id);
-      const productRevenue = barberSales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+      const productRevenue = barberSales.reduce((sum, s) => sum + saleTotal(s), 0);
       const productCommission = barberSales.reduce((sum, s) => sum + s.commission, 0);
       
       const barberMonthly = monthlyPayments.filter(mp => mp.client?.barberId === barber.id);
       const monthlyRevenue_total = barberMonthly.reduce((sum, mp) => sum + mp.amount, 0);
       const monthlyCommission = barberMonthly.reduce((sum, mp) => {
         const rate = mp.client?.barber?.serviceCommissionRate || 0.5;
-        return sum + (mp.amount * rate);
+        return sum + (monthlyBase(mp) * rate);
       }, 0);
       
       return {

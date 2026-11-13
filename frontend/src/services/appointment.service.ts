@@ -81,8 +81,8 @@ export const appointmentService = {
     return response.data;
   },
 
-  async updateStatus(id: string, status: string): Promise<Appointment> {
-    const response = await api.patch(`/appointments/${id}/status`, { status });
+  async updateStatus(id: string, status: string, paymentMethod?: string): Promise<Appointment> {
+    const response = await api.patch(`/appointments/${id}/status`, { status, paymentMethod });
     return response.data;
   },
 

@@ -1,3 +1,4 @@
+import { cardTotal, paymentOptions } from '../../../utils/cardPayment';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../api/client';
@@ -280,6 +281,7 @@ const BarberAgenda = () => {
   };
 
   const openDetailModal = async (appointment: Appointment) => {
+    setPaymentMethod('dinheiro');
     try {
       const fullAppointment = await appointmentService.getById(appointment.id);
       setSelectedAppointment(fullAppointment);
@@ -291,10 +293,12 @@ const BarberAgenda = () => {
     }
   };
 
+  const [paymentMethod, setPaymentMethod] = useState('dinheiro');
+
   const handleUpdateStatus = async (status: string) => {
     if (!selectedAppointment) return;
     try {
-      const updated = await appointmentService.updateStatus(selectedAppointment.id, status);
+      const updated = await appointmentService.updateStatus(selectedAppointment.id, status, status === 'completed' ? paymentMethod : undefined);
       setSelectedAppointment(updated);
       await loadAppointments();
       if (status === 'completed') {
@@ -522,6 +526,16 @@ const BarberAgenda = () => {
               </div>
               <div className="border-t pt-4">
                 <p className="text-sm text-[#7f7c7a] mb-2">🔄 Alterar Status</p>
+                {selectedAppointment.status !== 'completed' && (
+                  <label className="mb-3 block text-sm">
+                    Pagamento ao concluir
+                    <select className="my-1 w-full rounded border p-2" value={paymentMethod}
+                      onChange={event => setPaymentMethod(event.target.value)}>
+                      {paymentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <span>Total a cobrar R$ {cardTotal(selectedAppointment.price ?? 0, paymentMethod).toFixed(2)}</span>
+                  </label>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {statusOptions.map((status) => (
                     <button
