@@ -100,6 +100,8 @@ const BarberCaixa = () => {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
+  const [scheduledTimes, setScheduledTimes] = useState<string[]>([]);
+  const [scheduleError, setScheduleError] = useState(false);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [currentBarber, setCurrentBarber] = useState<Barber | null>(null);
 
@@ -219,35 +221,6 @@ const BarberCaixa = () => {
     return selectedServices.map((s) => s.service.id).join(',');
   };
 
-  // ========== HORÁRIOS OCUPADOS ==========
-  const loadOccupiedTimes = async () => {
-    const barberId = formData.barbeiroId || currentBarber?.id;
-    if (!barberId || !selectedDate) {
-      setOccupiedTimes([]);
-      return;
-    }
-    setLoadingTimes(true);
-    try {
-      const response = await api.get('/appointments/check-availability', {
-        params: { barberId, date: selectedDate },
-      });
-      const bookedFromAppointments = response.data.times || [];
-      const caixaAtual = await cashRegisterService.getToday();
-      const bookedFromCashRegister = caixaAtual?.services
-        ?.filter((s: any) => s.barberId === barberId && s.date === selectedDate)
-        ?.map((s: any) => s.time) || [];
-      const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
-      setOccupiedTimes(allBooked);
-    } catch (error) {
-      console.error('Erro ao carregar horários ocupados:', error);
-      setOccupiedTimes([]);
-    } finally {
-      setLoadingTimes(false);
-    }
-  };
-
-  const isTimeOccupied = (time: string) => occupiedTimes.includes(time);
-
   // ========== LOAD BARBERS ==========
   const loadBarbersList = async () => {
     try {
@@ -322,7 +295,46 @@ const BarberCaixa = () => {
   };
 
   useEffect(() => { loadData(); }, []);
-  useEffect(() => { loadOccupiedTimes(); }, [formData.barbeiroId, selectedDate, currentBarber?.id]);
+  const scheduleBarberId = formData.barbeiroId || currentBarber?.id;
+  useEffect(() => {
+    setScheduledTimes([]);
+    setOccupiedTimes([]);
+    setScheduleError(false);
+    if (!showModal || !scheduleBarberId || !selectedDate) {
+      setLoadingTimes(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLoadingTimes(true);
+    api.get('/appointments/check-availability', {
+      params: { barberId: scheduleBarberId, date: selectedDate },
+      signal: controller.signal,
+    }).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(data.scheduledTimes)) {
+        setScheduleError(true);
+        return;
+      }
+      setScheduledTimes(data.scheduledTimes);
+      setOccupiedTimes(data.times);
+    }).catch(() => {
+      if (!controller.signal.aborted) setScheduleError(true);
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoadingTimes(false);
+    });
+
+    return () => controller.abort();
+  }, [showModal, scheduleBarberId, selectedDate]);
+
+  // Um registro antigo pode manter seu horário original ao editar outros campos.
+  const originalTime = editingServico?.barbeiroId === scheduleBarberId && editingServico?.data === selectedDate
+    ? editingServico?.hora
+    : undefined;
+  const visibleTimes = originalTime && !scheduledTimes.includes(originalTime)
+    ? [...scheduledTimes, originalTime].sort()
+    : scheduledTimes;
+  const isTimeOccupied = (time: string) => time !== originalTime && occupiedTimes.includes(time);
 
   // ========== ABRIR CAIXA ==========
   const handleAbrirCaixa = async () => {
@@ -507,7 +519,10 @@ const BarberCaixa = () => {
 
     if (!selectedDate) return alert('Selecione uma data');
     if (!selectedTime) return alert('Selecione um horário');
-    if (!editingServico && isTimeOccupied(selectedTime)) {
+    if (loadingTimes || scheduleError || !visibleTimes.includes(selectedTime)) {
+      return alert('Selecione um horário da escala do barbeiro.');
+    }
+    if (isTimeOccupied(selectedTime)) {
       return alert(`⚠️ O horário ${selectedTime} já está ocupado para este barbeiro!`);
     }
 
@@ -1093,6 +1108,7 @@ const BarberCaixa = () => {
                     const id = e.target.value;
                     const barber = barbersList.find((b) => b.id === id);
                     if (barber) {
+                      setSelectedTime('');
                       setCurrentBarber(barber);
                       setFormData((prev) => ({ ...prev, barbeiroId: barber.id, barbeiroNome: barber.name }));
                     }
@@ -1108,7 +1124,7 @@ const BarberCaixa = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[#060606] mb-1">Data</label>
-                  <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                  <input type="date" value={selectedDate} onChange={(e) => { setSelectedTime(''); setSelectedDate(e.target.value); }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#9c7f64] text-sm" required />
                 </div>
                 <div>
@@ -1117,9 +1133,13 @@ const BarberCaixa = () => {
                     <div className="flex justify-center py-4">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#9c7f64]"></div>
                     </div>
+                  ) : scheduleError ? (
+                    <p className="text-xs text-red-600">Erro ao carregar horários.</p>
+                  ) : visibleTimes.length === 0 ? (
+                    <p className="text-xs text-[#7f7c7a]">Nenhum horário cadastrado para este dia.</p>
                   ) : (
                     <div className="grid grid-cols-3 gap-1">
-                      {['09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00'].map((time) => {
+                      {visibleTimes.map((time) => {
                         const isBooked = isTimeOccupied(time);
                         return (
                           <button key={time} type="button"

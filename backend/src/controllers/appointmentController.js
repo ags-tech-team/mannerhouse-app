@@ -1,3 +1,4 @@
+const { getScheduledTimes } = require('../utils/barberSchedule');
 const { cardTotal } = require('../utils/cardPayment');
 const { Appointment, Barber, Client, CashRegister, Revenue, Service } = require('../models');
 const { Op } = require('sequelize');
@@ -116,11 +117,8 @@ const getAvailableTimes = async (req, res) => {
     const barber = await Barber.findByPk(barberId);
     if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
 
-    const schedule = barber.schedule || {};
-    const dayOfWeek = dateHelper.getDayOfWeekEn(date);
-    const daySchedule = schedule[dayOfWeek];
-
-    if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) return res.json([]);
+    const scheduledTimes = getScheduledTimes(barber, date);
+    if (scheduledTimes.length === 0) return res.json([]);
 
     const appointments = await Appointment.findAll({
       where: { barberId, date, status: { [Op.notIn]: ['cancelled'] } },
@@ -128,7 +126,7 @@ const getAvailableTimes = async (req, res) => {
     });
     const bookedTimes = appointments.map(a => a.time);
 
-    let availableTimes = daySchedule.times.filter(time => !bookedTimes.includes(time));
+    let availableTimes = scheduledTimes.filter(time => !bookedTimes.includes(time));
 
     if (date === dateHelper.getTodayLocal()) {
       const now = new Date();
@@ -429,6 +427,9 @@ const checkAvailability = async (req, res) => {
     const { barberId, date } = req.query;
     if (!barberId || !date) return res.status(400).json({ error: 'Barbeiro e data são obrigatórios' });
 
+    const barber = await Barber.findByPk(barberId);
+    if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
+
     const appointments = await Appointment.findAll({
       where: { barberId, date, status: { [Op.notIn]: ['cancelled'] } },
       attributes: ['time']
@@ -438,14 +439,14 @@ const checkAvailability = async (req, res) => {
     let bookedFromCashRegister = [];
     if (cashRegister && cashRegister.services) {
       bookedFromCashRegister = cashRegister.services
-        .filter((s) => s.barberId === barberId && s.date === date)
-        .map((s) => s.time);
+        .filter((s) => (s.barberId || s.barbeiroId) === barberId && (s.date || s.data) === date)
+        .map((s) => s.time || s.hora);
     }
 
     const bookedFromAppointments = appointments.map((a) => a.time);
     const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
 
-    res.json({ times: allBooked });
+    res.json({ times: allBooked, scheduledTimes: getScheduledTimes(barber, date) });
   } catch (error) {
     console.error('❌ Erro ao verificar disponibilidade:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamento' });
@@ -466,7 +467,6 @@ const getAvailableDates = async (req, res) => {
     const [year, mes] = month.split('-').map(Number);
     if (!year || !mes || mes < 1 || mes > 12) return res.status(400).json({ error: 'Mês inválido' });
 
-    const schedule = barber.schedule || {};
     const daysInMonth = new Date(year, mes, 0).getDate();
     const availableDates = [];
     const todayStr = dateHelper.getTodayLocal();
@@ -475,9 +475,8 @@ const getAvailableDates = async (req, res) => {
       const dateStr = `${year}-${String(mes).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       if (dateStr < todayStr) continue;
 
-      const dayOfWeek = dateHelper.getDayOfWeekEn(dateStr);
-      const daySchedule = schedule[dayOfWeek];
-      if (!daySchedule || !daySchedule.enabled || daySchedule.times.length === 0) continue;
+      const scheduledTimes = getScheduledTimes(barber, dateStr);
+      if (scheduledTimes.length === 0) continue;
 
       const appointments = await Appointment.findAll({
         where: { barberId, date: dateStr, status: { [Op.notIn]: ['cancelled'] } },
@@ -485,7 +484,7 @@ const getAvailableDates = async (req, res) => {
       });
       const bookedTimes = appointments.map(a => a.time);
 
-      let timesToCheck = daySchedule.times;
+      let timesToCheck = scheduledTimes;
       if (dateStr === todayStr) {
         const now = new Date();
         const currentHour = now.getHours();

@@ -1,3 +1,4 @@
+const { getScheduledTimes } = require('../utils/barberSchedule');
 const { Appointment, Barber, Client, Service, Plan } = require('../models');
 const { Op } = require('sequelize');
 const dateHelper = require('../utils/dateHelper');
@@ -44,18 +45,8 @@ const getAvailableTimes = async (req, res) => {
     const barber = await Barber.findByPk(barberId);
     if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
 
-    const dayOfWeek = dateHelper.getDayOfWeekEn(date);
-    if (!dayOfWeek) return res.status(400).json({ error: 'Data inválida para cálculo do dia da semana' });
-
-    const schedule = barber.schedule || {};
-    const daySchedule = schedule[dayOfWeek];
-
-    let allTimes = [];
-    if (daySchedule && daySchedule.enabled) {
-      allTimes = daySchedule.times || [];
-    } else {
-      return res.json([]);
-    }
+    const allTimes = getScheduledTimes(barber, date);
+    if (allTimes.length === 0) return res.json([]);
 
     const appointments = await Appointment.findAll({
       where: { barberId, date, status: { [Op.notIn]: ['cancelled'] } },

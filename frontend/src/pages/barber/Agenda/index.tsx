@@ -141,19 +141,6 @@ const BarberAgenda = () => {
     }
   }, [selectedBarberId, currentDate]);
 
-  const loadAvailableTimes = useCallback(async () => {
-    if (!selectedBarberId || !selectedDate) return;
-    setLoadingTimes(true);
-    try {
-      const times = await appointmentService.getAvailableTimes(selectedBarberId, selectedDate);
-      setAvailableTimes(times);
-    } catch (error) {
-      console.error('Erro ao carregar horários:', error);
-    } finally {
-      setLoadingTimes(false);
-    }
-  }, [selectedBarberId, selectedDate]);
-
   const getTotalServices = () => {
     if (selectedServices.some(s => s.service.id === 'mensalista')) {
       return 0;
@@ -176,10 +163,28 @@ const BarberAgenda = () => {
   }, [selectedBarberId, currentDate, loadAppointments]);
 
   useEffect(() => {
-    if (selectedDate) {
-      loadAvailableTimes();
+    setSelectedTime('');
+    setAvailableTimes([]);
+    if (!showModal || !selectedBarberId || !selectedDate) {
+      setLoadingTimes(false);
+      return;
     }
-  }, [selectedDate, loadAvailableTimes]);
+
+    const controller = new AbortController();
+    setLoadingTimes(true);
+    appointmentService.getAvailableTimes(selectedBarberId, selectedDate, controller.signal)
+      .then(times => {
+        if (!controller.signal.aborted) setAvailableTimes(times);
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) console.error('Erro ao carregar horários:', error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingTimes(false);
+      });
+
+    return () => controller.abort();
+  }, [showModal, selectedBarberId, selectedDate]);
 
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);
@@ -213,7 +218,7 @@ const BarberAgenda = () => {
       alert('Selecione uma data');
       return;
     }
-    if (!selectedTime) {
+    if (loadingTimes || !availableTimes.includes(selectedTime)) {
       alert('Selecione um horário');
       return;
     }

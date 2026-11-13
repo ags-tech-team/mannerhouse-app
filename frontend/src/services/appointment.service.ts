@@ -66,8 +66,8 @@ export const appointmentService = {
     return response.data;
   },
 
-  async getAvailableTimes(barberId: string, date: string): Promise<string[]> {
-    const response = await api.get(`/appointments/barber/${barberId}/available`, { params: { date } });
+  async getAvailableTimes(barberId: string, date: string, signal?: AbortSignal): Promise<string[]> {
+    const response = await api.get(`/appointments/barber/${barberId}/available`, { params: { date }, signal });
     return response.data;
   },
 
