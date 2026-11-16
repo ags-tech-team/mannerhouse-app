@@ -1,6 +1,6 @@
 const surchargeRate = (method) => {
   if (method === 'debito') return 5;
-  if (method === 'credito' || method === 'cartao') return 8;
+  if (method === 'credito' || method === 'cartao') return 8.5;
   return 0;
 };
 

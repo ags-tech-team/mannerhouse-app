@@ -337,9 +337,12 @@ const update = async (req, res) => {
     
     const basePrice = salePrice ?? sale.salePrice;
     const method = paymentMethod === 'credito' ? 'cartao' : paymentMethod || sale.paymentMethod;
-    const chargedTotal = sale.chargedTotal != null || paymentMethod
-      ? cardTotal(basePrice * newQty, method)
-      : null;
+    const paymentChanged = method !== sale.paymentMethod;
+    const baseChanged = Number(basePrice) !== Number(sale.salePrice) || newQty !== oldQty;
+    let chargedTotal = sale.chargedTotal;
+    if (paymentChanged || (baseChanged && chargedTotal != null)) {
+      chargedTotal = cardTotal(basePrice * newQty, method);
+    }
     const newTotal = basePrice * newQty;
     const newCost = sale.product.costPrice * newQty;
     const newProfit = newTotal - newCost;

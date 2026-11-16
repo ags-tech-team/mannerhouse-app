@@ -356,8 +356,10 @@ const updatePayment = async (req, res) => {
     if (amount !== undefined) {
       const parsed = parseFloat(amount);
       if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Valor inválido' });
-      if (payment.baseAmount != null) updateData.baseAmount = parsed;
-      updateData.amount = cardTotal(parsed, payment.paymentMethod);
+      if (parsed !== Number(payment.baseAmount ?? payment.amount)) {
+        if (payment.baseAmount != null) updateData.baseAmount = parsed;
+        updateData.amount = cardTotal(parsed, payment.paymentMethod);
+      }
     }
     if (notes !== undefined) updateData.notes = notes;
 

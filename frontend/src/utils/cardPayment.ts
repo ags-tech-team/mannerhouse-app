@@ -2,7 +2,7 @@ export const paymentOptions = [
   { value: 'dinheiro', label: 'Dinheiro', surcharge: 0 },
   { value: 'pix', label: 'Pix', surcharge: 0 },
   { value: 'debito', label: 'Débito (+5%)', surcharge: 5 },
-  { value: 'cartao', label: 'Crédito (+8%)', surcharge: 8 },
+  { value: 'cartao', label: 'Crédito (+8,5%)', surcharge: 8.5 },
 ] as const;
 
 export type PaymentMethod = typeof paymentOptions[number]['value'];

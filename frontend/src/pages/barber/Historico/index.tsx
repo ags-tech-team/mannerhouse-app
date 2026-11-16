@@ -251,7 +251,6 @@ const BarberHistorico = () => {
       } else if (selectedItemType === 'service') {
         await api.put(`/revenues/${selectedItem.id}`, {
           total: editData.price,
-          commissions: editData.price * 0.5,
         });
       } else if (selectedItemType === 'product') {
         await api.put(`/sales/${selectedItem.id}`, {
