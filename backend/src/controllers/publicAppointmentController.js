@@ -87,6 +87,10 @@ const createAppointment = async (req, res) => {
     const barber = await Barber.findByPk(barberId);
     if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
 
+    if (!getScheduledTimes(barber, date).includes(time)) {
+      return res.status(400).json({ error: 'Horário indisponível para agendamento público' });
+    }
+
     const existing = await Appointment.findOne({
       where: { barberId, date, time, status: { [Op.notIn]: ['cancelled'] } }
     });

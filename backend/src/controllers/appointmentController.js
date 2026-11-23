@@ -1,4 +1,4 @@
-const { getScheduledTimes } = require('../utils/barberSchedule');
+const { getScheduledTimes, internalTimes } = require('../utils/barberSchedule');
 const { cardTotal } = require('../utils/cardPayment');
 const { Appointment, Barber, Client, CashRegister, Revenue, Service } = require('../models');
 const { Op } = require('sequelize');
@@ -117,16 +117,13 @@ const getAvailableTimes = async (req, res) => {
     const barber = await Barber.findByPk(barberId);
     if (!barber) return res.status(404).json({ error: 'Barbeiro não encontrado' });
 
-    const scheduledTimes = getScheduledTimes(barber, date);
-    if (scheduledTimes.length === 0) return res.json([]);
-
     const appointments = await Appointment.findAll({
       where: { barberId, date, status: { [Op.notIn]: ['cancelled'] } },
       attributes: ['time']
     });
     const bookedTimes = appointments.map(a => a.time);
 
-    let availableTimes = scheduledTimes.filter(time => !bookedTimes.includes(time));
+    let availableTimes = internalTimes.filter(time => !bookedTimes.includes(time));
 
     if (date === dateHelper.getTodayLocal()) {
       const now = new Date();
@@ -446,7 +443,7 @@ const checkAvailability = async (req, res) => {
     const bookedFromAppointments = appointments.map((a) => a.time);
     const allBooked = [...new Set([...bookedFromAppointments, ...bookedFromCashRegister])];
 
-    res.json({ times: allBooked, scheduledTimes: getScheduledTimes(barber, date) });
+    res.json({ times: allBooked, scheduledTimes: internalTimes });
   } catch (error) {
     console.error('❌ Erro ao verificar disponibilidade:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamento' });
